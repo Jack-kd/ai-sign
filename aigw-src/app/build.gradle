@@ -1,0 +1,66 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+// 说明：
+// 此目录下 decompiled 出的 Java/Kotlin 源码，由 jadx 从
+// "AI 聚合网关_0.1.18.apk" 反编译而来，原始工程经 R8 重度混淆
+// （类名压缩为 a/b/c、V1.k、C0482C 等短名），主要用于在
+// Android Studio 内阅读、检索业务逻辑。
+//
+// 由于混淆代码无法稳定逐类重编译，真正的"编译出 APK"由仓库内的
+// GitHub Actions 工作流（.github/workflows/build.yml）通过
+// apktool(smali) + aapt2 + 签名完成，请以该工作流为准。
+android {
+    namespace 'dev.aigw.app'
+    compileSdk 36
+    buildToolsVersion "36.0.0"
+
+    defaultConfig {
+        applicationId 'dev.aigw.app'
+        minSdk 26
+        targetSdk 36
+        versionCode 19
+        versionName "0.1.18"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    // 反编译源码里附带了完整的 resources.arsc 解码结果（含 public.xml），
+    // 稳定起见让 aapt2 沿用原始资源 ID，避免 R 类错位。
+    aaptOptions {
+        // 保留原始资源 ID（public.xml 已在 res/values 中被解码保留）
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    // 反编译源码已经内嵌了 androidx / kotlin-stdlib / gson 等库的全部类，
+    // 因此这里不再重复声明外部依赖，避免 duplicate class。
+    // 若仅作阅读，可在 IDE 中把依赖当作"库"来跳转：
+    // implementation 'androidx.core:core-ktx:1.13.0'
+    // implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.0.21'
+    // implementation 'com.google.code.gson:gson:2.10.1'
+    // implementation 'androidx.compose.material3:material3:1.2.1'
+    // implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    // implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    // ...（反编译代码中这些库被混淆合并，实际运行时一并打包在 dex 内）
+}

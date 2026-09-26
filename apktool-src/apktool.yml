@@ -1,0 +1,24 @@
+version: 2.11.1
+apkFileName: AI 聚合网关_0.1.18.apk
+isFrameworkApk: false
+usesFramework:
+  ids:
+  - 1
+  tag: null
+sdkInfo:
+  minSdkVersion: 26
+  targetSdkVersion: 36
+packageInfo:
+  forcedPackageId: 127
+  renameManifestPackage: null
+versionInfo:
+  versionCode: 19
+  versionName: 0.1.18
+sharedLibrary: false
+sparseResources: false
+compactEntries: false
+doNotCompress:
+- arsc
+- so
+- assets/dexopt/baseline.prof
+- assets/dexopt/baseline.profm

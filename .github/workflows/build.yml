@@ -1,0 +1,103 @@
+name: Build APK
+
+# 通过 apktool(smali) + aapt2 反编译/回编译 + 签名，产出可安装的 APK。
+# 原理：原始工程经 R8 重度混淆，逐类反编译成的 Java 无法稳定重编译，
+# 而 smali(字节码汇编) 可以无损往返，是最可靠的"编译出 APK"路径。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apktool-src/**'
+      - '**/*.apk'
+      - '.github/workflows/build.yml'
+  workflow_dispatch:
+    inputs:
+      source:
+        description: '构建来源'
+        required: true
+        default: 'apktool-src'
+        type: choice
+        options:
+          - apktool-src
+          - apk
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Cache tooling
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/apktool
+            tools/
+          key: tools-${{ runner.os }}-v1
+
+      - name: Download apktool
+        run: |
+          mkdir -p tools
+          if [ ! -f tools/apktool.jar ]; then
+            curl -fL --retry 3 -o tools/apktool.jar \
+              "https://github.com/iBotPeaches/Apktool/releases/download/v2.11.1/apktool_2.11.1.jar"
+          fi
+
+      - name: Download uber-apk-signer
+        run: |
+          if [ ! -f tools/uber-apk-signer.jar ]; then
+            curl -fL --retry 3 -o tools/uber-apk-signer.jar \
+              "https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar"
+          fi
+
+      - name: Download aapt2 (linux)
+        run: |
+          if [ ! -x tools/aapt2/aapt2 ]; then
+            curl -fL --retry 3 -o tools/aapt2.jar \
+              "https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2/9.4.1-15978811/aapt2-9.4.1-15978811-linux.jar"
+            unzip -q -o tools/aapt2.jar -d tools/aapt2
+            chmod +x tools/aapt2/aapt2
+          fi
+          echo "$(pwd)/tools/aapt2" >> "$GITHUB_PATH"
+
+      - name: Prepare decoded project (smali)
+        id: prepare
+        run: |
+          SRC="${{ github.event.inputs.source }}"
+          if [ -z "$SRC" ]; then SRC="apktool-src"; fi
+
+          if [ "$SRC" = "apktool-src" ] && [ -f "apktool-src/apktool.yml" ]; then
+            echo "使用仓库内已反编译的 apktool-src/"
+            echo "input=apktool-src" >> "$GITHUB_OUTPUT"
+          else
+            APK=$(ls -- *.apk | head -n 1)
+            echo "从 APK 反编译: $APK"
+            java -jar tools/apktool.jar d -f -o decoded "$APK"
+            echo "input=decoded" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build APK (apktool b + aapt2)
+        run: |
+          java -jar tools/apktool.jar b --use-aapt2 -o unsigned.apk "${{ steps.prepare.outputs.input }}"
+
+      - name: Sign & zipalign
+        run: |
+          java -jar tools/uber-apk-signer.jar --apks unsigned.apk --overwrite
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AI-聚合网关-signed-apk
+          path: unsigned.apk
+          if-no-files-found: error

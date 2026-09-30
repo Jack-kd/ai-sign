@@ -59,9 +59,24 @@ cp "$SRC_FILE" "$TARGET_DIR/$FNAME"
 # 5. 提交推送
 git config user.email "phone@local"
 git config user.name "PhoneUpload"
+# 网络优化：国内连 GitHub 常被重置，强制走 HTTP/1.1 + 加大缓冲
+git config http.version HTTP/1.1
+git config http.postBuffer 524288000
 git add -f "$TARGET_DIR/$FNAME"
 git commit -m "上传 $FNAME 到 $TARGET_DIR" || echo "> 无变化，跳过提交"
-git push origin "$BRANCH"
+
+# 6. 推送（带重试，最多 10 次）
+for i in $(seq 1 10); do
+  echo "> 第 $i 次推送 ..."
+  if git push origin "$BRANCH"; then
+    echo ""
+    echo "> 完成！文件已上传到：${GITHUB_USER}/${REPO}/${TARGET_DIR}/${FNAME}"
+    exit 0
+  fi
+  echo "> 推送失败，5 秒后重试 ..."
+  sleep 5
+done
 
 echo ""
-echo "> 完成！文件已上传到：${GITHUB_USER}/${REPO}/${TARGET_DIR}/${FNAME}"
+echo "!! 推送多次仍失败，可能是网络问题，建议切换网络或改用 SSH 上传"
+exit 1

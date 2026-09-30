@@ -59,7 +59,7 @@ cp "$SRC_FILE" "$TARGET_DIR/$FNAME"
 # 5. 提交推送
 git config user.email "phone@local"
 git config user.name "PhoneUpload"
-git add "$TARGET_DIR/$FNAME"
+git add -f "$TARGET_DIR/$FNAME"
 git commit -m "上传 $FNAME 到 $TARGET_DIR" || echo "> 无变化，跳过提交"
 git push origin "$BRANCH"
 

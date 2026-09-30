@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/card_bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- 标题区 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_header_gradient"
+            android:padding="16dp"
+            android:paddingBottom="18dp">
+
+            <TextView
+                android:id="@+id/tvDetailLabel"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="账号"
+                android:textColor="@color/white"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_badge"
+                android:paddingLeft="8dp"
+                android:paddingRight="8dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:text="TRAE"
+                android:textColor="@color/white"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- 凭证卡片 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/bg_card"
+            android:elevation="2dp">
+
+            <!-- accessToken (默认展开) -->
+            <LinearLayout
+                android:id="@+id/headerAccess"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="14dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Access Token"
+                    android:textColor="@color/black"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/iconAccess"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▸"
+                    android:textColor="@color/gray"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider" />
+            <TextView
+                android:id="@+id/tvAccessToken"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="14dp"
+                android:background="@color/card_bg"
+                android:fontFamily="monospace"
+                android:gravity="center_vertical"
+                android:textIsSelectable="true"
+                android:textColor="@color/primary_dark"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider" />
+
+            <!-- refreshToken -->
+            <LinearLayout
+                android:id="@+id/headerRefresh"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="14dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Refresh Token"
+                    android:textColor="@color/black"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/iconRefresh"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▸"
+                    android:textColor="@color/gray"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvRefreshToken"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="14dp"
+                android:background="@color/card_bg"
+                android:fontFamily="monospace"
+                android:gravity="center_vertical"
+                android:textIsSelectable="true"
+                android:textColor="@color/primary_dark"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider" />
+
+            <!-- uid -->
+            <LinearLayout
+                android:id="@+id/headerUid"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="14dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="UID"
+                    android:textColor="@color/black"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/iconUid"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▸"
+                    android:textColor="@color/gray"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvUid"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="14dp"
+                android:background="@color/card_bg"
+                android:fontFamily="monospace"
+                android:gravity="center_vertical"
+                android:textIsSelectable="true"
+                android:textColor="@color/primary_dark"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider" />
+
+            <!-- deviceId -->
+            <LinearLayout
+                android:id="@+id/headerDevice"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="14dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Device ID"
+                    android:textColor="@color/black"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/iconDevice"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▸"
+                    android:textColor="@color/gray"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvDeviceId"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="14dp"
+                android:background="@color/card_bg"
+                android:fontFamily="monospace"
+                android:gravity="center_vertical"
+                android:textIsSelectable="true"
+                android:textColor="@color/primary_dark"
+                android:textSize="12sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- 复制按钮 -->
+        <TextView
+            android:id="@+id/btnCopyAll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_btn"
+            android:gravity="center"
+            android:padding="13dp"
+            android:text="复制全部凭证"
+            android:textColor="@color/white"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <!-- 日志终端区 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="📄 签到日志"
+            android:textColor="@color/black"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvLogs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@color/terminal_bg"
+            android:padding="14dp"
+            android:text="> 正在加载日志..."
+            android:textColor="@color/terminal_white"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:lineSpacingExtra="4dp" />
+    </LinearLayout>
+</ScrollView>

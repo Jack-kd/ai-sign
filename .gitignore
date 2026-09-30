@@ -1,0 +1,22 @@
+# Android
+*.apk
+*.ap_
+*.aab
+build/
+.gradle/
+local.properties
+captures/
+*.keystore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+trae_credentials.json
+
+# IDE
+.idea/
+*.iml
+.DS_Store

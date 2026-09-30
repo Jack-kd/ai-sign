@@ -1,0 +1,375 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/card_bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- 标题区 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_header_gradient"
+            android:padding="16dp"
+            android:paddingBottom="18dp">
+
+            <TextView
+                android:id="@+id/tvWbDetailLabel"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="账号"
+                android:textColor="@color/white"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_badge"
+                android:paddingLeft="8dp"
+                android:paddingRight="8dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:text="WorkBuddy"
+                android:textColor="@color/white"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- 凭证卡片 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/bg_card"
+            android:elevation="2dp">
+
+            <!-- accessToken (默认展开) -->
+            <LinearLayout
+                android:id="@+id/headerWbAccess"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="14dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Access Token"
+                    android:textColor="@color/black"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/iconWbAccess"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▸"
+                    android:textColor="@color/gray"
+                    android:textSize="16sp" />
+            </LinearLayout>
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider" />
+
+            <TextView
+                android:id="@+id/tvWbAccessToken"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="14dp"
+                android:background="@color/card_bg"
+                android:fontFamily="monospace"
+                android:gravity="center_vertical"
+                android:textIsSelectable="true"
+                android:textColor="@color/primary_dark"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider" />
+
+            <!-- refreshToken -->
+            <LinearLayout
+                android:id="@+id/headerWbRefresh"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="14dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Refresh Token"
+                    android:textColor="@color/black"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/iconWbRefresh"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▸"
+                    android:textColor="@color/gray"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvWbRefreshToken"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="14dp"
+                android:background="@color/card_bg"
+                android:fontFamily="monospace"
+                android:gravity="center_vertical"
+                android:textIsSelectable="true"
+                android:textColor="@color/primary_dark"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider" />
+
+            <!-- uid -->
+            <LinearLayout
+                android:id="@+id/headerWbUid"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="14dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="UID"
+                    android:textColor="@color/black"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/iconWbUid"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▸"
+                    android:textColor="@color/gray"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvWbUid"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="14dp"
+                android:background="@color/card_bg"
+                android:fontFamily="monospace"
+                android:gravity="center_vertical"
+                android:textIsSelectable="true"
+                android:textColor="@color/primary_dark"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider" />
+
+            <!-- domain -->
+            <LinearLayout
+                android:id="@+id/headerWbDomain"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="14dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Domain"
+                    android:textColor="@color/black"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/iconWbDomain"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▸"
+                    android:textColor="@color/gray"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvWbDomain"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="14dp"
+                android:background="@color/card_bg"
+                android:fontFamily="monospace"
+                android:gravity="center_vertical"
+                android:textIsSelectable="true"
+                android:textColor="@color/primary_dark"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider" />
+
+            <!-- enterpriseId -->
+            <LinearLayout
+                android:id="@+id/headerWbEnterprise"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="14dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Enterprise ID"
+                    android:textColor="@color/black"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/iconWbEnterprise"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▸"
+                    android:textColor="@color/gray"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvWbEnterprise"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="14dp"
+                android:background="@color/card_bg"
+                android:fontFamily="monospace"
+                android:gravity="center_vertical"
+                android:textIsSelectable="true"
+                android:textColor="@color/primary_dark"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider" />
+
+            <!-- nickname -->
+            <LinearLayout
+                android:id="@+id/headerWbNickname"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="14dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Nickname"
+                    android:textColor="@color/black"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/iconWbNickname"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▸"
+                    android:textColor="@color/gray"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvWbNickname"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="14dp"
+                android:background="@color/card_bg"
+                android:fontFamily="monospace"
+                android:gravity="center_vertical"
+                android:textIsSelectable="true"
+                android:textColor="@color/primary_dark"
+                android:textSize="12sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- 复制按钮 -->
+        <TextView
+            android:id="@+id/btnWbCopyAll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_btn"
+            android:gravity="center"
+            android:padding="13dp"
+            android:text="复制全部凭证"
+            android:textColor="@color/white"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <!-- 日志终端区 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="📄 签到日志"
+            android:textColor="@color/black"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvWbLogs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@color/terminal_bg"
+            android:padding="14dp"
+            android:text="> 正在加载日志..."
+            android:textColor="@color/terminal_white"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:lineSpacingExtra="4dp" />
+    </LinearLayout>
+</ScrollView>

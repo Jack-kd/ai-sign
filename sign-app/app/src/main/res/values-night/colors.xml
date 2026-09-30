@@ -1,0 +1,24 @@
+<resources>
+    <!-- 深色模式配色 -->
+    <color name="primary">#4C9AFF</color>
+    <color name="primary_dark">#3B82E8</color>
+    <color name="white">#E8E8EA</color>
+    <color name="black">#121212</color>
+    <color name="gray">#9E9E9E</color>
+    <color name="light_gray">#1E1E1E</color>
+    <color name="success_green">#52C41A</color>
+    <color name="error_red">#FF6B6B</color>
+    <!-- 终端/日志样式（深色下保持不变） -->
+    <color name="terminal_bg">#0D1117</color>
+    <color name="terminal_green">#4EC9B0</color>
+    <color name="terminal_cyan">#569CD6</color>
+    <color name="terminal_yellow">#DCDCAA</color>
+    <color name="terminal_orange">#CE9178</color>
+    <color name="terminal_white">#D4D4D4</color>
+    <color name="terminal_dim">#6A9955</color>
+    <color name="terminal_gray">#9E9E9E</color>
+    <color name="card_bg">#1F1F1F</color>
+    <color name="divider">#2A2A2A</color>
+    <color name="btn_info_bg">#1B3A5C</color>
+    <color name="btn_info_text">#7FB4FF</color>
+</resources>

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <!-- 已登录账号快速切换区 -->
+    <LinearLayout
+        android:id="@+id/headerSavedAccounts"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="?attr/selectableItemBackground"
+        android:paddingVertical="8dp">
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="已登录账号"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/primary" />
+        <TextView
+            android:id="@+id/iconSavedAccounts"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="▽"
+            android:textSize="14sp"
+            android:textColor="@color/gray" />
+    </LinearLayout>
+
+    <!-- 已登录账号列表（默认隐藏，点击 ▽ 展开） -->
+    <LinearLayout
+        android:id="@+id/containerSavedAccounts"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone"
+        android:paddingLeft="8dp">
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="12dp" />
+
+    <!-- 新增账号输入区 -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/tilUser"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="GitHub 用户名">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etUser"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/tilToken"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="GitHub Token"
+        app:passwordToggleEnabled="true">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etToken"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textPassword" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/tilRepo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="仓库名（选填）">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etRepo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- 底部 + 添加账号按钮 -->
+    <LinearLayout
+        android:id="@+id/btnAddAccount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/bg_badge"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="8dp">
+        <TextView
+            android:id="@+id/tvAddAccount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="+ 添加账号"
+            android:textSize="14sp"
+            android:textColor="@color/primary" />
+    </LinearLayout>
+</LinearLayout>

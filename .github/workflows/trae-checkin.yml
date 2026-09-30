@@ -1,0 +1,22 @@
+name: TRAE 自动签到
+on:
+  schedule:
+    - cron: '0 16 * * *'
+  workflow_dispatch: {}
+permissions:
+  contents: write
+
+jobs:
+  checkin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 执行多账号签到
+        run: cd scripts && python trae_checkin_multi.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

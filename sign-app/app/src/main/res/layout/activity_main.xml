@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <!-- 顶部栏：GitHub 账号(可点击切换) + 设置图标 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="16dp"
+        android:background="@color/primary">
+        <LinearLayout
+            android:id="@+id/btnSwitchAccount"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="?attr/selectableItemBackgroundBorderless">
+            <TextView
+                android:id="@+id/tvUser"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="GitHub: 未授权"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/tvUserDropdown"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="▽"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:padding="2dp" />
+        </LinearLayout>
+        <TextView
+            android:id="@+id/btnSettings"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚙"
+            android:textColor="@color/white"
+            android:textSize="24sp"
+            android:padding="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+    </LinearLayout>
+
+    <!-- 标签页：TRAE | WorkBuddy -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:background="@color/light_gray">
+
+        <TextView
+            android:id="@+id/tabTrae"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/tab_selected"
+            android:gravity="center"
+            android:padding="10dp"
+            android:text="TRAE"
+            android:textColor="@color/white"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tabWorkBuddy"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/tab_unselected"
+            android:gravity="center"
+            android:padding="10dp"
+            android:text="WorkBuddy"
+            android:textColor="@color/gray"
+            android:textSize="15sp" />
+    </LinearLayout>
+
+    <!-- TRAE 页面 -->
+    <LinearLayout
+        android:id="@+id/pageTrae"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/tvSchedule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="TRAE 签到时间: 未设置"
+            android:textColor="@color/black"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/btnLoginTrae"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@color/primary"
+                android:gravity="center"
+                android:padding="10dp"
+                android:text="登录 TRAE"
+                android:textColor="@color/white"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/btnTriggerTrae"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:background="@color/primary_dark"
+                android:gravity="center"
+                android:padding="10dp"
+                android:text="立即签到TRAE"
+                android:textColor="@color/white"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="6dp"
+            android:text="TRAE 账号"
+            android:textColor="@color/black"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvAccounts"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+    </LinearLayout>
+
+    <!-- WorkBuddy 页面 -->
+    <LinearLayout
+        android:id="@+id/pageWorkBuddy"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvScheduleWorkBuddy"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="WorkBuddy 签到时间: 未设置"
+            android:textColor="@color/black"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/btnLoginWorkBuddy"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@color/primary_dark"
+                android:gravity="center"
+                android:padding="10dp"
+                android:text="登录 WorkBuddy"
+                android:textColor="@color/white"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/btnTriggerWb"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:background="@color/primary"
+                android:gravity="center"
+                android:padding="10dp"
+                android:text="立即签到WB"
+                android:textColor="@color/white"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="6dp"
+            android:text="WorkBuddy 账号"
+            android:textColor="@color/black"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvWorkBuddyAccounts"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+    </LinearLayout>
+</LinearLayout>

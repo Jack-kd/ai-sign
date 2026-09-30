@@ -72,6 +72,9 @@ object TraeCredentialExtractor {
         )
     }
 
-    /** 生成 deviceId：13 位数字（与原软件格式一致） */
-    fun generateDeviceId(): String = System.currentTimeMillis().toString().takeLast(13)
+    /** 生成 deviceId：15 位纯数字（服务端校验要求 14~20 位，原软件生成的是 15 位） */
+    fun generateDeviceId(): String {
+        val n = 100000000000000L + kotlin.random.Random.nextLong(900000000000000L)
+        return n.toString()
+    }
 }

@@ -44,6 +44,7 @@ class LoginActivity : AppCompatActivity() {
     private var serverThread: Thread? = null
     private val serverRunning = AtomicBoolean(false)
     private var boundPort: Int = 0
+    private var pendingDeviceId: String = ""
 
     companion object {
         private const val CLIENT_ID = "en1oxy7wnw8j9n"
@@ -85,7 +86,7 @@ class LoginActivity : AppCompatActivity() {
             return
         }
 
-        val deviceId = generateDeviceId()
+        val deviceId = generateDeviceId().also { pendingDeviceId = it }
         val machineId = generateMachineId()
         val loginTraceId = generateLoginTraceId()
         val cbUrl = "http://127.0.0.1:$port/authorize"
@@ -173,7 +174,10 @@ class LoginActivity : AppCompatActivity() {
                 }
             }
 
-            val creds = TraeCredentialExtractor.extract(rawData)
+            val creds = TraeCredentialExtractor.extract(
+                rawData,
+                pendingDeviceId.ifBlank { TraeCredentialExtractor.generateDeviceId() }
+            )
             if (creds.isComplete()) {
                 saveAccount(creds)
                 respond(client, SUCCESS_HTML)
@@ -240,7 +244,7 @@ class LoginActivity : AppCompatActivity() {
             "&x_app_version=$APP_VERSION&x_app_type=stable"
     }
 
-    private fun generateDeviceId(): String = System.currentTimeMillis().toString().takeLast(13)
+    private fun generateDeviceId(): String = TraeCredentialExtractor.generateDeviceId()
 
     private fun generateMachineId(): String {
         val chars = "0123456789abcdef"

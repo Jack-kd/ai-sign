@@ -19,7 +19,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="14dp"
-        android:text="◆ 点页面上方的 Generate new token → Generate new token (classic)\n\n◆ Note 随便填（如 ai-sign）；Expiration 选 No expiration（不过期）\n\n◆ 勾选权限：repo 和 workflow\n\n◆ 点底部绿色 Generate token 按钮\n\n◆ 复制生成的 ghp_... 开头的字符串，粘贴到 App"
+        android:text="◆ 点页面上方的 Generate new token → Generate new token (classic)\n\n◆ Note 随便填（如 ai-sign）；Expiration 选 No expiration（不过期）\n\n◆ Select scopes 列表中勾选：　☑ repo（Full control of private repositories）　☑ workflow（Update GitHub Action workflows）\n\n◆ 点底部绿色 Generate token 按钮\n\n◆ 复制生成的 ghp_... 开头的字符串，粘贴到 App"
         android:textColor="@color/gray"
         android:textSize="14sp"
         android:lineSpacingExtra="2dp" />

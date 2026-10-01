@@ -230,12 +230,14 @@ jobs:
 """.trimIndent()
     }
 
-    val SIGN_SCRIPT: String = """#!/usr/bin/env python3
+    val SIGN_SCRIPT: String = """
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # TRAE 多账号每日签到。读取 trae_accounts.json，逐个账号执行签到，并把结果回写为 sign_logs.json。
 import base64
 import json
 import os
+import random
 import sys
 import time
 import urllib.error
@@ -252,6 +254,7 @@ IDE_VERSION = "0.1.52"
 ACCOUNTS_FILE = "trae_accounts.json"
 LOG_FILE = "sign_logs.json"
 REMOTE_LOG_FILE = "scripts/sign_logs.json"
+REMOTE_ACCOUNTS_FILE = "scripts/trae_accounts.json"
 MAX_LOGS = 500
 TIMEOUT = 60
 
@@ -316,6 +319,20 @@ def _is_success(obj):
     return False
 
 
+def _generate_device_id():
+    # 对齐原软件 d2/x.e()：15 位随机纯数字，范围 100000000000000 ~ 999999999999999
+    return str(100000000000000 + random.randrange(0, 900000000000000))
+
+
+def _is_valid_device_id(value):
+    # 对齐原软件 d2/x.a()：14~20 位纯数字
+    if not value:
+        return False
+    if not (14 <= len(value) <= 20):
+        return False
+    return value.isdigit()
+
+
 def exchange_token(refresh_token):
     body = json.dumps({
         "ClientID": CLIENT_ID, "RefreshToken": refresh_token,
@@ -359,6 +376,24 @@ def checkin_claim(access_token, uid, device_id):
     return _post(CHECKIN_HOST + "/trae/api/v2/ug/checkin_credits/claim", "{}", _checkin_headers(access_token, uid, device_id))
 
 
+def _attempt_checkin(access_token, uid, device_id):
+    # 返回 (status, desc)：status 为 success / already / fail
+    status_obj = checkin_status(access_token, uid, device_id)
+    if _is_checked_in(status_obj):
+        return "already", "今日已签到"
+
+    code, obj, raw = checkin_claim(access_token, uid, device_id)
+    if _first(obj, "code") == 9074:
+        time.sleep(8)
+        code, obj, raw = checkin_claim(access_token, uid, device_id)
+
+    if _is_success(obj):
+        return "success", "签到成功"
+    if _is_checked_in(obj):
+        return "already", "今日已签到"
+    return "fail", "失败(HTTP " + str(code) + "): " + raw[:200]
+
+
 def sign_one(acc):
     # 返回 (状态, 描述)：status 为 success / already / fail
     label = acc.get("label", "账号")
@@ -369,27 +404,32 @@ def sign_one(acc):
 
     if not access_token and not refresh_token:
         return "fail", label + ": 缺少 access/refresh token"
-    if not device_id:
-        return "fail", label + ": 缺少 deviceId"
+
+    # 对齐原软件 d2/C0482C.g()：deviceId 需 14~20 位纯数字，否则重新生成 15 位并回写
+    if not _is_valid_device_id(device_id):
+        device_id = _generate_device_id()
+        acc["deviceId"] = device_id
 
     try:
+        # accessToken 缺失：先换新 token 再签到
         if not access_token:
             access_token, refresh_token = exchange_token(refresh_token)
+            acc["accessToken"] = access_token
+            acc["refreshToken"] = refresh_token
 
-        status_obj = checkin_status(access_token, uid, device_id)
-        if _is_checked_in(status_obj):
-            return "already", label + ": 今日已签到"
+        status, desc = _attempt_checkin(access_token, uid, device_id)
 
-        code, obj, raw = checkin_claim(access_token, uid, device_id)
-        if _first(obj, "code") == 9074:
-            time.sleep(8)
-            code, obj, raw = checkin_claim(access_token, uid, device_id)
+        # 首签失败且还有 refreshToken：很可能 accessToken 已过期，换新后重试一次
+        if status == "fail" and refresh_token:
+            try:
+                access_token, refresh_token = exchange_token(refresh_token)
+                acc["accessToken"] = access_token
+                acc["refreshToken"] = refresh_token
+                status, desc = _attempt_checkin(access_token, uid, device_id)
+            except SystemExit:
+                pass  # 换 token 失败，保留首次失败结果
 
-        if _is_success(obj):
-            return "success", label + ": 签到成功"
-        if _is_checked_in(obj):
-            return "already", label + ": 今日已签到"
-        return "fail", label + ": 失败(HTTP " + str(code) + "): " + raw[:200]
+        return status, label + ": " + desc
     except SystemExit as e:
         return "fail", label + ": " + str(e)
     except Exception as e:
@@ -445,6 +485,43 @@ def push_logs(entries):
         print("[Log] 回写失败: " + str(e))
 
 
+def push_accounts(accounts):
+    # 纠正 deviceId / 刷新 token 后，把最新账号凭证回写到仓库 trae_accounts.json（用 GITHUB_TOKEN）。
+    try:
+        repo = os.environ.get("GITHUB_REPOSITORY", "")
+        token = os.environ.get("GITHUB_TOKEN", "")
+        if not repo or "/" not in repo or not token:
+            print("[日志] 未配置 GITHUB_TOKEN，跳过账号回写")
+            return
+        owner, reponame = repo.split("/", 1)
+
+        content = json.dumps(accounts, ensure_ascii=False, indent=2)
+        b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
+        url = "https://api.github.com/repos/" + owner + "/" + reponame + "/contents/" + REMOTE_ACCOUNTS_FILE
+
+        sha = None
+        try:
+            req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token, "Accept": "application/vnd.github+json"})
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                obj = json.loads(resp.read().decode("utf-8", "replace"))
+                sha = obj.get("sha")
+        except Exception:
+            sha = None
+
+        data = {"message": "refresh trae tokens", "content": b64}
+        if sha:
+            data["sha"] = sha
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(data).encode("utf-8"),
+            headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
+            method="PUT")
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            print("[日志] 已回写最新账号凭证到 GitHub")
+    except Exception as e:
+        print("[日志] 账号回写失败: " + str(e))
+
+
 def main():
     try:
         with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
@@ -458,6 +535,7 @@ def main():
         return
 
     print("[信息] 共处理 " + str(len(accounts)) + " 个账号")
+    original_content = json.dumps(accounts, ensure_ascii=False, sort_keys=True)
     ok = 0
     already = 0
     fail = 0
@@ -477,6 +555,15 @@ def main():
             result = "失败"
             fail += 1
         entries.append({"time": now, "account": label, "result": result, "detail": desc, "platform": "TRAE"})
+
+    # 若纠正了 deviceId 或刷新了 token，把最新账号写回本地与 GitHub，供下次运行使用
+    if json.dumps(accounts, ensure_ascii=False, sort_keys=True) != original_content:
+        try:
+            with open(ACCOUNTS_FILE, "w", encoding="utf-8") as f:
+                json.dump(accounts, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print("[日志] 本地写回账号失败: " + str(e))
+        push_accounts(accounts)
 
     print("[结果] 成功 {0}，已签到 {1}，失败 {2}，共 {3}".format(ok, already, fail, len(accounts)))
     push_logs(entries)

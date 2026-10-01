@@ -155,17 +155,20 @@ nickname: ${c.nickname}
             } catch (e: Exception) {
                 emptyList()
             }
-            // 过滤 WorkBuddy 平台 + 匹配该账号
+            // 过滤 WorkBuddy 平台 + 精确匹配该账号
             val wbLogs = list.filter { it.platform != null && it.platform.equals("WorkBuddy", true) }
             val related = wbLogs.filter { log ->
-                log.account.contains(label, true) || label.contains(log.account, true) ||
-                    (uid.isNotBlank() && (log.account.contains(uid, true) || uid.contains(log.account, true)))
+                log.account.equals(label, true) ||
+                    (uid.isNotBlank() && log.account.equals(uid, true))
             }
-            // 若精确匹配为空，回退显示该平台最近的全部记录
-            val shown = if (related.isNotEmpty()) related else wbLogs
+            // 只显示该账号的记录；无匹配时提示（不再回退显示平台全部记录）
+            val shown = related
             if (shown.isEmpty()) {
                 tvMode.text = "empty"
-                tvLogs.text = terminalLine("$ 暂无该账号的签到记录", terminalColorOrange)
+                tvLogs.text = terminalLine(
+                    "$ 暂无该账号的签到记录\n# 若刚重命名过账号，旧记录仍使用原名称",
+                    terminalColorOrange
+                )
                 return@launch
             }
             tvMode.text = label

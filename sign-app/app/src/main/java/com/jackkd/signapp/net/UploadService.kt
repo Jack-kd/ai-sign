@@ -38,7 +38,7 @@ class UploadService(
                 UploadAccount(
                     label = it.label, accessToken = it.credentials.accessToken,
                     refreshToken = it.credentials.refreshToken, uid = it.credentials.uid,
-                    deviceId = it.credentials.deviceId
+                    deviceId = it.credentials.deviceId, nickname = it.credentials.nickname
                 )
             }
             files[ACCOUNTS_FILE] = gson.toJson(uploadList)
@@ -396,6 +396,33 @@ def exchange_token(refresh_token):
     return token, new_refresh
 
 
+def fetch_screen_name(access_token):
+    # 对齐原软件 LC1/b.u() 的 GetUserInfo：获取真实用户名（ScreenName）
+    # 返回用户名；失败返回空字符串
+    try:
+        body = json.dumps({"ReqSource": "IDE", "IDEVersion": IDE_VERSION})
+        headers = {
+            "Content-Type": "application/json", "Accept": "application/json",
+            "User-Agent": "Trae/" + IDE_VERSION,
+            "X-Cloudide-Token": access_token,
+        }
+        code, obj, raw = _post(AUTH_HOST + "/cloudide/api/v3/trae/GetUserInfo", body, headers)
+        if obj is None:
+            return ""
+        result = obj.get("Result") or obj.get("result") or obj
+        name = str(result.get("ScreenName") or result.get("screenName") or "").strip()
+        # 简单清理：去掉 %XX 形式的 URL 编码
+        if "%" in name:
+            try:
+                from urllib.parse import unquote
+                name = unquote(name)
+            except Exception:
+                pass
+        return name
+    except Exception:
+        return ""
+
+
 def _checkin_headers(access_token, uid, device_id):
     h = {
         "Content-Type": "application/json", "Accept": "application/json",
@@ -464,6 +491,17 @@ def sign_one(acc):
             access_token, refresh_token = exchange_token(refresh_token)
             acc["accessToken"] = access_token
             acc["refreshToken"] = refresh_token
+
+        # 账号名优化：label 还是自动生成的"账号X"时，用 GetUserInfo 的真实用户名替换
+        # （更新会随 push_accounts 回写本地与 GitHub，下次运行起日志直接显示用户名）
+        if label.startswith("账号"):
+            try:
+                sn = fetch_screen_name(access_token)
+                if sn:
+                    acc["label"] = sn
+                    label = sn
+            except Exception:
+                pass
 
         status, desc, credits_before = _attempt_checkin(access_token, uid, device_id)
 

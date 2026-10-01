@@ -1,11 +1,12 @@
 package com.jackkd.signapp.data
 
-/** TRAE 账号四项凭证 */
+/** TRAE 账号四项凭证 + 用户名 */
 data class TraeCredentials(
     val accessToken: String = "",
     val refreshToken: String = "",
     val uid: String = "",
-    val deviceId: String = ""
+    val deviceId: String = "",
+    val nickname: String = ""    // 真实用户名（原版软件回调里的 ScreenName）
 ) {
     fun isComplete(): Boolean =
         accessToken.isNotBlank() && refreshToken.isNotBlank() &&
@@ -15,7 +16,7 @@ data class TraeCredentials(
 /** TRAE 账号：包含标识名 + 凭证 + 元数据 */
 data class TraeAccount(
     val id: String,                 // 唯一 ID（本地生成）
-    val label: String,              // 显示名（账号A/B/C 或 uid 后缀）
+    val label: String,              // 显示名（优先用户名，其次账号A/B/C）
     val credentials: TraeCredentials,
     val addedAt: Long = System.currentTimeMillis()
 )
@@ -26,7 +27,8 @@ data class UploadAccount(
     val accessToken: String,
     val refreshToken: String,
     val uid: String,
-    val deviceId: String
+    val deviceId: String,
+    val nickname: String = ""    // 用户名，脚本会优先用作账号名
 ) {
     /** 转换为本地 TraeAccount（id 用 uid 前缀生成，保证稳定） */
     fun toTraeAccount(): TraeAccount {
@@ -34,11 +36,14 @@ data class UploadAccount(
             accessToken = accessToken ?: "",
             refreshToken = refreshToken ?: "",
             uid = uid ?: "",
-            deviceId = deviceId ?: ""
+            deviceId = deviceId ?: "",
+            nickname = nickname ?: ""
         )
+        // 账号名优先用用户名，其次云端 label，最后 uid 后缀
+        val name = (nickname ?: "").ifBlank { label ?: "" }.ifBlank { "账号" + uid.takeLast(4) }
         return TraeAccount(
             id = "cloud_" + (uid.ifBlank { label }),
-            label = label.ifBlank { ("账号" + uid.takeLast(4)) },
+            label = name,
             credentials = creds
         )
     }

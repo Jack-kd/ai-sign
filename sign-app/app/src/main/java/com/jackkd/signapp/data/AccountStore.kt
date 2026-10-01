@@ -43,10 +43,12 @@ class AccountStore(context: Context) {
         if (uid.isNotBlank()) {
             val existing = list.firstOrNull { it.credentials.uid == uid }
             if (existing != null) {
-                // 更新已有账号的凭证与标签
+                // 更新已有账号的凭证与标签：有真实用户名时替换自动生成的"账号X"
+                val nick = account.credentials.nickname
+                val newLabel = if (nick.isNotBlank() && existing.label.startsWith("账号")) nick else existing.label
                 val updated = existing.copy(
                     credentials = account.credentials,
-                    label = existing.label
+                    label = newLabel
                 )
                 val idx = list.indexOf(existing)
                 list[idx] = updated
@@ -54,8 +56,8 @@ class AccountStore(context: Context) {
                 return updated
             }
         }
-        // 无 uid 或不存在，则新增
-        val label = account.label.ifBlank { nextLabel() }
+        // 无 uid 或不存在，则新增：label 优先用户名，其次账号A/B/C
+        val label = account.label.ifBlank { account.credentials.nickname.ifBlank { nextLabel() } }
         val acc = account.copy(label = label)
         list.add(acc)
         save(list)

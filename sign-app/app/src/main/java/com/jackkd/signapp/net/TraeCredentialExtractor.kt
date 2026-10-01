@@ -39,6 +39,7 @@ object TraeCredentialExtractor {
         var refreshToken = params["refreshToken"] ?: ""
         var uid = ""
         var deviceId = ""
+        var nickname = ""
 
         // accessToken：从 userJwt JSON 的 Token 字段取
         params["userJwt"]?.let { raw ->
@@ -49,17 +50,19 @@ object TraeCredentialExtractor {
             }
         }
 
-        // uid：从 userInfo JSON 的 UserID 字段取
+        // uid：从 userInfo JSON 的 UserID 字段取；nickname：ScreenName（真实用户名）
         params["userInfo"]?.let { raw ->
             val obj = try { JSONObject(raw) } catch (e: Exception) { null }
             if (obj != null) {
                 uid = obj.optString("UserID", "")
+                nickname = obj.optString("ScreenName", "").ifBlank { obj.optString("nickname", "") }
             }
         }
 
-        // 兜底：如果 query 里直接有 accessToken/uid
+        // 兜底：如果 query 里直接有 accessToken/uid/nickname
         if (accessToken.isBlank()) accessToken = params["accessToken"] ?: params["token"] ?: ""
         if (uid.isBlank()) uid = params["uid"] ?: params["user_id"] ?: ""
+        if (nickname.isBlank()) nickname = params["nickname"] ?: params["screen_name"] ?: ""
 
         // deviceId：回调中一般没有，用本地生成的设备指纹
         deviceId = params["deviceId"] ?: params["device_id"] ?: fallbackDeviceId
@@ -68,7 +71,8 @@ object TraeCredentialExtractor {
             accessToken = accessToken,
             refreshToken = refreshToken,
             uid = uid,
-            deviceId = deviceId
+            deviceId = deviceId,
+            nickname = nickname
         )
     }
 

@@ -297,7 +297,7 @@ class LoginActivity : AppCompatActivity() {
             val existing = accountStore.findByUid(creds.uid)
             val acc = TraeAccount(
                 id = existing?.id ?: (System.currentTimeMillis().toString() + (Math.random() * 1000).toInt()),
-                label = existing?.label ?: "",
+                label = existing?.label ?: creds.nickname,
                 credentials = creds
             )
             val saved = accountStore.addOrUpdate(acc)
@@ -331,7 +331,8 @@ class LoginActivity : AppCompatActivity() {
                 accessToken = it.credentials.accessToken,
                 refreshToken = it.credentials.refreshToken,
                 uid = it.credentials.uid,
-                deviceId = it.credentials.deviceId
+                deviceId = it.credentials.deviceId,
+                nickname = it.credentials.nickname
             )
         }
         lifecycleScope.launch {

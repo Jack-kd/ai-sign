@@ -16,6 +16,7 @@
     <color name="terminal_white">#D4D4D4</color>
     <color name="terminal_dim">#6A9955</color>
     <color name="terminal_gray">#9E9E9E</color>
+    <color name="terminal_purple">#C586C0</color>
     <color name="card_bg">#FAFAFA</color>
     <color name="divider">#E0E0E0</color>
     <color name="btn_info_bg">#E3F2FD</color>

@@ -842,6 +842,7 @@ private fun showGithubDialog() {
         val cGray = ContextCompat.getColor(this, R.color.terminal_gray)
         val cWhite = ContextCompat.getColor(this, R.color.terminal_white)
         val cCyan = ContextCompat.getColor(this, R.color.terminal_cyan)
+        val cPurple = ContextCompat.getColor(this, R.color.terminal_purple)
 
         val dlg = MaterialAlertDialogBuilder(this)
             .setView(view)
@@ -849,17 +850,18 @@ private fun showGithubDialog() {
         // 弹窗整体为深色终端窗口背景，避免圆角外露出白色
         dlg.window?.setBackgroundDrawableResource(R.drawable.bg_terminal_window)
 
-        /** 终端行：● [时间] 内容（● 按结果着色，时间灰色） */
-        fun logLine(result: String, time: String, body: String): CharSequence {
-            val dotColor = when (result) {
-                "成功" -> cGreen
-                "已签到" -> cYellow
-                "失败" -> cRed
-                else -> cWhite
+        /** 终端行：● 点按来源着色（手动黄/自动蓝），正文按领取/结果着色（领取>0绿 / 已签到紫 / 失败红），时间灰色 */
+        fun logLine(log: CloudSignLog, time: String, body: String): CharSequence {
+            val dotColor = if (log.source == "手动") cYellow else cCyan
+            val bodyColor = when {
+                log.result == "失败" -> cRed
+                log.earned > 0 -> cGreen
+                else -> cPurple
             }
             val sp = SpannableString("● [$time] $body")
             sp.setSpan(ForegroundColorSpan(dotColor), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             sp.setSpan(ForegroundColorSpan(cGray), 3, 3 + time.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sp.setSpan(ForegroundColorSpan(bodyColor), 3 + time.length + 2, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             return sp
         }
 
@@ -888,7 +890,7 @@ private fun showGithubDialog() {
             val sb = SpannableStringBuilder()
             sb.append(section("# 本地日志 (" + logs.size + " 条)\n"))
             for (log in logs) {
-                sb.append(logLine(log.result, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
+                sb.append(logLine(log, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
             }
             tv.text = sb
         }
@@ -906,12 +908,12 @@ private fun showGithubDialog() {
             sb.append(section("# TRAE (" + trae.size + " 条)\n"))
             if (trae.isEmpty()) sb.append(info("  (暂无 TRAE 签到记录)\n"))
             for (log in trae) {
-                sb.append(logLine(log.result, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
+                sb.append(logLine(log, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
             }
             sb.append(section("\n# WorkBuddy (" + wb.size + " 条)\n"))
             if (wb.isEmpty()) sb.append(info("  (暂无 WorkBuddy 签到记录)\n"))
             for (log in wb) {
-                sb.append(logLine(log.result, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
+                sb.append(logLine(log, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
             }
             tv.text = sb
         }

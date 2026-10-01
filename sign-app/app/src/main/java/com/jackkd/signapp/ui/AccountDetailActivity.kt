@@ -45,6 +45,7 @@ class AccountDetailActivity : AppCompatActivity() {
     private var terminalColorRed = 0
     private var terminalColorGray = 0
     private var terminalColorCyan = 0
+    private var terminalColorPurple = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,6 +56,7 @@ class AccountDetailActivity : AppCompatActivity() {
         terminalColorGreen = ContextCompat.getColor(this, R.color.terminal_green)
         terminalColorRed = ContextCompat.getColor(this, R.color.error_red)
         terminalColorGray = ContextCompat.getColor(this, R.color.terminal_gray)
+        terminalColorPurple = ContextCompat.getColor(this, R.color.terminal_purple)
         terminalColorCyan = ContextCompat.getColor(this, R.color.terminal_cyan)
 
         val accountId = intent.getStringExtra("account_id") ?: ""
@@ -179,28 +181,27 @@ deviceId: ${c.deviceId}
                 java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(java.util.Date(it.time)) == todayStr
             }.sumOf { it.earned }
             sb.append(terminalLine("$ 记录数：" + total + " 条", terminalColorGray)).append("\n")
-            sb.append(terminalLine("手动签到：" + manual + " 条", terminalColorGray)).append("\n")
-            sb.append(terminalLine("自动签到：" + auto + " 条", terminalColorGreen)).append("\n")
-            sb.append(terminalLine("今日领取：" + earnedToday + " 分", terminalColorCyan)).append("\n\n")
-            for ((i, log) in shown.take(30).withIndex()) {
-                sb.append(logLine(log, i % 2 == 0)).append("\n")
+            sb.append(terminalLine("手动签到：" + manual + " 条", terminalColorYellow)).append("\n")
+            sb.append(terminalLine("自动签到：" + auto + " 条", terminalColorCyan)).append("\n")
+            sb.append(terminalLine("今日领取：" + earnedToday + " 分", terminalColorGray)).append("\n\n")
+            for (log in shown.take(30)) {
+                sb.append(logLine(log)).append("\n")
             }
             tvLogs.text = sb
         }
     }
 
-    /** 把单条日志渲染成终端行：● 按结果着色（成功绿/已签到黄/失败红），时间灰色，正文灰/绿交替 */
-    private fun logLine(log: CloudSignLog, grayText: Boolean): CharSequence {
+    /** 渲染终端行：● 点按来源着色（手动黄/自动蓝），正文按结果与领取着色（领取>0绿 / 已签到紫 / 失败红），时间灰色 */
+    private fun logLine(log: CloudSignLog): CharSequence {
         val time = formatTime(log.time)
-        val dotColor = when (log.result) {
-            "成功" -> terminalColorGreen
-            "已签到" -> terminalColorYellow
-            "失败" -> terminalColorRed
-            else -> terminalColorWhite
+        val dotColor = if (log.source == "手动") terminalColorYellow else terminalColorCyan
+        val bodyColor = when {
+            log.result == "失败" -> terminalColorRed
+            log.earned > 0 -> terminalColorGreen
+            else -> terminalColorPurple   // 已签到 / 领取 0
         }
         // 优先显示详情（如"账号A：今日已签到（积分…）"），否则显示账号名
         val text = if (!log.detail.isNullOrBlank()) log.detail else log.account
-        val bodyColor = if (grayText) terminalColorGray else terminalColorGreen
         val sp = SpannableString("● [$time] $text")
         sp.setSpan(ForegroundColorSpan(dotColor), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         sp.setSpan(ForegroundColorSpan(terminalColorGray), 3, 3 + time.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)

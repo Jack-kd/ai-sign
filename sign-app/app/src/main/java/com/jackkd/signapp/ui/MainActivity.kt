@@ -954,8 +954,8 @@ private fun showGithubDialog() {
         val button = if (platform == "TRAE") R.id.btnTriggerTrae else R.id.btnTriggerWb
         val tv = findViewById<TextView>(button)
         val original = tv.text.toString()
-        tv.text = "触发中..."
         tv.isEnabled = false
+        startCheckinAnimation(tv)
         Toast.makeText(this, "正在触发 $platform 立即签到...", Toast.LENGTH_SHORT).show()
 
         lifecycleScope.launch {
@@ -971,6 +971,7 @@ private fun showGithubDialog() {
                 }
             }
             runOnUiThread {
+                stopCheckinAnimation(tv)
                 tv.text = original
                 tv.isEnabled = true
                 if (err == null) {
@@ -986,6 +987,31 @@ private fun showGithubDialog() {
     private fun formatTime(millis: Long): String {
         return java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
             .format(java.util.Date(millis))
+    }
+
+    // ===== 立即签到按钮"正在云端签到"点闪动画 =====
+    private val checkinAnim = HashMap<Int, Runnable>()
+
+    /** 启动按钮点闪动画：正在云端签到. → .. → ... 循环 */
+    private fun startCheckinAnimation(tv: TextView) {
+        val id = tv.id
+        checkinAnim.remove(id)?.let { tv.removeCallbacks(it) }
+        val runnable = object : Runnable {
+            var dots = 0
+            override fun run() {
+                dots = (dots % 3) + 1
+                tv.text = "正在云端签到" + ".".repeat(dots)
+                tv.postDelayed(this, 300)
+            }
+        }
+        checkinAnim[id] = runnable
+        tv.text = "正在云端签到."
+        tv.postDelayed(runnable, 300)
+    }
+
+    /** 停止按钮动画并恢复 */
+    private fun stopCheckinAnimation(tv: TextView) {
+        checkinAnim.remove(tv.id)?.let { tv.removeCallbacks(it) }
     }
 }
 

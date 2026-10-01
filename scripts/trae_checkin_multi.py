@@ -293,7 +293,7 @@ def sign_one(acc):
         # 签到前查可用额度（官方 App 的"积分"）
         credits_before = fetch_credit_remain(access_token, uid, device_id)
 
-        status, desc, _ = _attempt_checkin(access_token, uid, device_id)
+        status, desc, checkin_credits = _attempt_checkin(access_token, uid, device_id)
 
         # 首签失败且还有 refreshToken：很可能 accessToken 已过期，换新后重试一次
         if status == "fail" and refresh_token:
@@ -301,13 +301,20 @@ def sign_one(acc):
                 access_token, refresh_token = exchange_token(refresh_token)
                 acc["accessToken"] = access_token
                 acc["refreshToken"] = refresh_token
-                status, desc, _ = _attempt_checkin(access_token, uid, device_id)
+                status, desc, checkin_credits = _attempt_checkin(access_token, uid, device_id)
             except SystemExit:
                 pass  # 换 token 失败，保留首次失败结果
 
-        # 签到成功后重查一次额度，得出本次变化
+        # 签到成功：显示本次领取的签到积分（status 响应的 credits，每日固定）
         credits_after = None
         if status == "success":
+            try:
+                c = str(checkin_credits or "")
+                if c.isdigit() and int(c) > 0:
+                    desc = "签到成功，领取 +%s 积分" % c
+            except Exception:
+                pass
+            # 重查一次可用额度，得出本次变化
             try:
                 credits_after = fetch_credit_remain(access_token, uid, device_id)
             except Exception:

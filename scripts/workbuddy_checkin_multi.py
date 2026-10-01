@@ -400,16 +400,13 @@ def sign_one(acc):
                 quota_after = _wb_quota(acc, access_token, host)
             except Exception:
                 quota_after = None
-        desc += _quota_suffix(quota_before, quota_after)
 
-        # 今日领取：签到成功后额度的变化量（额度即 WorkBuddy 的积分体系）
+        # 今日领取：WorkBuddy 每日签到固定 100 积分（与官方一致；签到积分不计入周期额度，故不用额度差）
         earned = 0
-        if status == "success" and quota_before and quota_after:
-            try:
-                d = quota_after[0] - quota_before[0]
-                earned = d if d > 0 else 0
-            except Exception:
-                earned = 0
+        if status == "success":
+            earned = 100
+            desc = "签到成功，领取 +100 积分"
+        desc += _quota_suffix(quota_before, quota_after)
         return status, desc, earned
     except Exception as e:
         return "fail", label + ": 异常 " + str(e)

@@ -459,6 +459,8 @@ private fun showGithubDialog() {
             .setPositiveButton("确认", null)
             .setNegativeButton("退出", { _, _ -> finish() })
             .create()
+        // 弹窗整体浅色渐变（含底部按钮区，圆角）
+        dialog.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
         dialog.setOnCancelListener { githubDialog = null }
         dialog.setOnDismissListener { githubDialog = null }
         githubDialog = dialog

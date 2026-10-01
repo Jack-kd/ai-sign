@@ -4,7 +4,6 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="@drawable/bg_dialog_light"
     android:padding="20dp">
 
     <!-- 已登录账号快速切换区（无已登录账号时由代码隐藏整块） -->

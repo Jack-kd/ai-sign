@@ -43,12 +43,11 @@ class AccountStore(context: Context) {
         if (uid.isNotBlank()) {
             val existing = list.firstOrNull { it.credentials.uid == uid }
             if (existing != null) {
-                // 更新已有账号的凭证与标签：有真实用户名时替换自动生成的"账号X"
-                val nick = account.credentials.nickname
-                val newLabel = if (nick.isNotBlank() && existing.label.startsWith("账号")) nick else existing.label
+                // 更新已有账号：名称以传入的 label 为准（云端拉取=云端名/手动重命名，登录=登录时名），
+                // 不再保留旧名，避免重命名被覆盖
                 val updated = existing.copy(
                     credentials = account.credentials,
-                    label = newLabel
+                    label = account.label.ifBlank { existing.label }
                 )
                 val idx = list.indexOf(existing)
                 list[idx] = updated

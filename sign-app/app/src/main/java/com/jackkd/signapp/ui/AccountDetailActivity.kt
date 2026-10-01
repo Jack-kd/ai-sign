@@ -99,7 +99,7 @@ deviceId: ${c.deviceId}
                 .setPositiveButton("好", null).show()
         }
         // 拉取云端日志并过滤该账号
-        loadAccountLogs(tvLabel, tvUid, tvLogs)
+        loadAccountLogs(tvLogs, account)
     }
 
     private fun setupCollapse(key: String, headerId: Int, contentId: Int, iconId: Int) {
@@ -114,8 +114,8 @@ deviceId: ${c.deviceId}
         }
     }
 
-    /** 从云端 sign_logs.json 拉取日志，过滤出属于该账号的记录（按 TRAE 平台 + account/uid 匹配） */
-    private fun loadAccountLogs(tvLabel: TextView, tvUid: TextView, tvLogs: TextView) {
+    /** 从云端 sign_logs.json 拉取日志，过滤出属于该账号的记录（按 TRAE 平台 + uid 匹配，旧日志无 uid 时匹配账号名/昵称） */
+    private fun loadAccountLogs(tvLogs: TextView, account: TraeAccount) {
         val tvMode = findViewById<TextView>(R.id.tvLogsMode)
         val config = GithubConfig(this)
         if (!config.verified || config.token.isBlank()) {
@@ -123,8 +123,9 @@ deviceId: ${c.deviceId}
             tvLogs.text = terminalLine("! 未授权 GitHub，无法获取云端日志", terminalColorYellow)
             return
         }
-        val label = tvLabel.text.toString()
-        val uid = tvUid.text.toString()
+        val label = account.label
+        val uid = account.credentials.uid
+        val nickname = account.credentials.nickname
         tvMode.text = "loading"
         lifecycleScope.launch {
             val raw = withContext(Dispatchers.IO) {
@@ -146,13 +147,14 @@ deviceId: ${c.deviceId}
             } catch (e: Exception) {
                 emptyList()
             }
-            // 过滤 TRAE 平台；按 uid 精确匹配该账号（旧日志无 uid 时回退账号名精确匹配）
+            // 过滤 TRAE 平台；优先 uid 精确匹配，旧日志无 uid 时匹配账号名或昵称（重命名后旧名日志仍归属）
             val traeLogs = list.filter { it.platform.isNullOrBlank() || it.platform.equals("TRAE", true) }
             val related = traeLogs.filter { log ->
                 if (uid.isNotBlank() && !log.uid.isNullOrBlank()) {
                     log.uid.equals(uid, true)
                 } else {
-                    log.account.equals(label, true)
+                    log.account.equals(label, true) ||
+                        (nickname.isNotBlank() && log.account.equals(nickname, true))
                 }
             }
             // 只显示该账号的记录；无匹配时提示（不再回退显示平台全部记录）

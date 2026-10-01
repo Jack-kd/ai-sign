@@ -39,8 +39,8 @@ data class UploadAccount(
             deviceId = deviceId ?: "",
             nickname = nickname ?: ""
         )
-        // 账号名优先用用户名，其次云端 label，最后 uid 后缀
-        val name = (nickname ?: "").ifBlank { label ?: "" }.ifBlank { "账号" + uid.takeLast(4) }
+        // 账号名优先云端 label（含手动重命名），其次用户名，最后 uid 后缀
+        val name = (label ?: "").ifBlank { (nickname ?: "").ifBlank { "账号" + uid.takeLast(4) } }
         return TraeAccount(
             id = "cloud_" + (uid.ifBlank { label }),
             label = name,

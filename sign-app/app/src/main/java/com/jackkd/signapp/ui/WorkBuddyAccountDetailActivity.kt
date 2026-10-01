@@ -8,6 +8,7 @@ import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.view.View
+import android.view.LayoutInflater
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -79,7 +80,7 @@ class WorkBuddyAccountDetailActivity : AppCompatActivity() {
         setupCollapse("enterprise", R.id.headerWbEnterprise, R.id.tvWbEnterprise, R.id.iconWbEnterprise)
         setupCollapse("nickname", R.id.headerWbNickname, R.id.tvWbNickname, R.id.iconWbNickname)
 
-        findViewById<TextView>(R.id.btnWbRename).setOnClickListener { renameAccount(account) }
+        findViewById<TextView>(R.id.btnWbRenameIcon).setOnClickListener { renameAccount(account) }
 
         // 复制全部凭证
         findViewById<TextView>(R.id.btnWbCopyAll).setOnClickListener {
@@ -188,13 +189,12 @@ nickname: ${c.nickname}
     /** 手动重命名账号：更新本地并同步云端（若已授权 GitHub） */
     private fun renameAccount(account: WorkBuddyAccount) {
         val store = WorkBuddyAccountStore(this)
-        val input = TextInputEditText(this)
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_rename, null)
+        val input = view.findViewById<TextInputEditText>(R.id.etRenameName)
         input.setText(account.label)
         input.setSelection(account.label.length)
         MaterialAlertDialogBuilder(this)
-            .setTitle("重命名账号")
-            .setMessage("重命名后本地与云端(GitHub)同步更新")
-            .setView(input)
+            .setView(view)
             .setPositiveButton("保存", { _, _ ->
                 val name = input.text?.toString()?.trim() ?: ""
                 if (name.isBlank()) {

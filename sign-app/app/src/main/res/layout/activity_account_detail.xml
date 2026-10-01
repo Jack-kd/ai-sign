@@ -31,6 +31,19 @@
                 android:textSize="22sp"
                 android:textStyle="bold" />
 
+            <!-- 重命名入口：点击弹出修改弹窗 -->
+            <TextView
+                android:id="@+id/btnRenameIcon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:padding="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:text="✏️"
+                android:textColor="@color/white"
+                android:textSize="18sp"
+                android:contentDescription="重命名账号" />
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -240,20 +253,6 @@
                 android:textSize="12sp"
                 android:visibility="gone" />
         </LinearLayout>
-
-        <!-- 重命名按钮 -->
-        <TextView
-            android:id="@+id/btnRename"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/bg_badge"
-            android:gravity="center"
-            android:padding="13dp"
-            android:text="✏️ 重命名账号"
-            android:textColor="@color/primary"
-            android:textSize="15sp"
-            android:textStyle="bold" />
 
         <!-- 复制按钮 -->
         <TextView

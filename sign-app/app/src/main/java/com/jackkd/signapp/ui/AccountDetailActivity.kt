@@ -8,6 +8,7 @@ import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.view.View
+import android.view.LayoutInflater
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -73,7 +74,7 @@ class AccountDetailActivity : AppCompatActivity() {
         setupCollapse("uid", R.id.headerUid, R.id.tvUid, R.id.iconUid)
         setupCollapse("device", R.id.headerDevice, R.id.tvDeviceId, R.id.iconDevice)
 
-        findViewById<TextView>(R.id.btnRename).setOnClickListener { renameAccount(account) }
+        findViewById<TextView>(R.id.btnRenameIcon).setOnClickListener { renameAccount(account) }
 
         findViewById<TextView>(R.id.btnCopyAll).setOnClickListener {
             val all = """
@@ -179,13 +180,12 @@ deviceId: ${c.deviceId}
     /** 手动重命名账号：更新本地并同步云端（若已授权 GitHub） */
     private fun renameAccount(account: TraeAccount) {
         val store = AccountStore(this)
-        val input = TextInputEditText(this)
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_rename, null)
+        val input = view.findViewById<TextInputEditText>(R.id.etRenameName)
         input.setText(account.label)
         input.setSelection(account.label.length)
         MaterialAlertDialogBuilder(this)
-            .setTitle("重命名账号")
-            .setMessage("重命名后本地与云端(GitHub)同步更新")
-            .setView(input)
+            .setView(view)
             .setPositiveButton("保存", { _, _ ->
                 val name = input.text?.toString()?.trim() ?: ""
                 if (name.isBlank()) {

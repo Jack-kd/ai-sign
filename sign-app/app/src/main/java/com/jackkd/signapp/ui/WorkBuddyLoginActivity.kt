@@ -121,6 +121,8 @@ class WorkBuddyLoginActivity : AppCompatActivity() {
         val domain = getStr("domain")
         val enterpriseId = getStr("enterpriseId")
         var nickname = getStr("nickname")
+        if (nickname.isBlank()) nickname = getStr("nickName")
+        if (nickname.isBlank()) nickname = getStr("name")
 
         if (uid.isBlank()) {
             uid = extractUidFromJwt(accessToken)
@@ -210,6 +212,9 @@ class WorkBuddyLoginActivity : AppCompatActivity() {
             var uid = str("uid")
             if (uid.isBlank()) uid = extractUidFromJwt(str("accessToken"))
             if (uid.isBlank()) uid = "wb_" + Math.abs(str("accessToken").hashCode())
+            var nickname = str("nickname")
+            if (nickname.isBlank()) nickname = str("nickName")
+            if (nickname.isBlank()) nickname = str("name")
             val creds = WorkBuddyCredentials(
                 accessToken = str("accessToken"),
                 refreshToken = str("refreshToken"),
@@ -217,7 +222,7 @@ class WorkBuddyLoginActivity : AppCompatActivity() {
                 domain = str("domain"),
                 uid = uid,
                 enterpriseId = str("enterpriseId"),
-                nickname = str("nickname")
+                nickname = nickname
             )
             if (creds.isComplete()) saveAccount(creds)
             else {

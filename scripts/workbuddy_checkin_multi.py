@@ -344,6 +344,14 @@ def sign_one(acc):
                 return "fail", label + ": 刷新 token 失败，需重新登录"
             access_token = (acc.get("accessToken") or "").strip()
 
+        # 账号名优化：label 还是默认"WorkBuddy/WorkBuddyX"时，用凭证里的真实昵称替换
+        # （原版 La2/b.t() 从登录响应解析 name/nickname/nickName，App 登录时已存入 nickname；
+        #   更新会随 push_accounts 回写本地与 GitHub，下次运行起日志直接显示昵称）
+        nick = (acc.get("nickname") or "").strip()
+        if nick and nick != label and (label.startswith("WorkBuddy") or label == "WorkBuddy"):
+            acc["label"] = nick
+            label = nick
+
         # --- 日签到（先查签到前额度） ---
         quota_before = _wb_quota(acc, access_token, host)
         code, obj, raw = _do_checkin(acc, access_token, host)

@@ -43,9 +43,12 @@ class WorkBuddyAccountStore(context: Context) {
         if (uid.isNotBlank()) {
             val existing = list.firstOrNull { it.credentials.uid == uid }
             if (existing != null) {
+                // 更新已有账号的凭证与标签：有真实昵称时替换默认的"WorkBuddy/WorkBuddyX"
+                val nick = account.credentials.nickname
+                val newLabel = if (nick.isNotBlank() && nick != "WorkBuddy" && existing.label.startsWith("WorkBuddy")) nick else existing.label
                 val updated = existing.copy(
                     credentials = account.credentials,
-                    label = existing.label
+                    label = newLabel
                 )
                 val idx = list.indexOf(existing)
                 list[idx] = updated
@@ -53,7 +56,7 @@ class WorkBuddyAccountStore(context: Context) {
                 return updated
             }
         }
-        val label = account.label.ifBlank { nextLabel() }
+        val label = account.label.ifBlank { account.credentials.nickname.ifBlank { nextLabel() } }
         val acc = account.copy(label = label)
         list.add(acc)
         save(list)

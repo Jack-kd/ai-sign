@@ -283,11 +283,14 @@ class MainActivity : AppCompatActivity() {
         npMinute.setOnValueChangedListener { _, _, _ -> updatePreview() }
         updatePreview()
 
-        MaterialAlertDialogBuilder(this)
+        val dlg = MaterialAlertDialogBuilder(this)
             .setView(view)
             .setPositiveButton("保存", { _, _ -> onSave(npHour.value, npMinute.value) })
             .setNegativeButton("取消", null)
-            .show()
+            .create()
+        // 弹窗整体浅色渐变（含底部按钮区，圆角）
+        dlg.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
+        dlg.show()
     }
 
     /** 同时保存 TRAE + WorkBuddy 的签到时间 */

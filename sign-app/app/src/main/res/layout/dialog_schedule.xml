@@ -3,54 +3,33 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingTop="4dp">
+    android:paddingTop="18dp">
 
-    <!-- 顶部渐变标题条 -->
-    <LinearLayout
+    <!-- 普通标题（浅渐变背景） -->
+    <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="@drawable/bg_header_gradient"
-        android:padding="16dp">
+        android:gravity="center"
+        android:text="设置签到时间"
+        android:textColor="@color/text_primary"
+        android:textSize="18sp"
+        android:textStyle="bold" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="⏰"
-            android:textSize="26sp" />
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:layout_marginStart="10dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="设置签到时间"
-                android:textColor="@color/white"
-                android:textSize="17sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="定时云签 · 每日自动签到"
-                android:textColor="#D6E6FF"
-                android:textSize="11sp" />
-        </LinearLayout>
-    </LinearLayout>
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:gravity="center"
+        android:text="定时云签 · 每日自动签到"
+        android:textColor="@color/gray"
+        android:textSize="12sp" />
 
     <!-- 时间大预览（跟随滚轮实时变化） -->
     <TextView
         android:id="@+id/tvTimePreview"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="14dp"
         android:gravity="center"
         android:text="00:30"
         android:textColor="@color/primary"
@@ -62,7 +41,7 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="4dp"
         android:orientation="horizontal"
         android:gravity="center">
 
@@ -119,8 +98,8 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:layout_marginBottom="8dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="6dp"
         android:gravity="center"
         android:text="每天该时刻自动签到（北京时间）"
         android:textColor="@color/gray"

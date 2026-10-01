@@ -1,9 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:maxHeight="480dp">
+    android:orientation="vertical"
+    android:paddingTop="4dp">
 
+    <!-- 顶部渐变标题条 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/bg_header_gradient"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚙️"
+            android:textSize="24sp" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="10dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="全局功能"
+                android:textColor="@color/white"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="定时云签 · 设置中心"
+                android:textColor="#D6E6FF"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 功能卡片 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -17,15 +62,17 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:background="@drawable/bg_badge"
+            android:background="@drawable/bg_card"
             android:padding="14dp"
             android:layout_marginBottom="10dp">
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/bg_icon_circle"
+                android:gravity="center"
                 android:text="🔀"
-                android:textSize="22sp" />
+                android:textSize="20sp" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -38,7 +85,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="两平台同步设置"
-                    android:textColor="@color/primary"
+                    android:textColor="@color/black"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -50,6 +97,13 @@
                     android:textColor="@color/gray"
                     android:textSize="12sp" />
             </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="›"
+                android:textColor="@color/gray"
+                android:textSize="22sp" />
         </LinearLayout>
 
         <!-- 一键签到 -->
@@ -59,15 +113,17 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:background="@drawable/bg_badge"
+            android:background="@drawable/bg_card"
             android:padding="14dp"
             android:layout_marginBottom="10dp">
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/bg_icon_circle"
+                android:gravity="center"
                 android:text="⚡"
-                android:textSize="22sp" />
+                android:textSize="20sp" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -80,7 +136,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="一键签到"
-                    android:textColor="@color/primary"
+                    android:textColor="@color/black"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -92,6 +148,13 @@
                     android:textColor="@color/gray"
                     android:textSize="12sp" />
             </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="›"
+                android:textColor="@color/gray"
+                android:textSize="22sp" />
         </LinearLayout>
 
         <!-- 签到日志 -->
@@ -101,14 +164,16 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:background="@drawable/bg_badge"
+            android:background="@drawable/bg_card"
             android:padding="14dp">
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/bg_icon_circle"
+                android:gravity="center"
                 android:text="📄"
-                android:textSize="22sp" />
+                android:textSize="20sp" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -121,7 +186,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="签到日志"
-                    android:textColor="@color/primary"
+                    android:textColor="@color/black"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -133,6 +198,13 @@
                     android:textColor="@color/gray"
                     android:textSize="12sp" />
             </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="›"
+                android:textColor="@color/gray"
+                android:textSize="22sp" />
         </LinearLayout>
     </LinearLayout>
-</ScrollView>
+</LinearLayout>

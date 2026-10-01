@@ -189,7 +189,6 @@ class MainActivity : AppCompatActivity() {
     private fun showSettingsMenu() {
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_settings, null)
         val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle("全局功能")
             .setView(view)
             .setNegativeButton("关闭", null)
             .create()

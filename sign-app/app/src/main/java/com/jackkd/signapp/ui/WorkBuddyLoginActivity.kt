@@ -129,7 +129,8 @@ class WorkBuddyLoginActivity : AppCompatActivity() {
             if (uid.isBlank()) uid = recursiveFind(data, "uid", "userId", "user_id", "sub", "sid")
         }
         if (uid.isBlank() && accessToken.isNotBlank()) uid = "wb_" + Math.abs(accessToken.hashCode())
-        if (nickname.isBlank()) nickname = "WorkBuddy"
+        // 注意：nickname 为空时不兜底固定名，避免多账号重名；
+        // 由 AccountStore 生成可区分的 WorkBuddyA/B/C 默认名
         val expiresAt = data.get("expiresAt")?.asLong ?: data.get("expires_in")?.asLong ?: 0L
 
         if (accessToken.isBlank() || refreshToken.isBlank() || uid.isBlank()) {

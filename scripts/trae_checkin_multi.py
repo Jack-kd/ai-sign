@@ -4,6 +4,7 @@
 import base64
 import json
 import os
+import random
 import sys
 import time
 import urllib.error
@@ -84,6 +85,20 @@ def _is_success(obj):
     return False
 
 
+def _generate_device_id():
+    # 对齐原软件 d2/x.e()：15 位随机纯数字，范围 100000000000000 ~ 999999999999999
+    return str(100000000000000 + random.randrange(0, 900000000000000))
+
+
+def _is_valid_device_id(value):
+    # 对齐原软件 d2/x.a()：14~20 位纯数字
+    if not value:
+        return False
+    if not (14 <= len(value) <= 20):
+        return False
+    return value.isdigit()
+
+
 def exchange_token(refresh_token):
     body = json.dumps({
         "ClientID": CLIENT_ID, "RefreshToken": refresh_token,
@@ -137,8 +152,10 @@ def sign_one(acc):
 
     if not access_token and not refresh_token:
         return "fail", label + ": 缺少 access/refresh token"
-    if not device_id:
-        return "fail", label + ": 缺少 deviceId"
+
+    # 对齐原软件 d2/C0482C.g() 的自动纠正：deviceId 需 14~20 位纯数字，否则重新生成 15 位
+    if not _is_valid_device_id(device_id):
+        device_id = _generate_device_id()
 
     try:
         if not access_token:

@@ -161,13 +161,8 @@ class MainActivity : AppCompatActivity() {
 
     /** 切换到新 GitHub 账号：清空旧账号凭证并重新授权 */
     private fun switchAccount() {
-        // 直接清除本地配置并进入授权弹窗（不再弹确认框）
-        config.username = ""
-        config.token = ""
-        config.verified = false
-        config.repoOwner = ""
-        config.repoName = ""
-        refresh()
+        // 不退出当前账号：直接弹出授权弹窗，新账号验证成功后才覆盖当前账号；
+        // 若中途取消/关闭，当前账号保持不变，无需重新登录
         showGithubDialog()
     }
 

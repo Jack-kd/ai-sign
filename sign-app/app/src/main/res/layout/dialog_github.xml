@@ -4,6 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
+    android:background="@drawable/bg_dialog_light"
     android:padding="20dp">
 
     <!-- 已登录账号快速切换区（无已登录账号时由代码隐藏整块） -->
@@ -16,10 +17,9 @@
         android:background="?attr/selectableItemBackground"
         android:paddingVertical="8dp">
         <TextView
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="已登录账号"
+            android:text="切换账号"
             android:textSize="14sp"
             android:textStyle="bold"
             android:textColor="@color/primary" />
@@ -27,6 +27,7 @@
             android:id="@+id/iconSavedAccounts"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
             android:text="▽"
             android:textSize="14sp"
             android:textColor="@color/gray" />
@@ -57,10 +58,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="GitHub 用户名"
-        app:boxCornerRadiusBottomEnd="12dp"
-        app:boxCornerRadiusBottomStart="12dp"
-        app:boxCornerRadiusTopEnd="12dp"
-        app:boxCornerRadiusTopStart="12dp"
+        app:boxCornerRadiusBottomEnd="18dp"
+        app:boxCornerRadiusBottomStart="18dp"
+        app:boxCornerRadiusTopEnd="18dp"
+        app:boxCornerRadiusTopStart="18dp"
         app:boxStrokeColor="@color/primary"
         app:hintTextColor="@color/primary">
         <com.google.android.material.textfield.TextInputEditText
@@ -78,10 +79,10 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="14dp"
         android:hint="GitHub Token"
-        app:boxCornerRadiusBottomEnd="12dp"
-        app:boxCornerRadiusBottomStart="12dp"
-        app:boxCornerRadiusTopEnd="12dp"
-        app:boxCornerRadiusTopStart="12dp"
+        app:boxCornerRadiusBottomEnd="18dp"
+        app:boxCornerRadiusBottomStart="18dp"
+        app:boxCornerRadiusTopEnd="18dp"
+        app:boxCornerRadiusTopStart="18dp"
         app:boxStrokeColor="@color/primary"
         app:hintTextColor="@color/primary"
         app:passwordToggleEnabled="true">
@@ -100,10 +101,10 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="14dp"
         android:hint="仓库名（选填）"
-        app:boxCornerRadiusBottomEnd="12dp"
-        app:boxCornerRadiusBottomStart="12dp"
-        app:boxCornerRadiusTopEnd="12dp"
-        app:boxCornerRadiusTopStart="12dp"
+        app:boxCornerRadiusBottomEnd="18dp"
+        app:boxCornerRadiusBottomStart="18dp"
+        app:boxCornerRadiusTopEnd="18dp"
+        app:boxCornerRadiusTopStart="18dp"
         app:boxStrokeColor="@color/primary"
         app:hintTextColor="@color/primary">
         <com.google.android.material.textfield.TextInputEditText

@@ -851,11 +851,11 @@ private fun showGithubDialog() {
         dlg.window?.setBackgroundDrawableResource(R.drawable.bg_terminal_window)
 
         /** 终端行：● 点按来源着色（手动黄/自动蓝），正文按领取/结果着色（领取>0绿 / 已签到紫 / 失败红），时间灰色 */
-        fun logLine(log: CloudSignLog, time: String, body: String): CharSequence {
-            val dotColor = if (log.source == "手动") cYellow else cCyan
+        fun logLine(source: String, result: String, earned: Long, time: String, body: String): CharSequence {
+            val dotColor = if (source == "手动") cYellow else cCyan
             val bodyColor = when {
-                log.result == "失败" -> cRed
-                log.earned > 0 -> cGreen
+                result == "失败" -> cRed
+                earned > 0 -> cGreen
                 else -> cPurple
             }
             val sp = SpannableString("● [$time] $body")
@@ -890,7 +890,7 @@ private fun showGithubDialog() {
             val sb = SpannableStringBuilder()
             sb.append(section("# 本地日志 (" + logs.size + " 条)\n"))
             for (log in logs) {
-                sb.append(logLine(log, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
+                sb.append(logLine("", log.result, 0L, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
             }
             tv.text = sb
         }
@@ -908,12 +908,12 @@ private fun showGithubDialog() {
             sb.append(section("# TRAE (" + trae.size + " 条)\n"))
             if (trae.isEmpty()) sb.append(info("  (暂无 TRAE 签到记录)\n"))
             for (log in trae) {
-                sb.append(logLine(log, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
+                sb.append(logLine(log.source ?: "", log.result, log.earned, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
             }
             sb.append(section("\n# WorkBuddy (" + wb.size + " 条)\n"))
             if (wb.isEmpty()) sb.append(info("  (暂无 WorkBuddy 签到记录)\n"))
             for (log in wb) {
-                sb.append(logLine(log, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
+                sb.append(logLine(log.source ?: "", log.result, log.earned, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
             }
             tv.text = sb
         }

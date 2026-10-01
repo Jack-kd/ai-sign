@@ -189,19 +189,19 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton("关闭", null)
             .create()
 
-        view.findViewById<TextView>(R.id.btnSyncSchedule).setOnClickListener {
+        view.findViewById<View>(R.id.btnSyncSchedule).setOnClickListener {
             dialog.dismiss(); showGlobalScheduleDialog()
         }
-        view.findViewById<TextView>(R.id.btnSetTraeOnly).setOnClickListener {
+        view.findViewById<View>(R.id.btnSetTraeOnly).setOnClickListener {
             dialog.dismiss(); showSingleScheduleDialog("TRAE")
         }
-        view.findViewById<TextView>(R.id.btnSetWbOnly).setOnClickListener {
+        view.findViewById<View>(R.id.btnSetWbOnly).setOnClickListener {
             dialog.dismiss(); showSingleScheduleDialog("WorkBuddy")
         }
-        view.findViewById<TextView>(R.id.btnQuickCheckin).setOnClickListener {
+        view.findViewById<View>(R.id.btnQuickCheckin).setOnClickListener {
             dialog.dismiss(); triggerBothNow()
         }
-        view.findViewById<TextView>(R.id.btnLogsEntry).setOnClickListener {
+        view.findViewById<View>(R.id.btnLogsEntry).setOnClickListener {
             dialog.dismiss(); showLogsDialog()
         }
         dialog.show()

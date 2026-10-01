@@ -102,18 +102,18 @@
 
             <TextView
                 android:id="@+id/tvSchedule"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
                 android:text="TRAE 签到时间: 未设置"
                 android:textColor="@color/black"
                 android:textSize="14sp" />
 
-            <!-- 单独设置 TRAE 签到时间 -->
+            <!-- 单独设置 TRAE 签到时间：紧跟在时间文字后面（约两空格） -->
             <TextView
                 android:id="@+id/btnSetTraeSchedule"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
                 android:background="@drawable/bg_badge"
                 android:paddingLeft="12dp"
                 android:paddingRight="12dp"
@@ -192,18 +192,18 @@
 
             <TextView
                 android:id="@+id/tvScheduleWorkBuddy"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
                 android:text="WorkBuddy 签到时间: 未设置"
                 android:textColor="@color/black"
                 android:textSize="14sp" />
 
-            <!-- 单独设置 WorkBuddy 签到时间 -->
+            <!-- 单独设置 WorkBuddy 签到时间：紧跟在时间文字后面（约两空格） -->
             <TextView
                 android:id="@+id/btnSetWbSchedule"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
                 android:background="@drawable/bg_badge"
                 android:paddingLeft="12dp"
                 android:paddingRight="12dp"

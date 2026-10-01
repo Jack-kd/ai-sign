@@ -161,21 +161,14 @@ class MainActivity : AppCompatActivity() {
 
     /** 切换到新 GitHub 账号：清空旧账号凭证并重新授权 */
     private fun switchAccount() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle("切换 GitHub 账号")
-            .setMessage("切换后将以新账号重新授权。\n\n旧账号 ${config.username} 的本地配置将被清除（云端数据不受影响）。\n\n确定继续吗？")
-            .setPositiveButton("继续", { _, _ ->
-                // 清除本地账号配置，触发重新授权
-                config.username = ""
-                config.token = ""
-                config.verified = false
-                config.repoOwner = ""
-                config.repoName = ""
-                refresh()
-                showGithubDialog()
-            })
-            .setNegativeButton("取消", null)
-            .show()
+        // 直接清除本地配置并进入授权弹窗（不再弹确认框）
+        config.username = ""
+        config.token = ""
+        config.verified = false
+        config.repoOwner = ""
+        config.repoName = ""
+        refresh()
+        showGithubDialog()
     }
 
     /** 切换 TRAE / WorkBuddy 标签页 */

@@ -41,6 +41,7 @@ import com.jackkd.signapp.data.UploadWorkBuddyAccount
 import com.jackkd.signapp.data.WorkBuddyAccount
 import com.jackkd.signapp.data.WorkBuddyAccountStore
 import com.jackkd.signapp.data.WorkBuddyCredentials
+import com.jackkd.signapp.net.CredentialCrypto
 import com.jackkd.signapp.net.GithubApi
 import com.jackkd.signapp.net.UploadService
 import kotlinx.coroutines.Dispatchers

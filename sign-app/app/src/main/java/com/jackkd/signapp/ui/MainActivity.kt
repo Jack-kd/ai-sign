@@ -452,7 +452,6 @@ private fun showGithubDialog() {
         val headerSaved = view.findViewById<View>(R.id.headerSavedAccounts)
         val iconSaved = view.findViewById<TextView>(R.id.iconSavedAccounts)
         val containerSaved = view.findViewById<LinearLayout>(R.id.containerSavedAccounts)
-        val btnAdd = view.findViewById<View>(R.id.btnAddAccount)
 
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle("GitHub 授权")
@@ -511,18 +510,6 @@ private fun showGithubDialog() {
             expandedSaved = !expandedSaved
             containerSaved.visibility = if (expandedSaved) View.VISIBLE else View.GONE
             iconSaved.text = if (expandedSaved) "△" else "▽"
-        }
-
-        // + 添加账号：清空输入框，提示输入新账号
-        btnAdd.setOnClickListener {
-            etUser.setText("")
-            etToken.setText("")
-            etRepo.setText("")
-            tilToken.error = null
-            containerSaved.visibility = View.GONE
-            iconSaved.text = "▽"
-            expandedSaved = false
-            etUser.requestFocus()
         }
 
         dialog.setOnShowListener {

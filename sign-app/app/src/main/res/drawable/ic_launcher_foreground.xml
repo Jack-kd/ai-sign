@@ -21,22 +21,25 @@
         </aapt:attr>
     </path>
 
-    <!-- AI 元素：黄色闪电 -->
+    <!-- 时间元素：白色时钟（圆环 + 指针，一笔） -->
     <path
-        android:fillColor="#FFD666"
-        android:pathData="M58,12 L45,32 L52,32 L44,48 L63,28 L56,28 Z" />
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="6"
+        android:fillColor="#00000000"
+        android:pathData="M54,40 m-14,0 a14,14 0 1 1 28,0 a14,14 0 1 1 -28,0" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:pathData="M54,40 L54,31" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:pathData="M54,40 L62,40" />
 
-    <!-- 云端元素：白色云朵 -->
+    <!-- 云端元素：白色云朵（一笔） -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M38,76 c-8,0 -14,-5 -14,-13 c0,-8 6,-13 14,-13 c2,-9 9,-15 18,-15 c7,0 13,4 16,10 c8,1 13,6 13,13 c0,8 -6,14 -14,14 z" />
-
-    <!-- 签到元素：绿色对勾 -->
-    <path
-        android:strokeColor="#52C41A"
-        android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000"
-        android:pathData="M40,86 L48,94 L66,74" />
+        android:pathData="M40,88 c-7,0 -11,-5 -11,-11 c0,-6 4,-11 11,-11 c1,-8 7,-12 15,-12 c6,0 11,3 13,8 c7,1 11,6 11,12 c0,7 -5,12 -13,12 z" />
 </vector>

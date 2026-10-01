@@ -65,6 +65,7 @@ class MainActivity : AppCompatActivity() {
 
     private var githubDialog: AlertDialog? = null
     private var currentTab: String = "TRAE"
+    private var pendingLoginPlatform: String = "TRAE"   // 登录态失效横幅点击跳转的平台
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -121,6 +122,15 @@ class MainActivity : AppCompatActivity() {
 
         // 左上角账号名(▽)：切换 GitHub 账号
         findViewById<View>(R.id.btnSwitchAccount).setOnClickListener { showSwitchAccountMenu() }
+
+        // 登录态失效横幅：点击跳转对应平台登录页
+        findViewById<View>(R.id.loginAlertBanner).setOnClickListener {
+            if (pendingLoginPlatform == "WorkBuddy") {
+                startActivity(Intent(this, WorkBuddyLoginActivity::class.java))
+            } else {
+                startActivity(Intent(this, LoginActivity::class.java))
+            }
+        }
 
         switchTab("TRAE")
         refresh()
@@ -319,6 +329,7 @@ class MainActivity : AppCompatActivity() {
         if (config.verified && config.token.isNotBlank()) {
             // fetchCloudAccounts 内部已拉取 TRAE/WorkBuddy 的账号与签到时间（静默刷新，不显示加载动画）
             fetchCloudAccounts()
+            checkLoginIssues()
         }
     }
 
@@ -593,6 +604,45 @@ private fun showGithubDialog() {
             }
         }
         return null
+    }
+
+    /** 检测登录态失效：拉云端日志，若有"需重新登录/失效"的失败记录则显示顶部警告横幅 */
+    private fun checkLoginIssues() {
+        if (!config.verified || config.token.isBlank()) return
+        lifecycleScope.launch {
+            val raw = withContext(Dispatchers.IO) {
+                runCatching {
+                    GithubApi(config.username, config.token)
+                        .readRepoFile(config.repoOwner, config.repoName, config.logPath)
+                }.getOrNull()
+            }
+            val banner = findViewById<View>(R.id.loginAlertBanner) ?: return@launch
+            val text = findViewById<TextView>(R.id.loginAlertText)
+            if (raw == null) {
+                banner.visibility = View.GONE
+                return@launch
+            }
+            val list: List<CloudSignLog> = try {
+                val type = object : TypeToken<List<CloudSignLog>>() {}.type
+                Gson().fromJson<List<CloudSignLog>>(raw, type) ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+            // 最近 20 条中找"需重新登录/凭证失效"的失败记录
+            val issue = list.take(20).firstOrNull { log ->
+                log.result == "失败" && (
+                    log.detail.contains("需重新登录") || log.detail.contains("已失效") ||
+                        log.detail.contains("重新登录") || log.detail.contains("失效")
+                    )
+            }
+            if (issue != null) {
+                pendingLoginPlatform = if (issue.platform == "WorkBuddy") "WorkBuddy" else "TRAE"
+                text.text = "⚠️ 账号「${issue.account}」登录态已失效，点击重新登录"
+                banner.visibility = View.VISIBLE
+            } else {
+                banner.visibility = View.GONE
+            }
+        }
     }
 
     /** 显示云端同步加载动画覆盖层 */

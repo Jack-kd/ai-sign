@@ -54,6 +54,38 @@
             android:background="?attr/selectableItemBackgroundBorderless" />
     </LinearLayout>
 
+    <!-- 登录态失效警告横幅（默认隐藏） -->
+    <LinearLayout
+        android:id="@+id/loginAlertBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/warn_bg"
+        android:paddingLeft="14dp"
+        android:paddingRight="14dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/loginAlertText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="⚠️ 账号登录态已失效，点击重新登录"
+            android:textColor="@color/warn_text"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="重新登录 ›"
+            android:textColor="@color/warn_text"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
     <!-- 标签页：TRAE | WorkBuddy -->
     <LinearLayout
         android:layout_width="match_parent"

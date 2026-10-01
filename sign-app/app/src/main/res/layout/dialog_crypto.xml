@@ -27,6 +27,27 @@
         android:textSize="13sp"
         android:lineSpacingExtra="3dp" />
 
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="📖 配置教程"
+        android:textColor="@color/text_primary"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="1️⃣ 页面上点右上角「New repository secret」
+2️⃣ Name 填：SIGN_KEY（注意大写）
+3️⃣ Secret 粘贴密钥（先点下方「复制密钥」）→ 点「Add secret」
+4️⃣ 回到本页，开启「启用云端凭证加密」"
+        android:textColor="@color/gray"
+        android:textSize="13sp"
+        android:lineSpacingExtra="3dp" />
+
     <!-- 一键跳转 GitHub Secrets 页面 -->
     <TextView
         android:id="@+id/btnOpenSecrets"

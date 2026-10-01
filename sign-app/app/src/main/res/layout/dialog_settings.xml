@@ -185,4 +185,20 @@
                 android:textSize="22sp" />
         </LinearLayout>
     </LinearLayout>
+
+    <!-- 关闭按钮（在浅渐变背景内） -->
+    <TextView
+        android:id="@+id/btnCloseSettings"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="16dp"
+        android:layout_marginRight="16dp"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/bg_badge"
+        android:gravity="center"
+        android:padding="12dp"
+        android:text="关闭"
+        android:textColor="@color/primary"
+        android:textSize="15sp"
+        android:textStyle="bold" />
 </LinearLayout>

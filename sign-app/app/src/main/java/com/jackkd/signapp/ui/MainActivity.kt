@@ -190,7 +190,6 @@ class MainActivity : AppCompatActivity() {
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_settings, null)
         val dialog = MaterialAlertDialogBuilder(this)
             .setView(view)
-            .setNegativeButton("关闭", null)
             .create()
 
         view.findViewById<View>(R.id.btnSyncSchedule).setOnClickListener {
@@ -202,6 +201,7 @@ class MainActivity : AppCompatActivity() {
         view.findViewById<View>(R.id.btnLogsEntry).setOnClickListener {
             dialog.dismiss(); showLogsDialog()
         }
+        view.findViewById<View>(R.id.btnCloseSettings).setOnClickListener { dialog.dismiss() }
         dialog.show()
     }
 

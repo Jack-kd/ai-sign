@@ -19,7 +19,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="14dp"
-        android:text="◆ 打开 github.com，点右上角头像 → Settings\n\n◆ 左侧拉到最底部 → Developer settings\n\n◆ Personal access tokens → Tokens (classic) → Generate new token (classic)\n\n◆ Note 随便填；Expiration 选 No expiration；\u3000勾选 repo（Repository）与 workflow 两个权限\n\n◆ 点 Generate token\n\n◆ 复制生成的 ghp_... 开头字符串"
+        android:text="◆ 点页面上方的 Generate new token → Generate new token (classic)\n\n◆ Note 随便填（如 ai-sign）；Expiration 选 No expiration（不过期）\n\n◆ 勾选权限：repo 和 workflow\n\n◆ 点底部绿色 Generate token 按钮\n\n◆ 复制生成的 ghp_... 开头的字符串，粘贴到 App"
         android:textColor="@color/gray"
         android:textSize="14sp"
         android:lineSpacingExtra="2dp" />
@@ -28,7 +28,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
-        android:text="⚠️ 权限说明：repo（读写仓库、上传凭证、回写日志）+ workflow（设置签到时间、更新工作流）+ Actions（手动触发签到），缺一不可；若用 Fine-grained token 则需要 Contents / Workflows / Actions 均为 Read and write。Token 只显示一次，请妥善保存。"
+        android:text="⚠️ Token 只显示一次，请妥善保存。"
         android:textColor="@color/warn_text"
         android:textSize="12sp"
         android:lineSpacingExtra="2dp" />

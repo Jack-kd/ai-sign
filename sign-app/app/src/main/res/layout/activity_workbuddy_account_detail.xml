@@ -87,7 +87,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="Access Token"
-                    android:textColor="@color/black"
+                    android:textColor="@color/text_primary"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -138,7 +138,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="Refresh Token"
-                    android:textColor="@color/black"
+                    android:textColor="@color/text_primary"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -185,7 +185,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="UID"
-                    android:textColor="@color/black"
+                    android:textColor="@color/text_primary"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -232,7 +232,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="Domain"
-                    android:textColor="@color/black"
+                    android:textColor="@color/text_primary"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -279,7 +279,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="Enterprise ID"
-                    android:textColor="@color/black"
+                    android:textColor="@color/text_primary"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -326,7 +326,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="Nickname"
-                    android:textColor="@color/black"
+                    android:textColor="@color/text_primary"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 

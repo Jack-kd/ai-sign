@@ -3,6 +3,9 @@
     <color name="primary_dark">#0E5FCC</color>
     <color name="white">#FFFFFF</color>
     <color name="black">#000000</color>
+    <color name="text_primary">#1A1A1A</color>
+    <color name="surface_start">#FFFFFF</color>
+    <color name="surface_end">#EAF3FF</color>
     <color name="gray">#888888</color>
     <color name="light_gray">#F5F5F5</color>
     <color name="success_green">#52C41A</color>

@@ -141,7 +141,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="TRAE 签到时间: 未设置"
-                android:textColor="@color/black"
+                android:textColor="@color/text_primary"
                 android:textSize="14sp" />
 
             <!-- 单独设置 TRAE 签到时间：紧跟在时间文字后面（约两空格） -->
@@ -199,7 +199,7 @@
             android:layout_marginTop="14dp"
             android:layout_marginBottom="6dp"
             android:text="TRAE 账号"
-            android:textColor="@color/black"
+            android:textColor="@color/text_primary"
             android:textSize="15sp"
             android:textStyle="bold" />
 
@@ -231,7 +231,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="WorkBuddy 签到时间: 未设置"
-                android:textColor="@color/black"
+                android:textColor="@color/text_primary"
                 android:textSize="14sp" />
 
             <!-- 单独设置 WorkBuddy 签到时间：紧跟在时间文字后面（约两空格） -->
@@ -289,7 +289,7 @@
             android:layout_marginTop="14dp"
             android:layout_marginBottom="6dp"
             android:text="WorkBuddy 账号"
-            android:textColor="@color/black"
+            android:textColor="@color/text_primary"
             android:textSize="15sp"
             android:textStyle="bold" />
 

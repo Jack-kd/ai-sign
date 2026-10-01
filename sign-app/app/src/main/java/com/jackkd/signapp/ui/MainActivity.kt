@@ -212,27 +212,7 @@ class MainActivity : AppCompatActivity() {
         val curMinute = if (isTrae) config.spForScheduleMinute() else config.spForWbScheduleMinute()
         val h = curHour.let { if (it in 0..23) it else 0 }
         val m = curMinute.let { if (it in 0..59) it else 30 }
-        val view = LayoutInflater.from(this).inflate(R.layout.dialog_schedule, null)
-        val npHour = view.findViewById<NumberPicker>(R.id.npHour)
-        val npMinute = view.findViewById<NumberPicker>(R.id.npMinute)
-        npHour.minValue = 0
-        npHour.maxValue = 23
-        npHour.displayedValues = Array(24) { String.format("%02d", it) }
-        npHour.value = h
-        npMinute.minValue = 0
-        npMinute.maxValue = 59
-        npMinute.displayedValues = Array(60) { String.format("%02d", it) }
-        npMinute.value = m
-
-        MaterialAlertDialogBuilder(this)
-            .setTitle(if (isTrae) "设置 TRAE 签到时间" else "设置 WorkBuddy 签到时间")
-            .setMessage("每天该时刻自动为${if (isTrae) "TRAE" else "WorkBuddy"}所有账号签到（北京时间）。\n仅修改本平台，不影响另一平台。")
-            .setView(view)
-            .setPositiveButton("保存", { _, _ ->
-                saveSingleSchedule(platform, npHour.value, npMinute.value)
-            })
-            .setNegativeButton("取消", null)
-            .show()
+        showSchedulePicker(h, m) { hh, mm -> saveSingleSchedule(platform, hh, mm) }
     }
 
     /** 保存单个平台的签到时间到云端与本地 */
@@ -262,29 +242,39 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** 全局设置签到时间：两平台设同一时间（滚轮选择，仿手机闹钟） */
+    /** 全局设置签到时间：两平台设同一时间（滚轮选择） */
     private fun showGlobalScheduleDialog() {
         val h = config.spForScheduleHour().let { if (it in 0..23) it else 0 }
         val m = config.spForScheduleMinute().let { if (it in 0..59) it else 30 }
+        showSchedulePicker(h, m) { hh, mm -> saveBothSchedule(hh, mm) }
+    }
+
+    /** 滚轮签到时间选择弹窗：渐变标题条 + 大号时间实时预览（复用同步/单独设置） */
+    private fun showSchedulePicker(hour: Int, minute: Int, onSave: (Int, Int) -> Unit) {
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_schedule, null)
         val npHour = view.findViewById<NumberPicker>(R.id.npHour)
         val npMinute = view.findViewById<NumberPicker>(R.id.npMinute)
+        val tvPreview = view.findViewById<TextView>(R.id.tvTimePreview)
+
         npHour.minValue = 0
         npHour.maxValue = 23
         npHour.displayedValues = Array(24) { String.format("%02d", it) }
-        npHour.value = h
+        npHour.value = hour
         npMinute.minValue = 0
         npMinute.maxValue = 59
         npMinute.displayedValues = Array(60) { String.format("%02d", it) }
-        npMinute.value = m
+        npMinute.value = minute
+
+        fun updatePreview() {
+            tvPreview.text = String.format("%02d:%02d", npHour.value, npMinute.value)
+        }
+        npHour.setOnValueChangedListener { _, _, _ -> updatePreview() }
+        npMinute.setOnValueChangedListener { _, _, _ -> updatePreview() }
+        updatePreview()
 
         MaterialAlertDialogBuilder(this)
-            .setTitle("设置签到时间（两平台同步）")
-            .setMessage("每天该时刻自动为 TRAE 和 WorkBuddy 所有账号签到（北京时间）。")
             .setView(view)
-            .setPositiveButton("保存", { _, _ ->
-                saveBothSchedule(npHour.value, npMinute.value)
-            })
+            .setPositiveButton("保存", { _, _ -> onSave(npHour.value, npMinute.value) })
             .setNegativeButton("取消", null)
             .show()
     }

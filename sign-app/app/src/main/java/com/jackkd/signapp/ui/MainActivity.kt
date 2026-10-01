@@ -455,7 +455,6 @@ private fun showGithubDialog() {
 
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle("GitHub 授权")
-            .setMessage("点击下方 ▽ 可快速切换已登录账号；点击 + 添加账号输入新的用户名和 Token。\n\n仓库名选填：留空将自动创建专属于你的私有仓库。")
             .setView(view)
             .setPositiveButton("确认", null)
             .setNegativeButton("退出", { _, _ -> finish() })
@@ -469,15 +468,15 @@ private fun showGithubDialog() {
         fun refreshSavedList() {
             val saved = config.savedAccounts()
             containerSaved.removeAllViews()
+            val dividerSaved = view.findViewById<View>(R.id.dividerSaved)
             if (saved.isEmpty()) {
-                val emptyTv = TextView(this)
-                emptyTv.text = "暂无已登录账号，点击下方 + 添加"
-                emptyTv.textSize = 13f
-                emptyTv.setTextColor(resources.getColor(R.color.gray))
-                emptyTv.setPadding(0, 4, 0, 4)
-                containerSaved.addView(emptyTv)
+                // 无已登录账号：整个切换区与分隔线隐藏
+                headerSaved.visibility = View.GONE
+                dividerSaved?.visibility = View.GONE
                 return
             }
+            headerSaved.visibility = View.VISIBLE
+            dividerSaved?.visibility = View.VISIBLE
             for (acc in saved) {
                 val row = TextView(this)
                 row.text = acc.username

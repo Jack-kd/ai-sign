@@ -6,7 +6,7 @@
     android:orientation="vertical"
     android:padding="20dp">
 
-    <!-- 已登录账号快速切换区 -->
+    <!-- 已登录账号快速切换区（无已登录账号时由代码隐藏整块） -->
     <LinearLayout
         android:id="@+id/headerSavedAccounts"
         android:layout_width="match_parent"
@@ -43,49 +43,74 @@
     </LinearLayout>
 
     <View
+        android:id="@+id/dividerSaved"
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="@color/divider"
         android:layout_marginTop="8dp"
-        android:layout_marginBottom="12dp" />
+        android:layout_marginBottom="14dp" />
 
-    <!-- 新增账号输入区 -->
+    <!-- 新增账号输入区（描边圆角） -->
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/tilUser"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="GitHub 用户名">
+        android:hint="GitHub 用户名"
+        app:boxCornerRadiusBottomEnd="12dp"
+        app:boxCornerRadiusBottomStart="12dp"
+        app:boxCornerRadiusTopEnd="12dp"
+        app:boxCornerRadiusTopStart="12dp"
+        app:boxStrokeColor="@color/primary"
+        app:hintTextColor="@color/primary">
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etUser"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="text" />
+            android:inputType="text"
+            android:textSize="15sp" />
     </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/tilToken"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="14dp"
         android:hint="GitHub Token"
+        app:boxCornerRadiusBottomEnd="12dp"
+        app:boxCornerRadiusBottomStart="12dp"
+        app:boxCornerRadiusTopEnd="12dp"
+        app:boxCornerRadiusTopStart="12dp"
+        app:boxStrokeColor="@color/primary"
+        app:hintTextColor="@color/primary"
         app:passwordToggleEnabled="true">
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etToken"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="textPassword" />
+            android:inputType="textPassword"
+            android:textSize="15sp" />
     </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/tilRepo"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:hint="仓库名（选填）">
+        android:layout_marginTop="14dp"
+        android:hint="仓库名（选填）"
+        app:boxCornerRadiusBottomEnd="12dp"
+        app:boxCornerRadiusBottomStart="12dp"
+        app:boxCornerRadiusTopEnd="12dp"
+        app:boxCornerRadiusTopStart="12dp"
+        app:boxStrokeColor="@color/primary"
+        app:hintTextColor="@color/primary">
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etRepo"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="text" />
+            android:inputType="text"
+            android:textSize="15sp" />
     </com.google.android.material.textfield.TextInputLayout>
 </LinearLayout>

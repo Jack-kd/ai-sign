@@ -624,6 +624,19 @@ def _parse(raw):
         return None
 
 
+def _get(url, headers):
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            raw = resp.read().decode("utf-8", "replace")
+            return resp.status, _parse(raw), raw
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8", "replace")
+        return e.code, _parse(raw), raw
+    except urllib.error.URLError as e:
+        return 0, None, str(e.reason)
+
+
 def _first(obj, *keys):
     if not isinstance(obj, dict):
         return None
@@ -631,6 +644,49 @@ def _first(obj, *keys):
         if obj.get(k) is not None:
             return obj.get(k)
     return None
+
+
+def _deep_find(obj, *keys, _depth=0):
+    # 递归查找任意 key 的字符串值（对齐原软件 LV1/l.s()：兼容 data 嵌套不同层级）
+    if _depth > 10 or obj is None:
+        return ""
+    if isinstance(obj, dict):
+        for k in keys:
+            v = obj.get(k)
+            if v is not None and not isinstance(v, (dict, list)):
+                return str(v)
+        for v in obj.values():
+            r = _deep_find(v, *keys, _depth=_depth + 1)
+            if r != "":
+                return r
+    elif isinstance(obj, list):
+        for v in obj:
+            r = _deep_find(v, *keys, _depth=_depth + 1)
+            if r != "":
+                return r
+    return ""
+
+
+def _first_location_id(obj, _depth=0):
+    # 递归找 locations 列表，返回第一个元素的 id（对齐原软件 config 响应解析）
+    if _depth > 10 or obj is None:
+        return ""
+    if isinstance(obj, dict):
+        v = obj.get("locations")
+        if isinstance(v, list) and v:
+            first = v[0]
+            if isinstance(first, dict):
+                return str(first.get("id") or _deep_find(first, "id") or "")
+        for x in obj.values():
+            r = _first_location_id(x, _depth=_depth + 1)
+            if r:
+                return r
+    elif isinstance(obj, list):
+        for x in obj:
+            r = _first_location_id(x, _depth=_depth + 1)
+            if r:
+                return r
+    return ""
 
 
 def _is_checked_in(obj):
@@ -673,18 +729,25 @@ def refresh_token(acc):
     return {"accessToken": new_access, "refreshToken": new_refresh, "domain": new_domain}
 
 
-def _checkin_headers(acc, access_token):
+def _checkin_headers(acc, access_token, host):
+    # 对齐原软件 La2/b.p() 的完整请求头
     uid = acc.get("uid") or ""
     enterprise = acc.get("enterpriseId") or ""
     domain = acc.get("domain") or ""
     h = {
         "Content-Type": "application/json", "Accept": "application/json",
+        "Accept-Encoding": "identity",
         "User-Agent": "CLI/2.63.2 CodeBuddy/2.63.2",
         "Authorization": "Bearer " + access_token,
+        "X-Requested-With": "XMLHttpRequest",
+        "Origin": host,
+        "Referer": host + "/",
         "X-Product": "SaaS",
     }
     if uid: h["X-User-Id"] = uid
-    if enterprise: h["X-Enterprise-Id"] = enterprise
+    if enterprise:
+        h["X-Enterprise-Id"] = enterprise
+        h["X-Tenant-Id"] = enterprise   # 对齐原软件：X-Tenant-Id 的值 = enterpriseId
     if domain: h["X-Domain"] = domain
     return h
 
@@ -701,18 +764,71 @@ def _apply_refresh(acc):
     return refreshed
 
 
-def _do_checkin(acc, access_token):
-    host = _host(acc.get("domain") or "")
-    return _post(host + "/v2/billing/meter/daily-checkin", "{}", _checkin_headers(acc, access_token))
+def _do_checkin(acc, access_token, host):
+    return _post(host + "/v2/billing/meter/daily-checkin", "{}", _checkin_headers(acc, access_token, host))
+
+
+def travel_checkin(acc, access_token, host):
+    # 对齐原软件 La2/b.e() 的旅行任务流程（buddy/travel）：
+    #   status(GET) -> state:
+    #     arrived            -> claim(POST) 领取旅行礼物
+    #     idle               -> config(GET) 取 locations -> depart(POST {"location_id": id}) 派 Buddy 出发
+    #     daily_limit_reached -> 今日已达上限
+    # 返回 (状态, 描述)：success / already / fail
+    label = acc.get("label", "WorkBuddy")
+    headers = _checkin_headers(acc, access_token, host)
+    try:
+        # 1. 查询旅行状态
+        code, obj, raw = _get(host + "/buddy/travel/status", headers)
+        if code not in (200, 201):
+            return "fail", label + ": 旅行状态查询失败(HTTP " + str(code) + "): " + raw[:150]
+        state = _deep_find(obj, "state").lower()
+        if state == "daily_limit_reached":
+            return "already", label + ": 今日旅行已达上限"
+        if state == "arrived":
+            # 2. 领取旅行礼物
+            code, obj, raw = _post(host + "/buddy/travel/claim", "{}", headers)
+            if code in (200, 201) and _is_success(obj):
+                credit = _deep_find(obj, "credit", "reward_credit")
+                msg = "已领旅行礼物"
+                if credit not in ("", "0"):
+                    msg += " +" + credit
+                return "success", label + ": " + msg
+            if _is_checked_in(obj) or "已领" in str(_deep_find(obj, "message", "msg") or ""):
+                return "already", label + ": 今日已领旅行礼物"
+            return "fail", label + ": 领取旅行礼物失败(HTTP " + str(code) + "): " + raw[:150]
+        if state == "idle":
+            # 3. 查询可出发地点
+            code, obj, raw = _get(host + "/buddy/travel/config", headers)
+            if code not in (200, 201):
+                return "fail", label + ": 旅行配置查询失败(HTTP " + str(code) + "): " + raw[:150]
+            loc_id = _first_location_id(obj)
+            if not loc_id:
+                return "fail", label + ": 没有可出发的旅行地点"
+            # 4. 派 Buddy 出发
+            body = json.dumps({"location_id": loc_id})
+            code, obj, raw = _post(host + "/buddy/travel/depart", body, headers)
+            if code in (200, 201) and _is_success(obj):
+                name = _deep_find(obj, "name")
+                msg = "已派 Buddy 出发"
+                if name:
+                    msg += " " + name
+                return "success", label + ": " + msg
+            return "fail", label + ": 派 Buddy 出发失败(HTTP " + str(code) + "): " + raw[:150]
+        return "already", label + ": 旅行无操作(state=" + (state or "?") + ")"
+    except Exception as e:
+        return "fail", label + ": 旅行异常 " + str(e)
 
 
 def sign_one(acc):
     # 返回 (状态, 描述)：status 为 success / already / fail
+    # 日签到与旅行签到（buddy/travel）独立执行：旅行失败不影响日签结果，有进账则合并上报
     label = acc.get("label", "WorkBuddy")
     access_token = (acc.get("accessToken") or "").strip()
     refresh = (acc.get("refreshToken") or "").strip()
     if not access_token and not refresh:
         return "fail", label + ": 缺少 access/refresh token"
+    host = _host(acc.get("domain") or "")
     try:
         # accessToken 缺失：先刷新再签到
         if not access_token:
@@ -720,25 +836,42 @@ def sign_one(acc):
                 return "fail", label + ": 刷新 token 失败，需重新登录"
             access_token = (acc.get("accessToken") or "").strip()
 
-        code, obj, raw = _do_checkin(acc, access_token)
+        # --- 日签到 ---
+        code, obj, raw = _do_checkin(acc, access_token, host)
         if _is_checked_in(obj):
-            return "already", label + ": 今日已签到"
-        if _is_success(obj):
-            return "success", label + ": 签到成功"
-
-        # 首签失败且还有 refreshToken：很可能 accessToken 已过期，刷新后重试一次
-        if refresh:
-            if _apply_refresh(acc) is not None:
+            status, desc = "already", label + ": 今日已签到"
+        elif _is_success(obj):
+            status, desc = "success", label + ": 签到成功"
+        else:
+            # 首签失败且还有 refreshToken：很可能 accessToken 已过期，刷新后重试一次
+            if refresh and _apply_refresh(acc) is not None:
                 access_token = (acc.get("accessToken") or "").strip()
-                code, obj, raw = _do_checkin(acc, access_token)
+                code, obj, raw = _do_checkin(acc, access_token, host)
                 if _is_checked_in(obj):
-                    return "already", label + ": 今日已签到"
-                if _is_success(obj):
-                    return "success", label + ": 签到成功"
+                    status, desc = "already", label + ": 今日已签到"
+                elif _is_success(obj):
+                    status, desc = "success", label + ": 签到成功"
+                else:
+                    status, desc = "fail", label + ": 失败(HTTP " + str(code) + "): " + raw[:200]
+            else:
+                status, desc = "fail", label + ": 失败(HTTP " + str(code) + "): " + raw[:200]
 
-        if code not in (200, 201):
-            return "fail", label + ": 失败(HTTP " + str(code) + "): " + raw[:200]
-        return "fail", label + ": 异常响应: " + raw[:200]
+        # --- 旅行签到（独立，失败不改变日签结果，成功/已签到则合并） ---
+        try:
+            tstatus, tdesc = travel_checkin(acc, access_token, host)
+            if tstatus == "success":
+                desc += " | " + tdesc
+                if status == "fail":
+                    status = "success"
+            elif tstatus == "already":
+                desc += " | " + tdesc
+                if status == "fail":
+                    status = "already"
+            elif tstatus == "fail":
+                desc += " | " + tdesc
+        except Exception:
+            pass
+        return status, desc
     except Exception as e:
         return "fail", label + ": 异常 " + str(e)
 

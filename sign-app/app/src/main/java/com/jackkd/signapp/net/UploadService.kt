@@ -236,6 +236,7 @@ jobs:
 import base64
 import json
 import os
+import random
 import sys
 import time
 import urllib.error
@@ -252,6 +253,7 @@ IDE_VERSION = "0.1.52"
 ACCOUNTS_FILE = "trae_accounts.json"
 LOG_FILE = "sign_logs.json"
 REMOTE_LOG_FILE = "scripts/sign_logs.json"
+REMOTE_ACCOUNTS_FILE = "scripts/trae_accounts.json"
 MAX_LOGS = 500
 TIMEOUT = 60
 
@@ -314,6 +316,20 @@ def _is_success(obj):
     if isinstance(status, str) and status.lower() == "success":
         return True
     return False
+
+
+def _generate_device_id():
+    # 对齐原软件 d2/x.e()：15 位随机纯数字，范围 100000000000000 ~ 999999999999999
+    return str(100000000000000 + random.randrange(0, 900000000000000))
+
+
+def _is_valid_device_id(value):
+    # 对齐原软件 d2/x.a()：14~20 位纯数字
+    if not value:
+        return False
+    if not (14 <= len(value) <= 20):
+        return False
+    return value.isdigit()
 
 
 def exchange_token(refresh_token):

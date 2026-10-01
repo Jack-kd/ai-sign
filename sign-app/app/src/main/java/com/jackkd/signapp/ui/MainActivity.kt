@@ -938,6 +938,17 @@ private fun showGithubDialog() {
         val dlg = MaterialAlertDialogBuilder(this)
             .setView(view)
             .create()
+        view.findViewById<View>(R.id.btnOpenSecrets).setOnClickListener {
+            // 一键跳转到当前仓库的 Actions Secrets 配置页
+            val url = if (config.repoName.isNotBlank())
+                "https://github.com/${config.username}/${config.repoName}/settings/secrets/actions"
+            else "https://github.com/settings/secrets/actions"
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            } catch (e: Exception) {
+                Toast.makeText(this, "无法打开浏览器", Toast.LENGTH_SHORT).show()
+            }
+        }
         view.findViewById<View>(R.id.btnCopyKey).setOnClickListener {
             val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             cm.setPrimaryClip(ClipData.newPlainText("SIGN_KEY", CredentialCrypto.keyBase64()))

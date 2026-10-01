@@ -22,10 +22,21 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
-        android:text="开启后，上传到 GitHub 的凭证会用 AES-256-GCM 加密；脚本需配置 SIGN_KEY 密钥才能解密签到（未开启则明文上传，无需配置）。\n\nGitHub → Settings → Secrets and variables → Actions → New repository secret → 名称填 SIGN_KEY → 粘贴密钥"
+        android:text="开启后，上传到 GitHub 的凭证会用 AES-256-GCM 加密；脚本需配置 SIGN_KEY 密钥才能解密签到（未开启则明文上传，无需配置）。"
         android:textColor="@color/gray"
         android:textSize="13sp"
         android:lineSpacingExtra="3dp" />
+
+    <!-- 一键跳转 GitHub Secrets 页面 -->
+    <TextView
+        android:id="@+id/btnOpenSecrets"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="➡ 打开 GitHub Secrets 页面（去配置 SIGN_KEY）"
+        android:textColor="@color/primary"
+        android:textSize="13sp"
+        android:textStyle="bold" />
 
     <Switch
         android:id="@+id/switchCrypto"

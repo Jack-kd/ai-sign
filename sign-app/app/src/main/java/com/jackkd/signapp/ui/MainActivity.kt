@@ -623,6 +623,10 @@ private fun showGithubDialog() {
                     val branch = api.getDefaultBranch(user, candidate) ?: "main"
                     return RepoInfo(candidate, branch)
                 }
+                // 仓库已存在但 token 无写权限：直接提示，不再尝试创建带后缀的新仓库
+                throw IllegalStateException(
+                    "仓库 $user/$candidate 已存在，但当前 token 对该仓库没有写权限（请检查 token 的 repo 权限）"
+                )
             }
         }
         return null

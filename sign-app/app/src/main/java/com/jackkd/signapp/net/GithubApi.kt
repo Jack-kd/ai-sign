@@ -123,20 +123,23 @@ class GithubApi(private val username: String, private val token: String) {
 
             // 3. Workflows 权限：普通 user token 只要能写仓库文件（push），就能修改 .github/workflows 下的工作流
             //    （工作流本质是仓库内文件，通过 contents API 写入即可）。用 push 判断足够。
-            result["Workflows(写签到脚本/定时)"] = push to if (push)
-                "可修改工作流文件（设置签到时间）" else "无 Workflows 权限：设置签到时间可能失败"
+            val wfOk = push && actionsOk
+            result["Workflows(写签到脚本/定时)"] = wfOk to if (wfOk)
+                "可修改工作流文件（设置签到时间）" else "无 Workflows 权限：设置签到时间可能失败（classic token 需同时勾选 repo 与 workflow）"
 
             // 4. 额外：实测读仓库文件权限（Contents 读）
+            // 注意：无权限访问也可能返回 404/403，不能用 404 当作"可读"；
+            // 仅当文件可读(200) 或（404 且已有写权限 push）才判定可读，避免误报
             val readOk = try {
                 val rfReq = Request.Builder()
                     .url("https://api.github.com/repos/$owner/$repo/contents/scripts/trae_accounts.json")
                     .header("Authorization", auth())
                     .header("Accept", "application/vnd.github+json")
                     .build()
-                client.newCall(rfReq).execute().use { r -> r.code == 200 || r.code == 404 }
+                client.newCall(rfReq).execute().use { r -> r.code == 200 || (r.code == 404 && push) }
             } catch (e: Exception) { false }
             result["Contents 读取(看账号/日志)"] = readOk to if (readOk)
-                "可读取仓库文件（账号列表、签到日志）" else "无法读取仓库文件"
+                "可读取仓库文件（账号列表、签到日志）" else "无法读取仓库文件（token 权限不足）"
         } catch (e: Exception) {
             e.printStackTrace()
             result["检测异常"] = false to (e.message ?: "网络错误")

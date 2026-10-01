@@ -49,23 +49,40 @@
             android:fontFamily="monospace"
             android:textStyle="bold" />
 
+        <!-- 占位：把 cloud 和 X 推到右侧 -->
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
         <TextView
             android:id="@+id/tvLogsMode"
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="end"
+            android:layout_marginEnd="8dp"
             android:text="local"
             android:textColor="#6A9955"
             android:textSize="11sp"
             android:fontFamily="monospace" />
+
+        <!-- 终端风格关闭：圆框 X -->
+        <TextView
+            android:id="@+id/btnLogsCloseX"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:background="@drawable/bg_close_circle"
+            android:gravity="center"
+            android:text="✕"
+            android:textColor="#4EC9B0"
+            android:textSize="13sp"
+            android:contentDescription="关闭" />
     </LinearLayout>
 
     <!-- 终端内容区 -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:maxHeight="340dp">
+        android:maxHeight="220dp">
 
         <TextView
             android:id="@+id/tvLogsContent"

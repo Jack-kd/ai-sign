@@ -942,6 +942,7 @@ private fun showGithubDialog() {
         btnLocal.setOnClickListener { renderLocal() }
         btnCloud.setOnClickListener { fetchCloud() }
         btnClose.setOnClickListener { dlg.dismiss() }
+        view.findViewById<View>(R.id.btnLogsCloseX)?.setOnClickListener { dlg.dismiss() }
         dlg.setOnShowListener { renderLocal() }
         dlg.show()
     }

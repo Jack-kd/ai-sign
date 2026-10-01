@@ -72,6 +72,11 @@ object TraeCredentialExtractor {
         )
     }
 
-    /** 生成 deviceId：13 位数字（与原软件格式一致） */
-    fun generateDeviceId(): String = System.currentTimeMillis().toString().takeLast(13)
+    /** 生成 deviceId：对齐原软件 d2/x.e()，SecureRandom 生成 15 位纯数字 */
+    fun generateDeviceId(): String {
+        val r = java.security.SecureRandom()
+        var n = r.nextLong()
+        if (n < 0) n = -n
+        return String.format("%015d", (n % 900000000000000L) + 100000000000000L)
+    }
 }

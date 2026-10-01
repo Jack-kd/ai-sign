@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_dialog_light"
+    android:paddingTop="18dp"
+    android:paddingLeft="20dp"
+    android:paddingRight="20dp"
+    android:paddingBottom="16dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="🔐 云端凭证加密"
+        android:textColor="@color/black"
+        android:textSize="17sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="上传到 GitHub 的凭证已用 AES-256-GCM 加密。请把下面的密钥配置到 GitHub Actions Secret（名称 SIGN_KEY），脚本才能解密签到：\n\nGitHub → Settings → Secrets and variables → Actions → New repository secret → 名称填 SIGN_KEY → 粘贴密钥"
+        android:textColor="@color/gray"
+        android:textSize="13sp"
+        android:lineSpacingExtra="3dp" />
+
+    <TextView
+        android:id="@+id/tvCryptoKey"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_terminal_window"
+        android:padding="10dp"
+        android:text=""
+        android:textColor="@color/terminal_green"
+        android:textSize="12sp"
+        android:fontFamily="monospace"
+        android:lineSpacingExtra="2dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/btnCopyKey"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/bg_btn_gradient"
+            android:gravity="center"
+            android:padding="11dp"
+            android:text="复制密钥"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnCryptoClose"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:background="@drawable/bg_badge"
+            android:gravity="center"
+            android:padding="11dp"
+            android:text="关闭"
+            android:textColor="@color/primary"
+            android:textSize="14sp" />
+    </LinearLayout>
+</LinearLayout>

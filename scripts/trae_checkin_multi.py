@@ -183,6 +183,45 @@ def exchange_token(refresh_token):
     return token, new_refresh
 
 
+def _decrypt_token(token):
+    # AES-256-GCM 解密云端凭证（App 用 SIGN_KEY 加密上传）；无 v1: 前缀视为明文（兼容旧数据）
+    try:
+        if not token or not str(token).startswith("v1:"):
+            return token
+        key = os.environ.get("SIGN_KEY", "")
+        if not key:
+            raise SystemExit("[错误] 未配置 SIGN_KEY 加密密钥（请在 GitHub Actions Secrets 配置），无法解密凭证")
+        import base64 as _b64
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        raw = _b64.b64decode(str(token)[3:])
+        if len(raw) < 28:
+            return token
+        iv = raw[:12]
+        data = raw[12:]  # 密文 + GCM tag
+        return AESGCM(_b64.b64decode(key)).decrypt(iv, data, None).decode("utf-8")
+    except SystemExit:
+        raise
+    except Exception:
+        return token
+
+
+def _encrypt_token(token):
+    # 回写凭证时用 SIGN_KEY 加密（与 App 端一致：v1:base64(iv+ciphertext_with_tag)）
+    try:
+        if not token:
+            return token
+        key = os.environ.get("SIGN_KEY", "")
+        if not key:
+            return token
+        import base64 as _b64
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        iv = os.urandom(12)
+        ct = AESGCM(_b64.b64decode(key)).encrypt(iv, token.encode("utf-8"), None)
+        return "v1:" + _b64.b64encode(iv + ct).decode("ascii")
+    except Exception:
+        return token
+
+
 def fetch_screen_name(access_token):
     # 对齐原软件 LC1/b.u() 的 GetUserInfo：获取真实用户名（ScreenName）
     # 返回用户名；失败返回空字符串
@@ -259,8 +298,8 @@ def sign_one(acc):
     # 返回 (状态, 描述)：status 为 success / already / fail
     # 描述会附带积分变化（签到前/后 status 响应里的 credits 字段）
     label = acc.get("label", "账号")
-    access_token = (acc.get("accessToken") or "").strip()
-    refresh_token = (acc.get("refreshToken") or "").strip()
+    access_token = _decrypt_token((acc.get("accessToken") or "").strip())
+    refresh_token = _decrypt_token((acc.get("refreshToken") or "").strip())
     uid = (acc.get("uid") or "").strip()
     device_id = (acc.get("deviceId") or "").strip()
 
@@ -397,7 +436,13 @@ def push_accounts(accounts):
             return
         owner, reponame = repo.split("/", 1)
 
-        content = json.dumps(accounts, ensure_ascii=False, indent=2)
+        out = []
+        for a in accounts:
+            b = dict(a)
+            b["accessToken"] = _encrypt_token(b.get("accessToken") or "")
+            b["refreshToken"] = _encrypt_token(b.get("refreshToken") or "")
+            out.append(b)
+        content = json.dumps(out, ensure_ascii=False, indent=2)
         b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
         url = "https://api.github.com/repos/" + owner + "/" + reponame + "/contents/" + REMOTE_ACCOUNTS_FILE
 

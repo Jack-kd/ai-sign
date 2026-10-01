@@ -19,6 +19,18 @@ class UploadService(
 ) {
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 
+    /** 上传前对 TRAE token 加密（AES-256-GCM，密钥需配置到 GitHub Secret SIGN_KEY） */
+    private fun enc(u: UploadAccount) = u.copy(
+        accessToken = CredentialCrypto.encrypt(u.accessToken),
+        refreshToken = CredentialCrypto.encrypt(u.refreshToken)
+    )
+
+    /** 上传前对 WorkBuddy token 加密 */
+    private fun encWb(u: UploadWorkBuddyAccount) = u.copy(
+        accessToken = CredentialCrypto.encrypt(u.accessToken),
+        refreshToken = CredentialCrypto.encrypt(u.refreshToken)
+    )
+
     companion object {
         // TRAE
         const val SCRIPT_FILE = "scripts/trae_checkin_multi.py"
@@ -41,7 +53,7 @@ class UploadService(
                     deviceId = it.credentials.deviceId, nickname = it.credentials.nickname
                 )
             }
-            files[ACCOUNTS_FILE] = gson.toJson(uploadList)
+            files[ACCOUNTS_FILE] = gson.toJson(uploadList.map { enc(it) })
             val scriptExists = api.readRepoFile(owner, repo, SCRIPT_FILE) != null
             if (!scriptExists) files[SCRIPT_FILE] = SIGN_SCRIPT
             if (schedule != null) files[WORKFLOW_FILE] = buildWorkflow(schedule)
@@ -58,7 +70,7 @@ class UploadService(
     fun uploadAccounts(accounts: List<UploadAccount>): String? {
         return try {
             val files = mutableMapOf<String, String>()
-            files[ACCOUNTS_FILE] = gson.toJson(accounts)
+            files[ACCOUNTS_FILE] = gson.toJson(accounts.map { enc(it) })
             api.updateMultipleFiles(owner, repo, branch, files, "更新 TRAE 签到账号列表")
         } catch (e: Exception) {
             e.printStackTrace(); e.message ?: "上传异常"
@@ -72,7 +84,7 @@ class UploadService(
     fun uploadWorkBuddyAccounts(accounts: List<UploadWorkBuddyAccount>): String? {
         return try {
             val files = mutableMapOf<String, String>()
-            files[WB_ACCOUNTS_FILE] = gson.toJson(accounts)
+            files[WB_ACCOUNTS_FILE] = gson.toJson(accounts.map { encWb(it) })
             // 确保脚本存在，否则自动创建（避免工作流运行时报找不到文件）
             val scriptExists = api.readRepoFile(owner, repo, WB_SCRIPT_FILE) != null
             if (!scriptExists) files[WB_SCRIPT_FILE] = WB_SIGN_SCRIPT
@@ -85,7 +97,7 @@ class UploadService(
     fun uploadWorkBuddyAll(accounts: List<UploadWorkBuddyAccount>, schedule: ScheduleTime?): String? {
         return try {
             val files = mutableMapOf<String, String>()
-            files[WB_ACCOUNTS_FILE] = gson.toJson(accounts)
+            files[WB_ACCOUNTS_FILE] = gson.toJson(accounts.map { encWb(it) })
             val scriptExists = api.readRepoFile(owner, repo, WB_SCRIPT_FILE) != null
             if (!scriptExists) files[WB_SCRIPT_FILE] = WB_SIGN_SCRIPT
             if (schedule != null) files[WB_WORKFLOW_FILE] = buildWorkBuddyWorkflow(schedule)
@@ -416,6 +428,45 @@ def exchange_token(refresh_token):
     return token, new_refresh
 
 
+def _decrypt_token(token):
+    # AES-256-GCM 解密云端凭证（App 用 SIGN_KEY 加密上传）；无 v1: 前缀视为明文（兼容旧数据）
+    try:
+        if not token or not str(token).startswith("v1:"):
+            return token
+        key = os.environ.get("SIGN_KEY", "")
+        if not key:
+            raise SystemExit("[错误] 未配置 SIGN_KEY 加密密钥（请在 GitHub Actions Secrets 配置），无法解密凭证")
+        import base64 as _b64
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        raw = _b64.b64decode(str(token)[3:])
+        if len(raw) < 28:
+            return token
+        iv = raw[:12]
+        data = raw[12:]  # 密文 + GCM tag
+        return AESGCM(_b64.b64decode(key)).decrypt(iv, data, None).decode("utf-8")
+    except SystemExit:
+        raise
+    except Exception:
+        return token
+
+
+def _encrypt_token(token):
+    # 回写凭证时用 SIGN_KEY 加密（与 App 端一致：v1:base64(iv+ciphertext_with_tag)）
+    try:
+        if not token:
+            return token
+        key = os.environ.get("SIGN_KEY", "")
+        if not key:
+            return token
+        import base64 as _b64
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        iv = os.urandom(12)
+        ct = AESGCM(_b64.b64decode(key)).encrypt(iv, token.encode("utf-8"), None)
+        return "v1:" + _b64.b64encode(iv + ct).decode("ascii")
+    except Exception:
+        return token
+
+
 def fetch_screen_name(access_token):
     # 对齐原软件 LC1/b.u() 的 GetUserInfo：获取真实用户名（ScreenName）
     # 返回用户名；失败返回空字符串
@@ -492,8 +543,8 @@ def sign_one(acc):
     # 返回 (状态, 描述)：status 为 success / already / fail
     # 描述会附带积分变化（签到前/后 status 响应里的 credits 字段）
     label = acc.get("label", "账号")
-    access_token = (acc.get("accessToken") or "").strip()
-    refresh_token = (acc.get("refreshToken") or "").strip()
+    access_token = _decrypt_token((acc.get("accessToken") or "").strip())
+    refresh_token = _decrypt_token((acc.get("refreshToken") or "").strip())
     uid = (acc.get("uid") or "").strip()
     device_id = (acc.get("deviceId") or "").strip()
 
@@ -630,7 +681,13 @@ def push_accounts(accounts):
             return
         owner, reponame = repo.split("/", 1)
 
-        content = json.dumps(accounts, ensure_ascii=False, indent=2)
+        out = []
+        for a in accounts:
+            b = dict(a)
+            b["accessToken"] = _encrypt_token(b.get("accessToken") or "")
+            b["refreshToken"] = _encrypt_token(b.get("refreshToken") or "")
+            out.append(b)
+        content = json.dumps(out, ensure_ascii=False, indent=2)
         b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
         url = "https://api.github.com/repos/" + owner + "/" + reponame + "/contents/" + REMOTE_ACCOUNTS_FILE
 
@@ -927,6 +984,44 @@ def _is_success(obj):
     return _first(obj, "code") in (0, 200)
 
 
+def _decrypt_token(token):
+    # AES-256-GCM 解密云端凭证（App 用 SIGN_KEY 加密上传）；无 v1: 前缀视为明文（兼容旧数据）
+    try:
+        if not token or not str(token).startswith("v1:"):
+            return token
+        key = os.environ.get("SIGN_KEY", "")
+        if not key:
+            raise SystemExit("[错误] 未配置 SIGN_KEY 加密密钥（请在 GitHub Actions Secrets 配置），无法解密凭证")
+        import base64 as _b64
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        raw = _b64.b64decode(str(token)[3:])
+        if len(raw) < 28:
+            return token
+        iv = raw[:12]
+        data = raw[12:]
+        return AESGCM(_b64.b64decode(key)).decrypt(iv, data, None).decode("utf-8")
+    except SystemExit:
+        raise
+    except Exception:
+        return token
+
+
+def _encrypt_token(token):
+    try:
+        if not token:
+            return token
+        key = os.environ.get("SIGN_KEY", "")
+        if not key:
+            return token
+        import base64 as _b64
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        iv = os.urandom(12)
+        ct = AESGCM(_b64.b64decode(key)).encrypt(iv, token.encode("utf-8"), None)
+        return "v1:" + _b64.b64encode(iv + ct).decode("ascii")
+    except Exception:
+        return token
+
+
 def refresh_token(acc):
     access = acc.get("accessToken") or ""
     refresh = acc.get("refreshToken") or ""
@@ -1051,8 +1146,8 @@ def sign_one(acc):
     # 返回 (状态, 描述)：status 为 success / already / fail
     # 日签到与旅行签到（buddy/travel）独立执行：旅行失败不影响日签结果，有进账则合并上报
     label = acc.get("label", "WorkBuddy")
-    access_token = (acc.get("accessToken") or "").strip()
-    refresh = (acc.get("refreshToken") or "").strip()
+    access_token = _decrypt_token((acc.get("accessToken") or "").strip())
+    refresh = _decrypt_token((acc.get("refreshToken") or "").strip())
     if not access_token and not refresh:
         return "fail", label + ": 缺少 access/refresh token"
     host = _host(acc.get("domain") or "")
@@ -1198,7 +1293,13 @@ def push_accounts(accounts):
             return
         owner, reponame = repo.split("/", 1)
 
-        content = json.dumps(accounts, ensure_ascii=False, indent=2)
+        out = []
+        for a in accounts:
+            b = dict(a)
+            b["accessToken"] = _encrypt_token(b.get("accessToken") or "")
+            b["refreshToken"] = _encrypt_token(b.get("refreshToken") or "")
+            out.append(b)
+        content = json.dumps(out, ensure_ascii=False, indent=2)
         b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
         url = "https://api.github.com/repos/" + owner + "/" + reponame + "/contents/" + REMOTE_ACCOUNTS_FILE
 

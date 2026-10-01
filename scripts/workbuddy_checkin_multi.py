@@ -212,6 +212,44 @@ def _is_success(obj):
     return _first(obj, "code") in (0, 200)
 
 
+def _decrypt_token(token):
+    # AES-256-GCM 解密云端凭证（App 用 SIGN_KEY 加密上传）；无 v1: 前缀视为明文（兼容旧数据）
+    try:
+        if not token or not str(token).startswith("v1:"):
+            return token
+        key = os.environ.get("SIGN_KEY", "")
+        if not key:
+            raise SystemExit("[错误] 未配置 SIGN_KEY 加密密钥（请在 GitHub Actions Secrets 配置），无法解密凭证")
+        import base64 as _b64
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        raw = _b64.b64decode(str(token)[3:])
+        if len(raw) < 28:
+            return token
+        iv = raw[:12]
+        data = raw[12:]
+        return AESGCM(_b64.b64decode(key)).decrypt(iv, data, None).decode("utf-8")
+    except SystemExit:
+        raise
+    except Exception:
+        return token
+
+
+def _encrypt_token(token):
+    try:
+        if not token:
+            return token
+        key = os.environ.get("SIGN_KEY", "")
+        if not key:
+            return token
+        import base64 as _b64
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        iv = os.urandom(12)
+        ct = AESGCM(_b64.b64decode(key)).encrypt(iv, token.encode("utf-8"), None)
+        return "v1:" + _b64.b64encode(iv + ct).decode("ascii")
+    except Exception:
+        return token
+
+
 def refresh_token(acc):
     access = acc.get("accessToken") or ""
     refresh = acc.get("refreshToken") or ""
@@ -336,8 +374,8 @@ def sign_one(acc):
     # 返回 (状态, 描述)：status 为 success / already / fail
     # 日签到与旅行签到（buddy/travel）独立执行：旅行失败不影响日签结果，有进账则合并上报
     label = acc.get("label", "WorkBuddy")
-    access_token = (acc.get("accessToken") or "").strip()
-    refresh = (acc.get("refreshToken") or "").strip()
+    access_token = _decrypt_token((acc.get("accessToken") or "").strip())
+    refresh = _decrypt_token((acc.get("refreshToken") or "").strip())
     if not access_token and not refresh:
         return "fail", label + ": 缺少 access/refresh token"
     host = _host(acc.get("domain") or "")
@@ -483,7 +521,13 @@ def push_accounts(accounts):
             return
         owner, reponame = repo.split("/", 1)
 
-        content = json.dumps(accounts, ensure_ascii=False, indent=2)
+        out = []
+        for a in accounts:
+            b = dict(a)
+            b["accessToken"] = _encrypt_token(b.get("accessToken") or "")
+            b["refreshToken"] = _encrypt_token(b.get("refreshToken") or "")
+            out.append(b)
+        content = json.dumps(out, ensure_ascii=False, indent=2)
         b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
         url = "https://api.github.com/repos/" + owner + "/" + reponame + "/contents/" + REMOTE_ACCOUNTS_FILE
 

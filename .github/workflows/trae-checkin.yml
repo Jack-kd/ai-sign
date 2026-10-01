@@ -16,7 +16,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install deps
+        run: pip install cryptography
       - name: 执行多账号签到
         run: cd scripts && python trae_checkin_multi.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SIGN_KEY: ${{ secrets.SIGN_KEY }}

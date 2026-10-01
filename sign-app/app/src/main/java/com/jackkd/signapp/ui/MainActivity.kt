@@ -1,5 +1,8 @@
 package com.jackkd.signapp.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.text.SpannableString
@@ -70,6 +73,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        CredentialCrypto.init(this)
 
         config = GithubConfig(this)
         accountStore = AccountStore(this)
@@ -213,6 +217,9 @@ class MainActivity : AppCompatActivity() {
         }
         view.findViewById<View>(R.id.btnStatsEntry).setOnClickListener {
             dialog.dismiss(); showStatsDialog()
+        }
+        view.findViewById<View>(R.id.btnCryptoEntry).setOnClickListener {
+            dialog.dismiss(); showCryptoDialog()
         }
         view.findViewById<View>(R.id.btnCloseSettings).setOnClickListener { dialog.dismiss() }
         dialog.show()
@@ -698,7 +705,11 @@ private fun showGithubDialog() {
                 }
                 for (ua in list) {
                     val acc = ua.toTraeAccount()
-                    accountStore.addOrUpdate(acc)
+                    // 云端 token 是密文：解密后存本地；解密失败（密钥不匹配）则跳过保留本地
+                    val at = CredentialCrypto.decrypt(acc.credentials.accessToken)
+                    val rt = CredentialCrypto.decrypt(acc.credentials.refreshToken)
+                    if (at.startsWith("v1:") || rt.startsWith("v1:")) continue
+                    accountStore.addOrUpdate(acc.copy(credentials = acc.credentials.copy(accessToken = at, refreshToken = rt)))
                 }
                 accountAdapter.submit(accountStore.load())
             }
@@ -714,12 +725,15 @@ private fun showGithubDialog() {
                     emptyList()
                 }
                 for (ua in wbList) {
+                    val at = CredentialCrypto.decrypt(ua.accessToken ?: "")
+                    val rt = CredentialCrypto.decrypt(ua.refreshToken ?: "")
+                    if (at.startsWith("v1:") || rt.startsWith("v1:")) continue
                     val acc = WorkBuddyAccount(
                         id = "cloud_wb_" + (ua.uid.ifBlank { ua.label }),
                         label = ua.label.ifBlank { (ua.nickname.ifBlank { "WorkBuddy" }) },
                         credentials = WorkBuddyCredentials(
-                            accessToken = ua.accessToken ?: "",
-                            refreshToken = ua.refreshToken ?: "",
+                            accessToken = at,
+                            refreshToken = rt,
                             domain = ua.domain ?: "",
                             uid = ua.uid ?: "",
                             enterpriseId = ua.enterpriseId ?: "",
@@ -877,6 +891,23 @@ private fun showGithubDialog() {
             logStore.add(SignLog(System.currentTimeMillis(), acc.label, "删除成功", "已从本地和云端删除 WorkBuddy"))
             Toast.makeText(this@MainActivity, "${acc.label} 已从本地和云端删除", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    /** 云端凭证加密设置：显示密钥并引导配置到 GitHub Secret SIGN_KEY */
+    private fun showCryptoDialog() {
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_crypto, null)
+        val tvKey = view.findViewById<TextView>(R.id.tvCryptoKey)
+        tvKey.text = CredentialCrypto.keyBase64()
+        val dlg = MaterialAlertDialogBuilder(this)
+            .setView(view)
+            .create()
+        view.findViewById<View>(R.id.btnCopyKey).setOnClickListener {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            cm.setPrimaryClip(ClipData.newPlainText("SIGN_KEY", CredentialCrypto.keyBase64()))
+            Toast.makeText(this, "密钥已复制，请到 GitHub Actions Secrets 新建 SIGN_KEY 并粘贴", Toast.LENGTH_LONG).show()
+        }
+        view.findViewById<View>(R.id.btnCryptoClose).setOnClickListener { dlg.dismiss() }
+        dlg.show()
     }
 
     /** 积分趋势统计：终端样式弹窗（今日/本周/本月/累计领取 + 近 7 天趋势） */

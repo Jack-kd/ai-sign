@@ -247,6 +247,31 @@ class GithubApi(private val username: String, private val token: String) {
         }
     }
 
+    /**
+     * 列出某工作流最近的运行记录（用于轮询"云端签到是否完成"）。
+     * @param workflowFile 工作流文件路径（如 .github/workflows/trae-checkin.yml）
+     * @return 按时间倒序的 workflow_runs 列表；失败返回 null
+     */
+    fun listWorkflowRuns(owner: String, repo: String, workflowFile: String, perPage: Int = 10): List<JsonObject>? {
+        return try {
+            val fileId = workflowFile.substringAfterLast('/')
+            val req = Request.Builder()
+                .url("https://api.github.com/repos/$owner/$repo/actions/workflows/$fileId/runs?per_page=$perPage")
+                .header("Authorization", auth())
+                .header("Accept", "application/vnd.github+json")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val obj = JsonParser.parseString(resp.body?.string() ?: "{}").asJsonObject
+                val arr = obj.getAsJsonArray("workflow_runs") ?: return null
+                arr.map { it.asJsonObject }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
     /** 创建或更新仓库文件（加入自动重试，应对瞬时网络中断） */
     fun createOrUpdateFile(owner: String, repo: String, path: String, content: String, message: String): Boolean {
         var lastErr: Exception? = null

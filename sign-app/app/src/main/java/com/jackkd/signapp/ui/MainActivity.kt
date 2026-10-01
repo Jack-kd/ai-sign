@@ -954,6 +954,7 @@ private fun showGithubDialog() {
         val button = if (platform == "TRAE") R.id.btnTriggerTrae else R.id.btnTriggerWb
         val tv = findViewById<TextView>(button)
         val original = tv.text.toString()
+        val triggerTime = System.currentTimeMillis()
         tv.isEnabled = false
         startCheckinAnimation(tv)
         Toast.makeText(this, "正在触发 $platform 立即签到...", Toast.LENGTH_SHORT).show()
@@ -970,16 +971,68 @@ private fun showGithubDialog() {
                     e.message ?: "触发异常"
                 }
             }
+            if (err != null) {
+                runOnUiThread {
+                    stopCheckinAnimation(tv)
+                    tv.text = original
+                    tv.isEnabled = true
+                    Toast.makeText(this@MainActivity, "$platform 触发失败：$err", Toast.LENGTH_LONG).show()
+                }
+                return@launch
+            }
+            logStore.add(SignLog(triggerTime, platform, "已触发", "手动触发签到，等待云端执行"))
+
+            // 轮询云端直到签到工作流完成（按钮保持"正在云端签到..."动画）
+            val done = withContext(Dispatchers.IO) {
+                waitCloudCheckinDone(platform, triggerTime)
+            }
             runOnUiThread {
                 stopCheckinAnimation(tv)
                 tv.text = original
                 tv.isEnabled = true
-                if (err == null) {
-                    Toast.makeText(this@MainActivity, "$platform 已触发，正在后台签到，稍后可在「日志-拉取云端」查看结果", Toast.LENGTH_LONG).show()
-                    logStore.add(SignLog(System.currentTimeMillis(), platform, "已触发", "手动触发签到，等待云端执行"))
+                if (done) {
+                    Toast.makeText(this@MainActivity, "$platform 云端签到完成，可在「日志-拉取云端」查看结果", Toast.LENGTH_LONG).show()
+                    logStore.add(SignLog(System.currentTimeMillis(), platform, "云端完成", "云端签到已执行完成"))
                 } else {
-                    Toast.makeText(this@MainActivity, "$platform 触发失败：$err", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "$platform 云端签到仍在运行，请稍后在「日志-拉取云端」查看", Toast.LENGTH_LONG).show()
                 }
+            }
+        }
+    }
+
+    /** 轮询 GitHub Actions 工作流 run，直到本次触发的签到完成（最多 5 分钟） */
+    private fun waitCloudCheckinDone(platform: String, triggerTime: Long): Boolean {
+        val api = GithubApi(config.username, config.token)
+        val file = if (platform == "TRAE") ".github/workflows/trae-checkin.yml"
+        else ".github/workflows/workbuddy-checkin.yml"
+        val deadline = System.currentTimeMillis() + 300_000L
+        while (System.currentTimeMillis() < deadline) {
+            try { Thread.sleep(5000) } catch (e: InterruptedException) { break }
+            val runs = api.listWorkflowRuns(config.repoOwner, config.repoName, file)
+            if (runs == null) continue
+            for (r in runs) {
+                val created = r.get("created_at")?.asString ?: continue
+                val status = r.get("status")?.asString ?: continue
+                val t = parseIsoTime(created)
+                // 本次触发（触发时间附近创建的 run）已完成
+                if (t >= triggerTime - 5000 && status == "completed") {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    /** 解析 GitHub ISO8601 时间（如 2026-10-01T08:08:52.858Z） */
+    private fun parseIsoTime(s: String): Long {
+        return try {
+            java.time.Instant.parse(s).toEpochMilli()
+        } catch (e: Exception) {
+            try {
+                java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
+                    .parse(s)?.time ?: 0L
+            } catch (e2: Exception) {
+                0L
             }
         }
     }

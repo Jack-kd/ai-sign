@@ -454,14 +454,20 @@ private fun showGithubDialog() {
         val iconSaved = view.findViewById<TextView>(R.id.iconSavedAccounts)
         val containerSaved = view.findViewById<LinearLayout>(R.id.containerSavedAccounts)
 
+        // 已登录过账号：弹窗用于"切换账号"，按钮为取消、可点外部关闭；
+        // 无账号（首次）：必须授权，按钮为退出、不可外部关闭
+        val hasSaved = config.savedAccounts().isNotEmpty()
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle("GitHub 授权")
             .setView(view)
             .setPositiveButton("确认", null)
-            .setNegativeButton("退出", { _, _ -> finish() })
+            .setNegativeButton(if (hasSaved) "取消" else "退出", { _, _ ->
+                if (hasSaved) githubDialog?.dismiss() else finish()
+            })
             .create()
         // 弹窗整体浅色渐变（含底部按钮区，圆角）
         dialog.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
+        dialog.setCancelable(!hasSaved)
         dialog.setOnCancelListener { githubDialog = null }
         dialog.setOnDismissListener { githubDialog = null }
         githubDialog = dialog
@@ -527,7 +533,6 @@ private fun showGithubDialog() {
                 verifyGithub(user, token, repoInput)
             }
         }
-        dialog.setCancelable(false)
         view.findViewById<View>(R.id.btnTokenHelp)?.setOnClickListener {
             showTokenHelpDialog()
         }

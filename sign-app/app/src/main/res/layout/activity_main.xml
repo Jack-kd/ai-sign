@@ -94,13 +94,36 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <TextView
-            android:id="@+id/tvSchedule"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="TRAE 签到时间: 未设置"
-            android:textColor="@color/black"
-            android:textSize="14sp" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tvSchedule"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="TRAE 签到时间: 未设置"
+                android:textColor="@color/black"
+                android:textSize="14sp" />
+
+            <!-- 单独设置 TRAE 签到时间 -->
+            <TextView
+                android:id="@+id/btnSetTraeSchedule"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_badge"
+                android:paddingLeft="12dp"
+                android:paddingRight="12dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:text="设置"
+                android:textColor="@color/primary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -161,13 +184,36 @@
         android:padding="16dp"
         android:visibility="gone">
 
-        <TextView
-            android:id="@+id/tvScheduleWorkBuddy"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="WorkBuddy 签到时间: 未设置"
-            android:textColor="@color/black"
-            android:textSize="14sp" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tvScheduleWorkBuddy"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="WorkBuddy 签到时间: 未设置"
+                android:textColor="@color/black"
+                android:textSize="14sp" />
+
+            <!-- 单独设置 WorkBuddy 签到时间 -->
+            <TextView
+                android:id="@+id/btnSetWbSchedule"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_badge"
+                android:paddingLeft="12dp"
+                android:paddingRight="12dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:text="设置"
+                android:textColor="@color/primary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"

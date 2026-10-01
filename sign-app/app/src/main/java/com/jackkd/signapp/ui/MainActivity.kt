@@ -103,6 +103,10 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.btnTriggerTrae).setOnClickListener { triggerNow("TRAE") }
         findViewById<TextView>(R.id.btnTriggerWb).setOnClickListener { triggerNow("WorkBuddy") }
 
+        // 各平台时间行旁的"设置"：单独设置该平台签到时间
+        findViewById<TextView>(R.id.btnSetTraeSchedule).setOnClickListener { showSingleScheduleDialog("TRAE") }
+        findViewById<TextView>(R.id.btnSetWbSchedule).setOnClickListener { showSingleScheduleDialog("WorkBuddy") }
+
         // 标签页切换
         tabTrae.setOnClickListener { switchTab("TRAE") }
         tabWb.setOnClickListener { switchTab("WorkBuddy") }
@@ -176,19 +180,88 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** ⚙️ 全局设置菜单 */
+    /** ⚙️ 全局设置菜单（卡片式排版） */
     private fun showSettingsMenu() {
-        val items = arrayOf("设置签到时间（两平台同步）", "一键签到（TRAE + WorkBuddy）", "签到日志")
-        MaterialAlertDialogBuilder(this)
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_settings, null)
+        val dialog = MaterialAlertDialogBuilder(this)
             .setTitle("全局功能")
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> showGlobalScheduleDialog()
-                    1 -> triggerBothNow()
-                    2 -> showLogsDialog()
-                }
-            }
+            .setView(view)
+            .setNegativeButton("关闭", null)
+            .create()
+
+        view.findViewById<TextView>(R.id.btnSyncSchedule).setOnClickListener {
+            dialog.dismiss(); showGlobalScheduleDialog()
+        }
+        view.findViewById<TextView>(R.id.btnSetTraeOnly).setOnClickListener {
+            dialog.dismiss(); showSingleScheduleDialog("TRAE")
+        }
+        view.findViewById<TextView>(R.id.btnSetWbOnly).setOnClickListener {
+            dialog.dismiss(); showSingleScheduleDialog("WorkBuddy")
+        }
+        view.findViewById<TextView>(R.id.btnQuickCheckin).setOnClickListener {
+            dialog.dismiss(); triggerBothNow()
+        }
+        view.findViewById<TextView>(R.id.btnLogsEntry).setOnClickListener {
+            dialog.dismiss(); showLogsDialog()
+        }
+        dialog.show()
+    }
+
+    /** 单独设置某个平台的签到时间（后操作优先：只覆盖该平台，不影响另一平台） */
+    private fun showSingleScheduleDialog(platform: String) {
+        val isTrae = platform == "TRAE"
+        val curHour = if (isTrae) config.spForScheduleHour() else config.spForWbScheduleHour()
+        val curMinute = if (isTrae) config.spForScheduleMinute() else config.spForWbScheduleMinute()
+        val h = curHour.let { if (it in 0..23) it else 0 }
+        val m = curMinute.let { if (it in 0..59) it else 30 }
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_schedule, null)
+        val npHour = view.findViewById<NumberPicker>(R.id.npHour)
+        val npMinute = view.findViewById<NumberPicker>(R.id.npMinute)
+        npHour.minValue = 0
+        npHour.maxValue = 23
+        npHour.displayedValues = Array(24) { String.format("%02d", it) }
+        npHour.value = h
+        npMinute.minValue = 0
+        npMinute.maxValue = 59
+        npMinute.displayedValues = Array(60) { String.format("%02d", it) }
+        npMinute.value = m
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(if (isTrae) "设置 TRAE 签到时间" else "设置 WorkBuddy 签到时间")
+            .setMessage("每天该时刻自动为${if (isTrae) "TRAE" else "WorkBuddy"}所有账号签到（北京时间）。\n仅修改本平台，不影响另一平台。")
+            .setView(view)
+            .setPositiveButton("保存", { _, _ ->
+                saveSingleSchedule(platform, npHour.value, npMinute.value)
+            })
+            .setNegativeButton("取消", null)
             .show()
+    }
+
+    /** 保存单个平台的签到时间到云端与本地 */
+    private fun saveSingleSchedule(platform: String, hour: Int, minute: Int) {
+        val isTrae = platform == "TRAE"
+        lifecycleScope.launch {
+            val api = GithubApi(config.username, config.token)
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    val svc = UploadService(api, config.repoOwner, config.repoName, config.workflowBranch)
+                    if (isTrae) svc.updateSchedule(ScheduleTime(hour, minute))
+                    else svc.updateWorkBuddySchedule(ScheduleTime(hour, minute))
+                }.getOrDefault(false)
+            }
+            if (ok) {
+                if (isTrae) {
+                    config.saveSchedule(hour, minute)
+                    showScheduleText()
+                } else {
+                    config.saveWbSchedule(hour, minute)
+                    showWbScheduleText()
+                }
+                Toast.makeText(this@MainActivity, "$platform 签到时间已设置为 %02d:%02d".format(hour, minute), Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this@MainActivity, "$platform 时间同步失败，请检查 GitHub 授权", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     /** 全局设置签到时间：两平台设同一时间（滚轮选择，仿手机闹钟） */

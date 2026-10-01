@@ -3,6 +3,7 @@ package com.jackkd.signapp.ui
 import android.content.Intent
 import android.os.Bundle
 import android.text.SpannableString
+import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.view.LayoutInflater
@@ -883,12 +884,13 @@ private fun showGithubDialog() {
                 tv.text = info("$ 暂无本地日志")
                 return
             }
-            val sb = StringBuilder()
+            // 必须用 SpannableStringBuilder（普通 StringBuilder 会丢弃颜色 spans）
+            val sb = SpannableStringBuilder()
             sb.append(section("# 本地日志 (" + logs.size + " 条)\n"))
             for (log in logs) {
                 sb.append(logLine(log.result, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
             }
-            tv.text = sb.toString()
+            tv.text = sb
         }
 
         fun renderCloud(list: List<CloudSignLog>) {
@@ -899,7 +901,8 @@ private fun showGithubDialog() {
             }
             val trae = list.filter { it.platform.isNullOrBlank() || it.platform.equals("TRAE", true) }
             val wb = list.filter { it.platform != null && it.platform.equals("WorkBuddy", true) }
-            val sb = StringBuilder()
+            // 必须用 SpannableStringBuilder（普通 StringBuilder 会丢弃颜色 spans）
+            val sb = SpannableStringBuilder()
             sb.append(section("# TRAE (" + trae.size + " 条)\n"))
             if (trae.isEmpty()) sb.append(info("  (暂无 TRAE 签到记录)\n"))
             for (log in trae) {
@@ -910,7 +913,7 @@ private fun showGithubDialog() {
             for (log in wb) {
                 sb.append(logLine(log.result, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
             }
-            tv.text = sb.toString()
+            tv.text = sb
         }
 
         fun fetchCloud() {

@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.os.Bundle
 import android.text.SpannableString
+import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.view.View
@@ -168,7 +169,8 @@ deviceId: ${c.deviceId}
                 return@launch
             }
             tvMode.text = label
-            val sb = StringBuilder()
+            // 注意：必须用 SpannableStringBuilder（普通 StringBuilder 拼接 CharSequence 会丢弃颜色 spans）
+            val sb = SpannableStringBuilder()
             val total = shown.size
             val manual = shown.count { it.source == "手动" }
             val auto = total - manual
@@ -183,7 +185,7 @@ deviceId: ${c.deviceId}
             for ((i, log) in shown.take(30).withIndex()) {
                 sb.append(logLine(log, i % 2 == 0)).append("\n")
             }
-            tvLogs.text = sb.toString()
+            tvLogs.text = sb
         }
     }
 

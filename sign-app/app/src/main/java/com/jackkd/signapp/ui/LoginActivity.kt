@@ -44,6 +44,7 @@ class LoginActivity : AppCompatActivity() {
     private var serverThread: Thread? = null
     private val serverRunning = AtomicBoolean(false)
     private var boundPort: Int = 0
+    private var pendingDeviceId: String = ""
 
     companion object {
         private const val CLIENT_ID = "en1oxy7wnw8j9n"
@@ -85,9 +86,9 @@ class LoginActivity : AppCompatActivity() {
             return
         }
 
-        val deviceId = generateDeviceId()
+        val deviceId = generateDeviceId().also { pendingDeviceId = it }
         val machineId = generateMachineId()
-        val loginTraceId = generateLoginTraceId()
+        val loginTraceId = buildLoginTraceId(machineId, deviceId)
         val cbUrl = "http://127.0.0.1:$port/authorize"
 
         val url = buildAuthUrl(deviceId, machineId, loginTraceId, cbUrl)
@@ -173,7 +174,10 @@ class LoginActivity : AppCompatActivity() {
                 }
             }
 
-            val creds = TraeCredentialExtractor.extract(rawData)
+            val creds = TraeCredentialExtractor.extract(
+                rawData,
+                pendingDeviceId.ifBlank { TraeCredentialExtractor.generateDeviceId() }
+            )
             if (creds.isComplete()) {
                 saveAccount(creds)
                 respond(client, SUCCESS_HTML)
@@ -240,16 +244,23 @@ class LoginActivity : AppCompatActivity() {
             "&x_app_version=$APP_VERSION&x_app_type=stable"
     }
 
-    private fun generateDeviceId(): String = System.currentTimeMillis().toString().takeLast(13)
+    private fun generateDeviceId(): String = TraeCredentialExtractor.generateDeviceId()
 
     private fun generateMachineId(): String {
-        val chars = "0123456789abcdef"
-        val sb = StringBuilder(40)
-        repeat(40) { sb.append(chars[(Math.random() * 16).toInt()]) }
+        // 对齐原软件 d2/x.c()：32 字节随机 → 64 位十六进制
+        val bytes = ByteArray(32)
+        java.security.SecureRandom().nextBytes(bytes)
+        val sb = StringBuilder(64)
+        for (b in bytes) sb.append(String.format("%02x", b.toInt() and 0xFF))
         return sb.toString()
     }
 
-    private fun generateLoginTraceId(): String = System.currentTimeMillis().toString().takeLast(13)
+    /** 对齐原软件 d2/x.b()：取 (machineId + deviceId) 的最后 16 位 */
+    private fun buildLoginTraceId(machineId: String, deviceId: String): String {
+        val concat = machineId + deviceId
+        return if (concat.length >= 16) concat.takeLast(16)
+        else "0".repeat(16 - concat.length) + concat
+    }
 
     private fun pasteCredentials() {
         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager

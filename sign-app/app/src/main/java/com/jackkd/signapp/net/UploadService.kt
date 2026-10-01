@@ -584,27 +584,36 @@ def push_logs(entries):
         content = json.dumps(logs, ensure_ascii=False)
         b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
 
-        # 获取现有文件 sha（若存在）
-        sha = None
-        try:
-            url = "https://api.github.com/repos/" + owner + "/" + reponame + "/contents/" + REMOTE_LOG_FILE
-            req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token, "Accept": "application/vnd.github+json"})
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                obj = json.loads(resp.read().decode("utf-8", "replace"))
-                sha = obj.get("sha")
-        except Exception:
+        # 获取现有文件 sha 并 PUT；TRAE/WorkBuddy 同时触发会并发写同一日志文件，
+        # 后写者会遇 409 冲突——重取 sha 重试（最多 3 次，间隔递增）
+        url = "https://api.github.com/repos/" + owner + "/" + reponame + "/contents/" + REMOTE_LOG_FILE
+        for attempt in range(3):
             sha = None
+            try:
+                req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token, "Accept": "application/vnd.github+json"})
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    obj = json.loads(resp.read().decode("utf-8", "replace"))
+                    sha = obj.get("sha")
+            except Exception:
+                sha = None
 
-        data = {"message": "update sign logs", "content": b64}
-        if sha:
-            data["sha"] = sha
-        req = urllib.request.Request(
-            "https://api.github.com/repos/" + owner + "/" + reponame + "/contents/" + REMOTE_LOG_FILE,
-            data=json.dumps(data).encode("utf-8"),
-            headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
-            method="PUT")
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            print("[Log] 已回写 " + str(len(entries)) + " 条签到日志到 GitHub")
+            data = {"message": "update sign logs", "content": b64}
+            if sha:
+                data["sha"] = sha
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(data).encode("utf-8"),
+                headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
+                method="PUT")
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    print("[Log] 已回写 " + str(len(entries)) + " 条签到日志到 GitHub")
+                    return
+            except urllib.error.HTTPError as e:
+                if e.code == 409 and attempt < 2:
+                    time.sleep(2 * (attempt + 1))  # 冲突：等对方写完再重试
+                    continue
+                raise
     except Exception as e:
         print("[Log] 回写失败: " + str(e))
 
@@ -1131,26 +1140,36 @@ def push_logs(entries):
         content = json.dumps(logs, ensure_ascii=False)
         b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
 
-        sha = None
-        try:
-            url = "https://api.github.com/repos/" + owner + "/" + reponame + "/contents/" + REMOTE_LOG_FILE
-            req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token, "Accept": "application/vnd.github+json"})
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                obj = json.loads(resp.read().decode("utf-8", "replace"))
-                sha = obj.get("sha")
-        except Exception:
+        # 获取现有文件 sha 并 PUT；TRAE/WorkBuddy 同时触发会并发写同一日志文件，
+        # 后写者会遇 409 冲突——重取 sha 重试（最多 3 次，间隔递增）
+        url = "https://api.github.com/repos/" + owner + "/" + reponame + "/contents/" + REMOTE_LOG_FILE
+        for attempt in range(3):
             sha = None
+            try:
+                req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token, "Accept": "application/vnd.github+json"})
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    obj = json.loads(resp.read().decode("utf-8", "replace"))
+                    sha = obj.get("sha")
+            except Exception:
+                sha = None
 
-        data = {"message": "update sign logs", "content": b64}
-        if sha:
-            data["sha"] = sha
-        req = urllib.request.Request(
-            "https://api.github.com/repos/" + owner + "/" + reponame + "/contents/" + REMOTE_LOG_FILE,
-            data=json.dumps(data).encode("utf-8"),
-            headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
-            method="PUT")
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            print("[Log] 已回写 " + str(len(entries)) + " 条签到日志到 GitHub")
+            data = {"message": "update sign logs", "content": b64}
+            if sha:
+                data["sha"] = sha
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(data).encode("utf-8"),
+                headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
+                method="PUT")
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    print("[Log] 已回写 " + str(len(entries)) + " 条签到日志到 GitHub")
+                    return
+            except urllib.error.HTTPError as e:
+                if e.code == 409 and attempt < 2:
+                    time.sleep(2 * (attempt + 1))  # 冲突：等对方写完再重试
+                    continue
+                raise
     except Exception as e:
         print("[Log] 回写失败: " + str(e))
 

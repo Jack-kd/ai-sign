@@ -267,6 +267,7 @@
             android:layout_height="0dp"
             android:layout_weight="1" />
     </LinearLayout>
+    </LinearLayout>
 
     <!-- 云端同步加载覆盖层 -->
     <LinearLayout

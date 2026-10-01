@@ -824,6 +824,7 @@ private fun showGithubDialog() {
         val tvMode = view.findViewById<TextView>(R.id.tvLogsMode)
         val btnLocal = view.findViewById<TextView>(R.id.btnLogsLocal)
         val btnCloud = view.findViewById<TextView>(R.id.btnLogsCloud)
+        val btnClose = view.findViewById<TextView>(R.id.btnLogsClose)
 
         val cGreen = ContextCompat.getColor(this, R.color.terminal_green)
         val cYellow = ContextCompat.getColor(this, R.color.terminal_yellow)
@@ -834,7 +835,6 @@ private fun showGithubDialog() {
 
         val dlg = MaterialAlertDialogBuilder(this)
             .setView(view)
-            .setNegativeButton("关闭", null)
             .create()
 
         /** 终端行：● [时间] 内容（● 按结果着色，时间灰色） */
@@ -926,6 +926,7 @@ private fun showGithubDialog() {
 
         btnLocal.setOnClickListener { renderLocal() }
         btnCloud.setOnClickListener { fetchCloud() }
+        btnClose.setOnClickListener { dlg.dismiss() }
         dlg.setOnShowListener { renderLocal() }
         dlg.show()
     }

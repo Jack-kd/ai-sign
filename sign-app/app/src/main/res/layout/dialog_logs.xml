@@ -115,5 +115,19 @@
             android:textColor="@color/terminal_green"
             android:textSize="13sp"
             android:fontFamily="monospace" />
+
+        <TextView
+            android:id="@+id/btnLogsClose"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:background="@drawable/bg_terminal_btn"
+            android:gravity="center"
+            android:padding="9dp"
+            android:text="> 关闭"
+            android:textColor="@color/terminal_orange"
+            android:textSize="13sp"
+            android:fontFamily="monospace" />
     </LinearLayout>
 </LinearLayout>

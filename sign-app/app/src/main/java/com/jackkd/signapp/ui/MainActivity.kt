@@ -2,6 +2,9 @@ package com.jackkd.signapp.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,6 +14,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -813,72 +817,101 @@ private fun showGithubDialog() {
         }
     }
 
+    /** 签到日志：终端样式弹窗 */
     private fun showLogsDialog() {
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_logs, null)
         val tv = view.findViewById<TextView>(R.id.tvLogsContent)
+        val tvMode = view.findViewById<TextView>(R.id.tvLogsMode)
+        val btnLocal = view.findViewById<TextView>(R.id.btnLogsLocal)
+        val btnCloud = view.findViewById<TextView>(R.id.btnLogsCloud)
+
+        val cGreen = ContextCompat.getColor(this, R.color.terminal_green)
+        val cYellow = ContextCompat.getColor(this, R.color.terminal_yellow)
+        val cRed = ContextCompat.getColor(this, R.color.error_red)
+        val cGray = ContextCompat.getColor(this, R.color.terminal_gray)
+        val cWhite = ContextCompat.getColor(this, R.color.terminal_white)
+        val cCyan = ContextCompat.getColor(this, R.color.terminal_cyan)
 
         val dlg = MaterialAlertDialogBuilder(this)
-            .setTitle("签到日志")
             .setView(view)
-            .setPositiveButton("关闭", null)
-            .setNegativeButton("本地日志", null)
-            .setNeutralButton("拉取云端", null)
+            .setNegativeButton("关闭", null)
             .create()
 
+        /** 终端行：● [时间] 内容（● 按结果着色，时间灰色） */
+        fun logLine(result: String, time: String, body: String): CharSequence {
+            val dotColor = when (result) {
+                "成功" -> cGreen
+                "已签到" -> cYellow
+                "失败" -> cRed
+                else -> cWhite
+            }
+            val sp = SpannableString("● [$time] $body")
+            sp.setSpan(ForegroundColorSpan(dotColor), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sp.setSpan(ForegroundColorSpan(cGray), 3, 3 + time.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            return sp
+        }
+
+        /** 分组标题（青色） */
+        fun section(title: String): CharSequence {
+            val sp = SpannableString(title)
+            sp.setSpan(ForegroundColorSpan(cCyan), 0, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            return sp
+        }
+
+        /** 状态/提示行（黄色） */
+        fun info(text: String): CharSequence {
+            val sp = SpannableString(text)
+            sp.setSpan(ForegroundColorSpan(cYellow), 0, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            return sp
+        }
+
         fun renderLocal() {
+            tvMode.text = "local"
             val logs = logStore.load()
+            if (logs.isEmpty()) {
+                tv.text = info("$ 暂无本地日志")
+                return
+            }
             val sb = StringBuilder()
-            if (logs.isEmpty()) sb.append("暂无本地日志")
-            else for (log in logs) {
-                sb.append(formatTime(log.time)).append("  ").append(log.account)
-                    .append(" → ").append(log.result)
-                if (log.detail.isNotBlank()) sb.append(" (").append(log.detail).append(")")
-                sb.append("\n")
+            sb.append(section("# 本地日志 (" + logs.size + " 条)\n"))
+            for (log in logs) {
+                sb.append(logLine(log.result, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
             }
             tv.text = sb.toString()
         }
 
         fun renderCloud(list: List<CloudSignLog>) {
-            val sb = StringBuilder()
+            tvMode.text = "cloud"
             if (list.isEmpty()) {
-                sb.append("暂无云端签到记录\n\n（请先在 GitHub Actions 手动运行一次签到，或等待自动签到）")
-                tv.text = sb.toString()
+                tv.text = info("$ 暂无云端签到记录\n\n# 请先在 GitHub Actions 运行一次签到，或等待自动签到")
                 return
             }
             val trae = list.filter { it.platform.isNullOrBlank() || it.platform.equals("TRAE", true) }
             val wb = list.filter { it.platform != null && it.platform.equals("WorkBuddy", true) }
-
-            sb.append("【TRAE】\n")
-            if (trae.isEmpty()) sb.append("  （暂无 TRAE 签到记录）\n")
+            val sb = StringBuilder()
+            sb.append(section("# TRAE (" + trae.size + " 条)\n"))
+            if (trae.isEmpty()) sb.append(info("  (暂无 TRAE 签到记录)\n"))
             for (log in trae) {
-                sb.append(formatTime(log.time)).append("  ")
-                    .append("[").append(log.result).append("] ")
-                    .append(log.account)
-                if (!log.detail.isNullOrBlank()) sb.append("  ").append(log.detail)
-                sb.append("\n")
+                sb.append(logLine(log.result, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
             }
-
-            sb.append("\n【WorkBuddy】\n")
-            if (wb.isEmpty()) sb.append("  （暂无 WorkBuddy 签到记录）\n")
+            sb.append(section("\n# WorkBuddy (" + wb.size + " 条)\n"))
+            if (wb.isEmpty()) sb.append(info("  (暂无 WorkBuddy 签到记录)\n"))
             for (log in wb) {
-                sb.append(formatTime(log.time)).append("  ")
-                    .append("[").append(log.result).append("] ")
-                    .append(log.account)
-                if (!log.detail.isNullOrBlank()) sb.append("  ").append(log.detail)
-                sb.append("\n")
+                sb.append(logLine(log.result, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
             }
             tv.text = sb.toString()
         }
 
         fun fetchCloud() {
-            tv.text = "正在拉取云端日志..."
+            tvMode.text = "cloud ..."
+            tv.text = info("$ 正在拉取云端日志...")
             lifecycleScope.launch {
                 val api = GithubApi(config.username, config.token)
                 val raw = withContext(Dispatchers.IO) {
                     runCatching { api.readRepoFile(config.repoOwner, config.repoName, config.logPath) }.getOrNull()
                 }
                 if (raw == null) {
-                    tv.text = "拉取失败或暂无日志\n\n请确认：\n1. 已在 GitHub 授权\n2. 签到工作流至少运行过一次"
+                    tv.text = info("$ 拉取失败或暂无日志\n\n# 请确认：\n# 1. 已在 GitHub 授权\n# 2. 签到工作流至少运行过一次")
                 } else {
                     val list = try {
                         val type = object : TypeToken<List<CloudSignLog>>() {}.type
@@ -891,12 +924,9 @@ private fun showGithubDialog() {
             }
         }
 
-        dlg.setOnShowListener {
-            dlg.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { fetchCloud() }
-            dlg.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener { renderLocal() }
-            dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { dlg.dismiss() }
-            renderLocal()
-        }
+        btnLocal.setOnClickListener { renderLocal() }
+        btnCloud.setOnClickListener { fetchCloud() }
+        dlg.setOnShowListener { renderLocal() }
         dlg.show()
     }
 

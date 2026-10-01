@@ -269,27 +269,34 @@
     </LinearLayout>
     </LinearLayout>
 
-    <!-- 云端同步加载覆盖层 -->
+    <!-- 云端同步加载指示：顶部小卡片（不遮全屏） -->
     <LinearLayout
         android:id="@+id/loadingOverlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:background="#F2FFFFFF"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal|top"
+        android:layout_marginTop="72dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/bg_loading_card"
+        android:elevation="6dp"
+        android:paddingLeft="14dp"
+        android:paddingRight="14dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
         android:visibility="gone">
 
         <ProgressBar
-            android:layout_width="64dp"
-            android:layout_height="64dp"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
             android:indeterminateTint="@color/primary" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:text="正在同步云端账号与签到时间..."
-            android:textColor="@color/gray"
-            android:textSize="14sp" />
+            android:layout_marginStart="10dp"
+            android:text="正在同步..."
+            android:textColor="@color/primary"
+            android:textSize="13sp" />
     </LinearLayout>
 </FrameLayout>

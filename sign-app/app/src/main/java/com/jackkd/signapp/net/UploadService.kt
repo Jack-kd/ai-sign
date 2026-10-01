@@ -292,6 +292,51 @@ def _first(obj, *keys):
     return None
 
 
+def _deep_find(obj, *keys, _depth=0):
+    # 递归查找任意 key 的值并转成字符串（对齐原软件 LV1/l 的嵌套解析，兼容 data 不同层级）
+    if _depth > 10 or obj is None:
+        return ""
+    if isinstance(obj, dict):
+        for k in keys:
+            v = obj.get(k)
+            if v is not None and not isinstance(v, (dict, list)):
+                return str(v)
+        for v in obj.values():
+            r = _deep_find(v, *keys, _depth=_depth + 1)
+            if r != "":
+                return r
+    elif isinstance(obj, list):
+        for v in obj:
+            r = _deep_find(v, *keys, _depth=_depth + 1)
+            if r != "":
+                return r
+    return ""
+
+
+def _credits_suffix(before, after):
+    # 把签到前后积分拼成日志后缀，如 "（积分 100 → 150 +50）"
+    try:
+        b = int(before) if before not in ("", None) else None
+    except Exception:
+        b = None
+    try:
+        a = int(after) if after not in ("", None) else None
+    except Exception:
+        a = None
+    if b is None and a is None:
+        return ""
+    if b is None:
+        return "（积分 " + str(a) + "）"
+    if a is None:
+        return "（当前积分 " + str(b) + "）"
+    d = a - b
+    if d > 0:
+        return "（积分 " + str(b) + " → " + str(a) + " +" + str(d) + "）"
+    if d < 0:
+        return "（积分 " + str(b) + " → " + str(a) + " " + str(d) + "）"
+    return "（积分 " + str(a) + "）"
+
+
 def _is_checked_in(obj):
     if not isinstance(obj, dict):
         return False
@@ -377,10 +422,12 @@ def checkin_claim(access_token, uid, device_id):
 
 
 def _attempt_checkin(access_token, uid, device_id):
-    # 返回 (status, desc)：status 为 success / already / fail
+    # 返回 (status, desc, credits_before)：status 为 success / already / fail
+    # credits_before 为签到前 status 响应里的积分（可能为空字符串）
     status_obj = checkin_status(access_token, uid, device_id)
+    credits_before = _deep_find(status_obj, "credits")
     if _is_checked_in(status_obj):
-        return "already", "今日已签到"
+        return "already", "今日已签到", credits_before
 
     code, obj, raw = checkin_claim(access_token, uid, device_id)
     if _first(obj, "code") == 9074:
@@ -388,14 +435,15 @@ def _attempt_checkin(access_token, uid, device_id):
         code, obj, raw = checkin_claim(access_token, uid, device_id)
 
     if _is_success(obj):
-        return "success", "签到成功"
+        return "success", "签到成功", credits_before
     if _is_checked_in(obj):
-        return "already", "今日已签到"
-    return "fail", "失败(HTTP " + str(code) + "): " + raw[:200]
+        return "already", "今日已签到", credits_before
+    return "fail", "失败(HTTP " + str(code) + "): " + raw[:200], credits_before
 
 
 def sign_one(acc):
     # 返回 (状态, 描述)：status 为 success / already / fail
+    # 描述会附带积分变化（签到前/后 status 响应里的 credits 字段）
     label = acc.get("label", "账号")
     access_token = (acc.get("accessToken") or "").strip()
     refresh_token = (acc.get("refreshToken") or "").strip()
@@ -417,7 +465,7 @@ def sign_one(acc):
             acc["accessToken"] = access_token
             acc["refreshToken"] = refresh_token
 
-        status, desc = _attempt_checkin(access_token, uid, device_id)
+        status, desc, credits_before = _attempt_checkin(access_token, uid, device_id)
 
         # 首签失败且还有 refreshToken：很可能 accessToken 已过期，换新后重试一次
         if status == "fail" and refresh_token:
@@ -425,11 +473,19 @@ def sign_one(acc):
                 access_token, refresh_token = exchange_token(refresh_token)
                 acc["accessToken"] = access_token
                 acc["refreshToken"] = refresh_token
-                status, desc = _attempt_checkin(access_token, uid, device_id)
+                status, desc, credits_before = _attempt_checkin(access_token, uid, device_id)
             except SystemExit:
                 pass  # 换 token 失败，保留首次失败结果
 
-        return status, label + ": " + desc
+        # 签到成功后重查一次积分，得出本次变化
+        credits_after = None
+        if status == "success":
+            try:
+                credits_after = _deep_find(checkin_status(access_token, uid, device_id), "credits")
+            except Exception:
+                credits_after = None
+
+        return status, label + ": " + desc + _credits_suffix(credits_before, credits_after)
     except SystemExit as e:
         return "fail", label + ": " + str(e)
     except Exception as e:
@@ -689,6 +745,91 @@ def _first_location_id(obj, _depth=0):
     return ""
 
 
+def _deep_find_list(obj, key, _depth=0):
+    # 递归查找任意 key 的数组值（对齐原软件 get-user-resource 的 Response.Data.Accounts 解析）
+    if _depth > 10 or obj is None:
+        return []
+    if isinstance(obj, dict):
+        v = obj.get(key)
+        if isinstance(v, list):
+            return v
+        for x in obj.values():
+            r = _deep_find_list(x, key, _depth=_depth + 1)
+            if r:
+                return r
+    elif isinstance(obj, list):
+        for x in obj:
+            r = _deep_find_list(x, key, _depth=_depth + 1)
+            if r:
+                return r
+    return []
+
+
+def _wb_quota(acc, access_token, host):
+    # 对齐原软件 La2/b.F() 的 get-user-resource：查询周期额度/额度包
+    # 返回 (周期剩余合计, 周期总额合计)；查询失败返回 None
+    try:
+        now_ms = int(time.time() * 1000)
+        fmt = lambda t: time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t / 1000))
+        body = json.dumps({
+            "PageNumber": 1, "PageSize": 100, "ProductCode": "p_tcaca",
+            "Status": [0, 3],
+            "PackageEndTimeRangeBegin": fmt(now_ms),
+            "PackageEndTimeRangeEnd": fmt(now_ms + 3185136000000),
+        })
+        code, obj, raw = _post(host + "/v2/billing/meter/get-user-resource", body, _checkin_headers(acc, access_token, host))
+        if code not in (200, 201):
+            return None
+        accounts = _deep_find_list(obj, "Accounts")
+        if not accounts:
+            return None
+        remain = 0
+        size = 0
+        for a in accounts:
+            if not isinstance(a, dict):
+                continue
+            r = a.get("CycleCapacityRemain")
+            s = a.get("CycleCapacitySize")
+            if isinstance(r, (int, float)):
+                remain += int(r)
+            if isinstance(s, (int, float)):
+                size += int(s)
+        if remain == 0 and size == 0:
+            return None
+        return (remain, size)
+    except Exception:
+        return None
+
+
+def _quota_suffix(before, after):
+    # 把签到前后额度拼成日志后缀，如 "（额度 80/100 → 85/100 +5）"
+    def fmt(q):
+        if not q:
+            return None
+        remain, size = q
+        if size:
+            return "%d/%d" % (remain, size)
+        return str(remain)
+
+    b = fmt(before)
+    a = fmt(after)
+    if b is None and a is None:
+        return ""
+    if b is None:
+        return "（当前额度: " + a + "）"
+    if a is None:
+        return "（当前额度: " + b + "）"
+    try:
+        d = after[0] - before[0]
+    except Exception:
+        d = 0
+    if d > 0:
+        return "（额度 " + b + " → " + a + " +" + str(d) + "）"
+    if d < 0:
+        return "（额度 " + b + " → " + a + " " + str(d) + "）"
+    return "（额度: " + a + "）"
+
+
 def _is_checked_in(obj):
     if not isinstance(obj, dict):
         return False
@@ -836,7 +977,8 @@ def sign_one(acc):
                 return "fail", label + ": 刷新 token 失败，需重新登录"
             access_token = (acc.get("accessToken") or "").strip()
 
-        # --- 日签到 ---
+        # --- 日签到（先查签到前额度） ---
+        quota_before = _wb_quota(acc, access_token, host)
         code, obj, raw = _do_checkin(acc, access_token, host)
         if _is_checked_in(obj):
             status, desc = "already", label + ": 今日已签到"
@@ -871,6 +1013,15 @@ def sign_one(acc):
                 desc += " | " + tdesc
         except Exception:
             pass
+
+        # --- 签到后额度变化 ---
+        quota_after = None
+        if status in ("success", "already"):
+            try:
+                quota_after = _wb_quota(acc, access_token, host)
+            except Exception:
+                quota_after = None
+        desc += _quota_suffix(quota_before, quota_after)
         return status, desc
     except Exception as e:
         return "fail", label + ": 异常 " + str(e)

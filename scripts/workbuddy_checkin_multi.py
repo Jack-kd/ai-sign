@@ -112,6 +112,91 @@ def _first_location_id(obj, _depth=0):
     return ""
 
 
+def _deep_find_list(obj, key, _depth=0):
+    # 递归查找任意 key 的数组值（对齐原软件 get-user-resource 的 Response.Data.Accounts 解析）
+    if _depth > 10 or obj is None:
+        return []
+    if isinstance(obj, dict):
+        v = obj.get(key)
+        if isinstance(v, list):
+            return v
+        for x in obj.values():
+            r = _deep_find_list(x, key, _depth=_depth + 1)
+            if r:
+                return r
+    elif isinstance(obj, list):
+        for x in obj:
+            r = _deep_find_list(x, key, _depth=_depth + 1)
+            if r:
+                return r
+    return []
+
+
+def _wb_quota(acc, access_token, host):
+    # 对齐原软件 La2/b.F() 的 get-user-resource：查询周期额度/额度包
+    # 返回 (周期剩余合计, 周期总额合计)；查询失败返回 None
+    try:
+        now_ms = int(time.time() * 1000)
+        fmt = lambda t: time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t / 1000))
+        body = json.dumps({
+            "PageNumber": 1, "PageSize": 100, "ProductCode": "p_tcaca",
+            "Status": [0, 3],
+            "PackageEndTimeRangeBegin": fmt(now_ms),
+            "PackageEndTimeRangeEnd": fmt(now_ms + 3185136000000),
+        })
+        code, obj, raw = _post(host + "/v2/billing/meter/get-user-resource", body, _checkin_headers(acc, access_token, host))
+        if code not in (200, 201):
+            return None
+        accounts = _deep_find_list(obj, "Accounts")
+        if not accounts:
+            return None
+        remain = 0
+        size = 0
+        for a in accounts:
+            if not isinstance(a, dict):
+                continue
+            r = a.get("CycleCapacityRemain")
+            s = a.get("CycleCapacitySize")
+            if isinstance(r, (int, float)):
+                remain += int(r)
+            if isinstance(s, (int, float)):
+                size += int(s)
+        if remain == 0 and size == 0:
+            return None
+        return (remain, size)
+    except Exception:
+        return None
+
+
+def _quota_suffix(before, after):
+    # 把签到前后额度拼成日志后缀，如 "（额度 80/100 → 85/100 +5）"
+    def fmt(q):
+        if not q:
+            return None
+        remain, size = q
+        if size:
+            return "%d/%d" % (remain, size)
+        return str(remain)
+
+    b = fmt(before)
+    a = fmt(after)
+    if b is None and a is None:
+        return ""
+    if b is None:
+        return "（当前额度: " + a + "）"
+    if a is None:
+        return "（当前额度: " + b + "）"
+    try:
+        d = after[0] - before[0]
+    except Exception:
+        d = 0
+    if d > 0:
+        return "（额度 " + b + " → " + a + " +" + str(d) + "）"
+    if d < 0:
+        return "（额度 " + b + " → " + a + " " + str(d) + "）"
+    return "（额度: " + a + "）"
+
+
 def _is_checked_in(obj):
     if not isinstance(obj, dict):
         return False
@@ -259,7 +344,8 @@ def sign_one(acc):
                 return "fail", label + ": 刷新 token 失败，需重新登录"
             access_token = (acc.get("accessToken") or "").strip()
 
-        # --- 日签到 ---
+        # --- 日签到（先查签到前额度） ---
+        quota_before = _wb_quota(acc, access_token, host)
         code, obj, raw = _do_checkin(acc, access_token, host)
         if _is_checked_in(obj):
             status, desc = "already", label + ": 今日已签到"
@@ -294,6 +380,15 @@ def sign_one(acc):
                 desc += " | " + tdesc
         except Exception:
             pass
+
+        # --- 签到后额度变化 ---
+        quota_after = None
+        if status in ("success", "already"):
+            try:
+                quota_after = _wb_quota(acc, access_token, host)
+            except Exception:
+                quota_after = None
+        desc += _quota_suffix(quota_before, quota_after)
         return status, desc
     except Exception as e:
         return "fail", label + ": 异常 " + str(e)

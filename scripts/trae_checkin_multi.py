@@ -59,6 +59,51 @@ def _first(obj, *keys):
     return None
 
 
+def _deep_find(obj, *keys, _depth=0):
+    # 递归查找任意 key 的值并转成字符串（对齐原软件 LV1/l 的嵌套解析，兼容 data 不同层级）
+    if _depth > 10 or obj is None:
+        return ""
+    if isinstance(obj, dict):
+        for k in keys:
+            v = obj.get(k)
+            if v is not None and not isinstance(v, (dict, list)):
+                return str(v)
+        for v in obj.values():
+            r = _deep_find(v, *keys, _depth=_depth + 1)
+            if r != "":
+                return r
+    elif isinstance(obj, list):
+        for v in obj:
+            r = _deep_find(v, *keys, _depth=_depth + 1)
+            if r != "":
+                return r
+    return ""
+
+
+def _credits_suffix(before, after):
+    # 把签到前后积分拼成日志后缀，如 "（积分 100 → 150 +50）"
+    try:
+        b = int(before) if before not in ("", None) else None
+    except Exception:
+        b = None
+    try:
+        a = int(after) if after not in ("", None) else None
+    except Exception:
+        a = None
+    if b is None and a is None:
+        return ""
+    if b is None:
+        return "（积分 " + str(a) + "）"
+    if a is None:
+        return "（当前积分 " + str(b) + "）"
+    d = a - b
+    if d > 0:
+        return "（积分 " + str(b) + " → " + str(a) + " +" + str(d) + "）"
+    if d < 0:
+        return "（积分 " + str(b) + " → " + str(a) + " " + str(d) + "）"
+    return "（积分 " + str(a) + "）"
+
+
 def _is_checked_in(obj):
     if not isinstance(obj, dict):
         return False
@@ -144,10 +189,12 @@ def checkin_claim(access_token, uid, device_id):
 
 
 def _attempt_checkin(access_token, uid, device_id):
-    # 返回 (status, desc)：status 为 success / already / fail
+    # 返回 (status, desc, credits_before)：status 为 success / already / fail
+    # credits_before 为签到前 status 响应里的积分（可能为空字符串）
     status_obj = checkin_status(access_token, uid, device_id)
+    credits_before = _deep_find(status_obj, "credits")
     if _is_checked_in(status_obj):
-        return "already", "今日已签到"
+        return "already", "今日已签到", credits_before
 
     code, obj, raw = checkin_claim(access_token, uid, device_id)
     if _first(obj, "code") == 9074:
@@ -155,14 +202,15 @@ def _attempt_checkin(access_token, uid, device_id):
         code, obj, raw = checkin_claim(access_token, uid, device_id)
 
     if _is_success(obj):
-        return "success", "签到成功"
+        return "success", "签到成功", credits_before
     if _is_checked_in(obj):
-        return "already", "今日已签到"
-    return "fail", "失败(HTTP " + str(code) + "): " + raw[:200]
+        return "already", "今日已签到", credits_before
+    return "fail", "失败(HTTP " + str(code) + "): " + raw[:200], credits_before
 
 
 def sign_one(acc):
     # 返回 (状态, 描述)：status 为 success / already / fail
+    # 描述会附带积分变化（签到前/后 status 响应里的 credits 字段）
     label = acc.get("label", "账号")
     access_token = (acc.get("accessToken") or "").strip()
     refresh_token = (acc.get("refreshToken") or "").strip()
@@ -184,7 +232,7 @@ def sign_one(acc):
             acc["accessToken"] = access_token
             acc["refreshToken"] = refresh_token
 
-        status, desc = _attempt_checkin(access_token, uid, device_id)
+        status, desc, credits_before = _attempt_checkin(access_token, uid, device_id)
 
         # 首签失败且还有 refreshToken：很可能 accessToken 已过期，换新后重试一次
         if status == "fail" and refresh_token:
@@ -192,11 +240,19 @@ def sign_one(acc):
                 access_token, refresh_token = exchange_token(refresh_token)
                 acc["accessToken"] = access_token
                 acc["refreshToken"] = refresh_token
-                status, desc = _attempt_checkin(access_token, uid, device_id)
+                status, desc, credits_before = _attempt_checkin(access_token, uid, device_id)
             except SystemExit:
                 pass  # 换 token 失败，保留首次失败结果
 
-        return status, label + ": " + desc
+        # 签到成功后重查一次积分，得出本次变化
+        credits_after = None
+        if status == "success":
+            try:
+                credits_after = _deep_find(checkin_status(access_token, uid, device_id), "credits")
+            except Exception:
+                credits_after = None
+
+        return status, label + ": " + desc + _credits_suffix(credits_before, credits_after)
     except SystemExit as e:
         return "fail", label + ": " + str(e)
     except Exception as e:

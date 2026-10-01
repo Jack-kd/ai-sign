@@ -1063,8 +1063,6 @@ private fun showGithubDialog() {
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_logs, null)
         val tv = view.findViewById<TextView>(R.id.tvLogsContent)
         val tvMode = view.findViewById<TextView>(R.id.tvLogsMode)
-        val btnLocal = view.findViewById<TextView>(R.id.btnLogsLocal)
-        val btnCloud = view.findViewById<TextView>(R.id.btnLogsCloud)
         val btnClose = view.findViewById<TextView>(R.id.btnLogsClose)
 
         val cGreen = ContextCompat.getColor(this, R.color.terminal_green)
@@ -1171,8 +1169,11 @@ private fun showGithubDialog() {
             }
         }
 
-        btnLocal.setOnClickListener { renderLocal() }
-        btnCloud.setOnClickListener { fetchCloud() }
+        // 点击标题栏 local/cloud 在本地与云端日志间切换
+        tvMode.setOnClickListener {
+            val isLocal = tvMode.text == "local"
+            if (isLocal) fetchCloud() else renderLocal()
+        }
         btnClose.setOnClickListener { dlg.dismiss() }
         view.findViewById<View>(R.id.btnLogsCloseX)?.setOnClickListener { dlg.dismiss() }
         dlg.setOnShowListener { renderLocal() }

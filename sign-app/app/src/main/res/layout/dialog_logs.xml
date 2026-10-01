@@ -60,10 +60,16 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:paddingLeft="6dp"
+            android:paddingRight="6dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
             android:text="local"
             android:textColor="#6A9955"
             android:textSize="11sp"
-            android:fontFamily="monospace" />
+            android:fontFamily="monospace"
+            android:contentDescription="点击切换本地/云端日志" />
 
         <!-- 终端风格关闭：圆框 X -->
         <TextView
@@ -82,7 +88,7 @@
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:maxHeight="220dp">
+        android:maxHeight="180dp">
 
         <TextView
             android:id="@+id/tvLogsContent"
@@ -96,7 +102,7 @@
             android:lineSpacingExtra="4dp" />
     </ScrollView>
 
-    <!-- 终端操作按钮 -->
+    <!-- 底部：单个关闭（点击标题栏的 local/cloud 可切换查看） -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -104,38 +110,10 @@
         android:padding="10dp">
 
         <TextView
-            android:id="@+id/btnLogsLocal"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:background="@drawable/bg_terminal_btn"
-            android:gravity="center"
-            android:padding="9dp"
-            android:text="> 本地日志"
-            android:textColor="@color/terminal_green"
-            android:textSize="13sp"
-            android:fontFamily="monospace" />
-
-        <TextView
-            android:id="@+id/btnLogsCloud"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="10dp"
-            android:background="@drawable/bg_terminal_btn"
-            android:gravity="center"
-            android:padding="9dp"
-            android:text="> 拉取云端"
-            android:textColor="@color/terminal_green"
-            android:textSize="13sp"
-            android:fontFamily="monospace" />
-
-        <TextView
             android:id="@+id/btnLogsClose"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="10dp"
             android:background="@drawable/bg_terminal_btn"
             android:gravity="center"
             android:padding="9dp"

@@ -313,28 +313,48 @@ def _deep_find(obj, *keys, _depth=0):
     return ""
 
 
+def fetch_credit_remain(access_token, uid, device_id):
+    # 对齐原软件 Ld2/t.b()：调 pay/ide_user_ent_usage，返回 (可用剩余, 总量) 或 None。
+    # 官方 App 的"积分"即此可用额度：剩余 = total_amount - consumed_amount。
+    try:
+        code, obj, raw = _post(CHECKIN_HOST + "/trae/api/v2/pay/ide_user_ent_usage", "{}", _checkin_headers(access_token, uid, device_id))
+        if code not in (200, 201) or obj is None:
+            return None
+        summary = obj.get("usage_summary") or {}
+        total = summary.get("total_amount")
+        consumed = summary.get("consumed_amount")
+        if not isinstance(total, (int, float)) or not isinstance(consumed, (int, float)):
+            return None
+        return (int(total - consumed), int(total))
+    except Exception:
+        return None
+
+
 def _credits_suffix(before, after):
-    # 把签到前后积分拼成日志后缀，如 "（积分 100 → 150 +50）"
-    try:
-        b = int(before) if before not in ("", None) else None
-    except Exception:
-        b = None
-    try:
-        a = int(after) if after not in ("", None) else None
-    except Exception:
-        a = None
+    # 把签到前后"可用额度"拼成日志后缀：before/after 为 (剩余, 总量) 或 None
+    def fmt(q):
+        if not q:
+            return None
+        remain, total = q
+        return "%d/%d" % (remain, total)
+
+    b = fmt(before)
+    a = fmt(after)
     if b is None and a is None:
         return ""
     if b is None:
-        return "（积分 " + str(a) + "）"
+        return "（积分 剩余 " + a + "）"
     if a is None:
-        return "（当前积分 " + str(b) + "）"
-    d = a - b
+        return "（积分 剩余 " + b + "）"
+    try:
+        d = after[0] - before[0]
+    except Exception:
+        d = 0
     if d > 0:
-        return "（积分 " + str(b) + " → " + str(a) + " +" + str(d) + "）"
+        return "（积分 " + b + " → " + a + " +" + str(d) + "）"
     if d < 0:
-        return "（积分 " + str(b) + " → " + str(a) + " " + str(d) + "）"
-    return "（积分 " + str(a) + "）"
+        return "（积分 " + b + " → " + a + " " + str(d) + "）"
+    return "（积分 剩余 " + a + "）"
 
 
 def _is_checked_in(obj):
@@ -503,7 +523,10 @@ def sign_one(acc):
             except Exception:
                 pass
 
-        status, desc, credits_before = _attempt_checkin(access_token, uid, device_id)
+        # 签到前查可用额度（官方 App 的"积分"）
+        credits_before = fetch_credit_remain(access_token, uid, device_id)
+
+        status, desc, _ = _attempt_checkin(access_token, uid, device_id)
 
         # 首签失败且还有 refreshToken：很可能 accessToken 已过期，换新后重试一次
         if status == "fail" and refresh_token:
@@ -511,15 +534,15 @@ def sign_one(acc):
                 access_token, refresh_token = exchange_token(refresh_token)
                 acc["accessToken"] = access_token
                 acc["refreshToken"] = refresh_token
-                status, desc, credits_before = _attempt_checkin(access_token, uid, device_id)
+                status, desc, _ = _attempt_checkin(access_token, uid, device_id)
             except SystemExit:
                 pass  # 换 token 失败，保留首次失败结果
 
-        # 签到成功后重查一次积分，得出本次变化
+        # 签到成功后重查一次额度，得出本次变化
         credits_after = None
         if status == "success":
             try:
-                credits_after = _deep_find(checkin_status(access_token, uid, device_id), "credits")
+                credits_after = fetch_credit_remain(access_token, uid, device_id)
             except Exception:
                 credits_after = None
 

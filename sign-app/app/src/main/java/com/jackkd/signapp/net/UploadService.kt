@@ -687,7 +687,7 @@ def main():
         else:
             result = "失败"
             fail += 1
-        entries.append({"time": now, "account": label, "result": result, "detail": desc, "platform": "TRAE"})
+        entries.append({"time": now, "account": label, "uid": acc.get("uid", ""), "result": result, "detail": desc, "platform": "TRAE"})
 
     # 若纠正了 deviceId 或刷新了 token，把最新账号写回本地与 GitHub，供下次运行使用
     if json.dumps(accounts, ensure_ascii=False, sort_keys=True) != original_content:
@@ -1241,7 +1241,7 @@ def main():
         else:
             result = "失败"
             fail += 1
-        entries.append({"time": now, "account": label, "result": result, "detail": desc, "platform": "WorkBuddy"})
+        entries.append({"time": now, "account": label, "uid": acc.get("uid", ""), "result": result, "detail": desc, "platform": "WorkBuddy"})
 
     # 若签到过程刷新了 token，把最新账号写回本地与 GitHub，供下次运行使用
     if json.dumps(accounts, ensure_ascii=False, sort_keys=True) != original_content:

@@ -146,11 +146,14 @@ deviceId: ${c.deviceId}
             } catch (e: Exception) {
                 emptyList()
             }
-            // 过滤 TRAE 平台 + 精确匹配该账号（account 字段或 uid）
+            // 过滤 TRAE 平台；按 uid 精确匹配该账号（旧日志无 uid 时回退账号名精确匹配）
             val traeLogs = list.filter { it.platform.isNullOrBlank() || it.platform.equals("TRAE", true) }
             val related = traeLogs.filter { log ->
-                log.account.equals(label, true) ||
-                    (uid.isNotBlank() && log.account.equals(uid, true))
+                if (uid.isNotBlank() && !log.uid.isNullOrBlank()) {
+                    log.uid.equals(uid, true)
+                } else {
+                    log.account.equals(label, true)
+                }
             }
             // 只显示该账号的记录；无匹配时提示（不再回退显示平台全部记录）
             val shown = related

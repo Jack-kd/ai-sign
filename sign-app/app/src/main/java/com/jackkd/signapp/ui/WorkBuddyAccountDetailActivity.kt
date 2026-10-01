@@ -155,11 +155,14 @@ nickname: ${c.nickname}
             } catch (e: Exception) {
                 emptyList()
             }
-            // 过滤 WorkBuddy 平台 + 精确匹配该账号
+            // 过滤 WorkBuddy 平台；按 uid 精确匹配该账号（旧日志无 uid 时回退账号名精确匹配）
             val wbLogs = list.filter { it.platform != null && it.platform.equals("WorkBuddy", true) }
             val related = wbLogs.filter { log ->
-                log.account.equals(label, true) ||
-                    (uid.isNotBlank() && log.account.equals(uid, true))
+                if (uid.isNotBlank() && !log.uid.isNullOrBlank()) {
+                    log.uid.equals(uid, true)
+                } else {
+                    log.account.equals(label, true)
+                }
             }
             // 只显示该账号的记录；无匹配时提示（不再回退显示平台全部记录）
             val shown = related

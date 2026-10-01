@@ -78,5 +78,6 @@ data class CloudSignLog(
     val account: String,
     val result: String,   // 成功 / 失败 / 已签到
     val detail: String = "",
-    val platform: String = ""   // TRAE / WorkBuddy，用于分类展示
+    val platform: String = "",   // TRAE / WorkBuddy，用于分类展示
+    val uid: String = ""         // 账号 uid（用于按账号精确过滤；旧日志可能为空）
 )

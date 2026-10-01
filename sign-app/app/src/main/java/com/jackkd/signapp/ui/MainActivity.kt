@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.text.SpannableString
 import android.text.SpannableStringBuilder
@@ -527,7 +528,28 @@ private fun showGithubDialog() {
             }
         }
         dialog.setCancelable(false)
+        view.findViewById<View>(R.id.btnTokenHelp)?.setOnClickListener {
+            showTokenHelpDialog()
+        }
         dialog.show()
+    }
+
+    /** GitHub Token 获取教学弹窗 */
+    private fun showTokenHelpDialog() {
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_github_help, null)
+        val dlg = MaterialAlertDialogBuilder(this)
+            .setView(view)
+            .create()
+        dlg.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
+        view.findViewById<View>(R.id.btnOpenTokens).setOnClickListener {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/settings/tokens")))
+            } catch (e: Exception) {
+                Toast.makeText(this, "无法打开浏览器", Toast.LENGTH_SHORT).show()
+            }
+        }
+        view.findViewById<View>(R.id.btnHelpClose).setOnClickListener { dlg.dismiss() }
+        dlg.show()
     }
 
     private fun verifyGithub(user: String, token: String, repoInput: String) {

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_dialog_light"
+    android:padding="20dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="🔑 如何获取 GitHub Token"
+        android:textColor="@color/text_primary"
+        android:textSize="17sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:text="◆ 打开 github.com，点右上角头像 → Settings\n\n◆ 左侧拉到最底部 → Developer settings\n\n◆ Personal access tokens → Tokens (classic) → Generate new token (classic)\n\n◆ Note 随便填；Expiration 选 No expiration；\u3000勾选 repo（Repository）权限\n\n◆ 点 Generate token\n\n◆ 复制生成的 ghp_... 开头字符串"
+        android:textColor="@color/gray"
+        android:textSize="14sp"
+        android:lineSpacingExtra="2dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="⚠️ 必须勾选 repo 权限（读写仓库、触发 Actions 都需要），否则功能不可用；Token 只显示一次，请妥善保存。"
+        android:textColor="@color/warn_text"
+        android:textSize="12sp"
+        android:lineSpacingExtra="2dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/btnOpenTokens"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/bg_btn_gradient"
+            android:gravity="center"
+            android:padding="12dp"
+            android:text="打开 Token 页面"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnHelpClose"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:background="@drawable/bg_badge"
+            android:gravity="center"
+            android:padding="12dp"
+            android:text="关闭"
+            android:textColor="@color/primary"
+            android:textSize="14sp" />
+    </LinearLayout>
+</LinearLayout>

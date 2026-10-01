@@ -282,12 +282,16 @@ def travel_checkin(acc, access_token, host):
     #     arrived            -> claim(POST) 领取旅行礼物
     #     idle               -> config(GET) 取 locations -> depart(POST {"location_id": id}) 派 Buddy 出发
     #     daily_limit_reached -> 今日已达上限
-    # 返回 (状态, 描述)：success / already / fail
+    # 返回 (状态, 描述)：success / already / fail / skip（功能未开放）
     label = acc.get("label", "WorkBuddy")
     headers = _checkin_headers(acc, access_token, host)
     try:
         # 1. 查询旅行状态
         code, obj, raw = _get(host + "/buddy/travel/status", headers)
+        if code == 404:
+            # 该旅行接口当前线上不存在（原版有该功能但服务端无此路由）：
+            # 优雅跳过，不污染签到日志
+            return "skip", label + ": 旅行功能未开放"
         if code not in (200, 201):
             return "fail", label + ": 旅行状态查询失败(HTTP " + str(code) + "): " + raw[:150]
         state = _deep_find(obj, "state").lower()
@@ -373,7 +377,7 @@ def sign_one(acc):
             else:
                 status, desc = "fail", label + ": 失败(HTTP " + str(code) + "): " + raw[:200]
 
-        # --- 旅行签到（独立，失败不改变日签结果，成功/已签到则合并） ---
+        # --- 旅行签到（独立，失败不改变日签结果，成功/已签到则合并；skip=功能未开放不显示） ---
         try:
             tstatus, tdesc = travel_checkin(acc, access_token, host)
             if tstatus == "success":

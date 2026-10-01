@@ -1116,11 +1116,14 @@ def sign_one(acc):
             except Exception:
                 quota_after = None
 
-        # 今日领取：WorkBuddy 每日签到固定 100 积分（与官方一致；签到积分不计入周期额度，故不用额度差）
+        # 今日领取：以签到后的额度变化为准（即 desc 里的 +N，如 2000/2000 → 2100/2100 的 +100）
         earned = 0
-        if status == "success":
-            earned = 100
-            desc = "签到成功，领取 +100 积分"
+        if status == "success" and quota_before and quota_after:
+            try:
+                d = quota_after[0] - quota_before[0]
+                earned = d if d > 0 else 0
+            except Exception:
+                earned = 0
         desc += _quota_suffix(quota_before, quota_after)
         return status, desc, earned
     except Exception as e:

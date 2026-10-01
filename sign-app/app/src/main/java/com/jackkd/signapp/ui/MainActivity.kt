@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.NumberPicker
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -190,28 +191,28 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    /** 全局设置签到时间：两平台设同一时间 */
+    /** 全局设置签到时间：两平台设同一时间（滚轮选择，仿手机闹钟） */
     private fun showGlobalScheduleDialog() {
         val h = config.spForScheduleHour().let { if (it in 0..23) it else 0 }
         val m = config.spForScheduleMinute().let { if (it in 0..59) it else 30 }
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_schedule, null)
-        val etHour = view.findViewById<TextInputEditText>(R.id.etHour)
-        val etMinute = view.findViewById<TextInputEditText>(R.id.etMinute)
-        etHour.setText(h.toString())
-        etMinute.setText(m.toString())
+        val npHour = view.findViewById<NumberPicker>(R.id.npHour)
+        val npMinute = view.findViewById<NumberPicker>(R.id.npMinute)
+        npHour.minValue = 0
+        npHour.maxValue = 23
+        npHour.displayedValues = Array(24) { String.format("%02d", it) }
+        npHour.value = h
+        npMinute.minValue = 0
+        npMinute.maxValue = 59
+        npMinute.displayedValues = Array(60) { String.format("%02d", it) }
+        npMinute.value = m
 
         MaterialAlertDialogBuilder(this)
             .setTitle("设置签到时间（两平台同步）")
             .setMessage("每天该时刻自动为 TRAE 和 WorkBuddy 所有账号签到（北京时间）。")
             .setView(view)
             .setPositiveButton("保存", { _, _ ->
-                val hour = etHour.text?.toString()?.trim()?.toIntOrNull()
-                val minute = etMinute.text?.toString()?.trim()?.toIntOrNull()
-                if (hour == null || minute == null || hour !in 0..23 || minute !in 0..59) {
-                    Toast.makeText(this, "请输入有效时间（时0-23，分0-59）", Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
-                saveBothSchedule(hour, minute)
+                saveBothSchedule(npHour.value, npMinute.value)
             })
             .setNegativeButton("取消", null)
             .show()

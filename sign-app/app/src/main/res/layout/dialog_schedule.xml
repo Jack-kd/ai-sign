@@ -2,42 +2,47 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:gravity="center_vertical"
-    android:padding="20dp">
+    android:orientation="vertical"
+    android:paddingTop="12dp"
+    android:paddingBottom="8dp">
 
-    <com.google.android.material.textfield.TextInputLayout
-        android:layout_width="0dp"
+    <!-- 滚轮式时间选择：小时 + 分钟（仿手机闹钟） -->
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:hint="时 (0-23)">
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/etHour"
-            android:layout_width="match_parent"
+        <NumberPicker
+            android:id="@+id/npHour"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:inputType="number"
-            android:maxLength="2" />
-    </com.google.android.material.textfield.TextInputLayout>
+            android:layout_weight="1"
+            android:editable="false" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=":"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:paddingHorizontal="4dp" />
+
+        <NumberPicker
+            android:id="@+id/npMinute"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:editable="false" />
+    </LinearLayout>
 
     <TextView
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginHorizontal="12dp"
-        android:text=":"
-        android:textSize="20sp" />
-
-    <com.google.android.material.textfield.TextInputLayout
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:hint="分 (0-59)">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/etMinute"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="number"
-            android:maxLength="2" />
-    </com.google.android.material.textfield.TextInputLayout>
+        android:layout_marginTop="4dp"
+        android:gravity="center"
+        android:textSize="12sp"
+        android:textColor="@color/gray"
+        android:text="滚轮选择每天自动签到时间（北京时间）" />
 </LinearLayout>

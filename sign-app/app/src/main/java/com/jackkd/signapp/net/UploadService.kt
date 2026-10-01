@@ -540,10 +540,12 @@ def sign_one(acc):
 
         # 签到成功：显示本次领取的签到积分（status 响应的 credits，每日固定）
         credits_after = None
+        earned = 0
         if status == "success":
             try:
                 c = str(checkin_credits or "")
                 if c.isdigit() and int(c) > 0:
+                    earned = int(c)
                     desc = "签到成功，领取 +%s 积分" % c
             except Exception:
                 pass
@@ -553,7 +555,7 @@ def sign_one(acc):
             except Exception:
                 credits_after = None
 
-        return status, label + ": " + desc + _credits_suffix(credits_before, credits_after)
+        return status, label + ": " + desc + _credits_suffix(credits_before, credits_after), earned
     except SystemExit as e:
         return "fail", label + ": " + str(e)
     except Exception as e:
@@ -675,7 +677,7 @@ def main():
     entries = []
     now = int(time.time() * 1000)
     for acc in accounts:
-        status, desc = sign_one(acc)
+        status, desc, earned = sign_one(acc)
         print("[日志] " + desc)
         label = acc.get("label", "账号")
         if status == "already":
@@ -687,7 +689,10 @@ def main():
         else:
             result = "失败"
             fail += 1
-        entries.append({"time": now, "account": label, "uid": acc.get("uid", ""), "result": result, "detail": desc, "platform": "TRAE"})
+        source = "手动" if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch" else "自动"
+        entries.append({"time": now, "account": label, "uid": acc.get("uid", ""),
+                        "result": result, "detail": desc, "platform": "TRAE",
+                        "source": source, "earned": earned})
 
     # 若纠正了 deviceId 或刷新了 token，把最新账号写回本地与 GitHub，供下次运行使用
     if json.dumps(accounts, ensure_ascii=False, sort_keys=True) != original_content:
@@ -1111,7 +1116,16 @@ def sign_one(acc):
             except Exception:
                 quota_after = None
         desc += _quota_suffix(quota_before, quota_after)
-        return status, desc
+
+        # 今日领取：签到成功后额度的变化量（额度即 WorkBuddy 的积分体系）
+        earned = 0
+        if status == "success" and quota_before and quota_after:
+            try:
+                d = quota_after[0] - quota_before[0]
+                earned = d if d > 0 else 0
+            except Exception:
+                earned = 0
+        return status, desc, earned
     except Exception as e:
         return "fail", label + ": 异常 " + str(e)
 
@@ -1229,7 +1243,7 @@ def main():
     entries = []
     now = int(time.time() * 1000)
     for acc in accounts:
-        status, desc = sign_one(acc)
+        status, desc, earned = sign_one(acc)
         print("[日志] " + desc)
         label = acc.get("label", "WorkBuddy")
         if status == "success":
@@ -1241,7 +1255,10 @@ def main():
         else:
             result = "失败"
             fail += 1
-        entries.append({"time": now, "account": label, "uid": acc.get("uid", ""), "result": result, "detail": desc, "platform": "WorkBuddy"})
+        source = "手动" if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch" else "自动"
+        entries.append({"time": now, "account": label, "uid": acc.get("uid", ""),
+                        "result": result, "detail": desc, "platform": "WorkBuddy",
+                        "source": source, "earned": earned})
 
     # 若签到过程刷新了 token，把最新账号写回本地与 GitHub，供下次运行使用
     if json.dumps(accounts, ensure_ascii=False, sort_keys=True) != original_content:

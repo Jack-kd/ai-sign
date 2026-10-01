@@ -22,10 +22,29 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
-        android:text="上传到 GitHub 的凭证已用 AES-256-GCM 加密。请把下面的密钥配置到 GitHub Actions Secret（名称 SIGN_KEY），脚本才能解密签到：\n\nGitHub → Settings → Secrets and variables → Actions → New repository secret → 名称填 SIGN_KEY → 粘贴密钥"
+        android:text="开启后，上传到 GitHub 的凭证会用 AES-256-GCM 加密；脚本需配置 SIGN_KEY 密钥才能解密签到（未开启则明文上传，无需配置）。\n\nGitHub → Settings → Secrets and variables → Actions → New repository secret → 名称填 SIGN_KEY → 粘贴密钥"
         android:textColor="@color/gray"
         android:textSize="13sp"
         android:lineSpacingExtra="3dp" />
+
+    <Switch
+        android:id="@+id/switchCrypto"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:text="启用云端凭证加密"
+        android:textColor="@color/text_primary"
+        android:textSize="15sp" />
+
+    <TextView
+        android:id="@+id/tvCryptoHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text=""
+        android:textColor="@color/gray"
+        android:textSize="12sp"
+        android:lineSpacingExtra="2dp" />
 
     <TextView
         android:id="@+id/tvCryptoKey"

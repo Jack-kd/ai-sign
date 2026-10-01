@@ -899,7 +899,24 @@ private fun showGithubDialog() {
     private fun showCryptoDialog() {
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_crypto, null)
         val tvKey = view.findViewById<TextView>(R.id.tvCryptoKey)
+        val sw = view.findViewById<android.widget.Switch>(R.id.switchCrypto)
+        val hint = view.findViewById<TextView>(R.id.tvCryptoHint)
         tvKey.text = CredentialCrypto.keyBase64()
+
+        fun refreshHint() {
+            hint.text = if (CredentialCrypto.isEnabled())
+                "已开启：凭证将加密上传。请把下方密钥配置到 GitHub Actions Secret（SIGN_KEY），脚本才能解密签到。"
+            else
+                "未开启：凭证以明文上传（无需配置）。多账号用户建议开启。"
+        }
+        refreshHint()
+        sw.isChecked = CredentialCrypto.isEnabled()
+        sw.setOnCheckedChangeListener { _, checked ->
+            CredentialCrypto.setEnabled(checked)
+            refreshHint()
+            Toast.makeText(this, if (checked) "已开启凭证加密，请配置 SIGN_KEY" else "已关闭凭证加密（明文上传）", Toast.LENGTH_SHORT).show()
+        }
+
         val dlg = MaterialAlertDialogBuilder(this)
             .setView(view)
             .create()

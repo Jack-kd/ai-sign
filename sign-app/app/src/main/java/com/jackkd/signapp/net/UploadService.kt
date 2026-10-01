@@ -19,17 +19,19 @@ class UploadService(
 ) {
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 
-    /** 上传前对 TRAE token 加密（AES-256-GCM，密钥需配置到 GitHub Secret SIGN_KEY） */
-    private fun enc(u: UploadAccount) = u.copy(
-        accessToken = CredentialCrypto.encrypt(u.accessToken),
-        refreshToken = CredentialCrypto.encrypt(u.refreshToken)
-    )
+    /** 上传前对 TRAE token 加密（仅开启加密时；默认关闭=明文，兼容旧版） */
+    private fun enc(u: UploadAccount): UploadAccount =
+        if (CredentialCrypto.isEnabled()) u.copy(
+            accessToken = CredentialCrypto.encrypt(u.accessToken),
+            refreshToken = CredentialCrypto.encrypt(u.refreshToken)
+        ) else u
 
-    /** 上传前对 WorkBuddy token 加密 */
-    private fun encWb(u: UploadWorkBuddyAccount) = u.copy(
-        accessToken = CredentialCrypto.encrypt(u.accessToken),
-        refreshToken = CredentialCrypto.encrypt(u.refreshToken)
-    )
+    /** 上传前对 WorkBuddy token 加密（仅开启加密时） */
+    private fun encWb(u: UploadWorkBuddyAccount): UploadWorkBuddyAccount =
+        if (CredentialCrypto.isEnabled()) u.copy(
+            accessToken = CredentialCrypto.encrypt(u.accessToken),
+            refreshToken = CredentialCrypto.encrypt(u.refreshToken)
+        ) else u
 
     companion object {
         // TRAE

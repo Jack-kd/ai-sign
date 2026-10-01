@@ -25,6 +25,15 @@ object CredentialCrypto {
         appContext = context.applicationContext
     }
 
+    /** 是否启用云端凭证加密（可选，默认关闭=明文上传，兼容旧版） */
+    fun isEnabled(): Boolean =
+        appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("enabled", false)
+
+    fun setEnabled(enabled: Boolean) {
+        appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean("enabled", enabled).apply()
+    }
+
     /** 获取或生成密钥（Base64，供用户配置到 GitHub Secret SIGN_KEY） */
     fun keyBase64(): String {
         val key = cachedKey ?: loadOrCreate().also { cachedKey = it }

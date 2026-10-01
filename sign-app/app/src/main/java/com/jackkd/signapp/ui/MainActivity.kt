@@ -327,8 +327,7 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         refresh()
         if (config.verified && config.token.isNotBlank()) {
-            fetchScheduleFromCloud()
-            fetchWbScheduleFromCloud()
+            // fetchCloudAccounts 内部已拉取 TRAE/WorkBuddy 的账号与签到时间（静默刷新，不显示加载动画）
             fetchCloudAccounts()
         }
     }
@@ -571,7 +570,8 @@ private fun showGithubDialog() {
                     showPermissionReport(user, prepared.repoName, perms, allOk)
                     refresh()
                 }
-                fetchCloudAccounts()
+                // 首次连接云端：显示加载动画覆盖账号/时间拉取过程
+                fetchCloudAccounts(true)
             } catch (e: Exception) {
                 e.printStackTrace()
                 dlg.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
@@ -605,18 +605,34 @@ private fun showGithubDialog() {
         return null
     }
 
-    private fun fetchCloudAccounts() {
-        lifecycleScope.launch {
-            val api = GithubApi(config.username, config.token)
+    /** 显示云端同步加载动画覆盖层 */
+    private fun showLoading() {
+        runOnUiThread {
+            findViewById<View>(R.id.loadingOverlay)?.visibility = View.VISIBLE
+        }
+    }
 
-            val cloudSchedule = withContext(Dispatchers.IO) {
-                runCatching {
-                    UploadService(api, config.repoOwner, config.repoName, config.workflowBranch).fetchSchedule()
-                }.getOrNull()
-            }
-            if (cloudSchedule != null) {
-                config.saveSchedule(cloudSchedule.hour, cloudSchedule.minute)
-            }
+    /** 隐藏云端同步加载动画覆盖层 */
+    private fun hideLoading() {
+        runOnUiThread {
+            findViewById<View>(R.id.loadingOverlay)?.visibility = View.GONE
+        }
+    }
+
+    private fun fetchCloudAccounts(showLoading: Boolean = false) {
+        if (showLoading) showLoading()
+        lifecycleScope.launch {
+            try {
+                val api = GithubApi(config.username, config.token)
+
+                val cloudSchedule = withContext(Dispatchers.IO) {
+                    runCatching {
+                        UploadService(api, config.repoOwner, config.repoName, config.workflowBranch).fetchSchedule()
+                    }.getOrNull()
+                }
+                if (cloudSchedule != null) {
+                    config.saveSchedule(cloudSchedule.hour, cloudSchedule.minute)
+                }
 
             val wbSchedule = withContext(Dispatchers.IO) {
                 runCatching {
@@ -675,6 +691,9 @@ private fun showGithubDialog() {
             accountAdapter.submit(accountStore.load())
             showScheduleText()
             showWbScheduleText()
+            } finally {
+                hideLoading()
+            }
         }
     }
 

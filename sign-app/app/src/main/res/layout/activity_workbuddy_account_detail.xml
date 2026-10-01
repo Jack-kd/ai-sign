@@ -23,26 +23,31 @@
 
             <TextView
                 android:id="@+id/tvWbDetailLabel"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
                 android:text="账号"
                 android:textColor="@color/white"
                 android:textSize="22sp"
                 android:textStyle="bold" />
 
-            <!-- 重命名入口：点击弹出修改弹窗 -->
+            <!-- 重命名入口：紧跟在名字后面（约两空格宽度） -->
             <TextView
                 android:id="@+id/btnWbRenameIcon"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
+                android:layout_marginStart="8dp"
                 android:padding="4dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:text="✏️"
                 android:textColor="@color/white"
                 android:textSize="18sp"
                 android:contentDescription="重命名账号" />
+
+            <!-- 占位：把平台徽章推到最右 -->
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
 
             <TextView
                 android:layout_width="wrap_content"

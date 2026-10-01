@@ -40,6 +40,10 @@ class AccountDetailActivity : AppCompatActivity() {
     private var terminalColorWhite = 0
     private var terminalColorYellow = 0
     private var terminalColorOrange = 0
+    private var terminalColorGreen = 0
+    private var terminalColorRed = 0
+    private var terminalColorGray = 0
+    private var terminalColorCyan = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,6 +51,10 @@ class AccountDetailActivity : AppCompatActivity() {
         terminalColorWhite = ContextCompat.getColor(this, R.color.terminal_white)
         terminalColorYellow = ContextCompat.getColor(this, R.color.terminal_yellow)
         terminalColorOrange = ContextCompat.getColor(this, R.color.terminal_orange)
+        terminalColorGreen = ContextCompat.getColor(this, R.color.terminal_green)
+        terminalColorRed = ContextCompat.getColor(this, R.color.error_red)
+        terminalColorGray = ContextCompat.getColor(this, R.color.terminal_gray)
+        terminalColorCyan = ContextCompat.getColor(this, R.color.terminal_cyan)
 
         val accountId = intent.getStringExtra("account_id") ?: ""
         val account = AccountStore(this).load().find { it.id == accountId }
@@ -108,13 +116,16 @@ deviceId: ${c.deviceId}
 
     /** 从云端 sign_logs.json 拉取日志，过滤出属于该账号的记录（按 TRAE 平台 + account/uid 匹配） */
     private fun loadAccountLogs(tvLabel: TextView, tvUid: TextView, tvLogs: TextView) {
+        val tvMode = findViewById<TextView>(R.id.tvLogsMode)
         val config = GithubConfig(this)
         if (!config.verified || config.token.isBlank()) {
+            tvMode.text = "offline"
             tvLogs.text = terminalLine("! 未授权 GitHub，无法获取云端日志", terminalColorYellow)
             return
         }
         val label = tvLabel.text.toString()
         val uid = tvUid.text.toString()
+        tvMode.text = "loading"
         lifecycleScope.launch {
             val raw = withContext(Dispatchers.IO) {
                 try {
@@ -125,6 +136,7 @@ deviceId: ${c.deviceId}
                 }
             }
             if (raw == null) {
+                tvMode.text = "error"
                 tvLogs.text = terminalLine("$ sign_logs.json 不存在或未运行过签到", terminalColorOrange)
                 return@launch
             }
@@ -143,11 +155,13 @@ deviceId: ${c.deviceId}
             // 若精确匹配为空，回退显示该平台最近的全部记录（避免本地 label 与云端不一致时看不到日志）
             val shown = if (related.isNotEmpty()) related else traeLogs
             if (shown.isEmpty()) {
+                tvMode.text = "empty"
                 tvLogs.text = terminalLine("$ 暂无该账号的签到记录", terminalColorOrange)
                 return@launch
             }
+            tvMode.text = label
             val sb = StringBuilder()
-            sb.append("$ 共 ").append(shown.size).append(" 条签到记录\n")
+            sb.append(terminalLine("$ 共 " + shown.size + " 条签到记录", terminalColorCyan)).append("\n")
             for (log in shown.take(30)) {
                 sb.append(logLine(log)).append("\n")
             }
@@ -155,15 +169,20 @@ deviceId: ${c.deviceId}
         }
     }
 
-    /** 把单条日志渲染成带状态圆点的终端行：圆点和文字颜色代表成功/失败 */
+    /** 把单条日志渲染成带状态圆点的终端行：● 按结果着色（成功绿/已签到黄/失败红），时间灰色 */
     private fun logLine(log: CloudSignLog): CharSequence {
         val time = formatTime(log.time)
-        // 日志统一用白色显示
-        val color = terminalColorWhite
-        // 简化：优先显示详情（如"账号A：今日已签到"），否则显示账号名
+        val dotColor = when (log.result) {
+            "成功" -> terminalColorGreen
+            "已签到" -> terminalColorYellow
+            "失败" -> terminalColorRed
+            else -> terminalColorWhite
+        }
+        // 优先显示详情（如"账号A：今日已签到（积分…）"），否则显示账号名
         val text = if (!log.detail.isNullOrBlank()) log.detail else log.account
         val sp = SpannableString("● [$time] $text")
-        sp.setSpan(ForegroundColorSpan(color), 0, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        sp.setSpan(ForegroundColorSpan(dotColor), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        sp.setSpan(ForegroundColorSpan(terminalColorGray), 3, 3 + time.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         return sp
     }
 

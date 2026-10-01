@@ -571,6 +571,18 @@ private fun showGithubDialog() {
                 }
                 val allOk = perms.isNotEmpty() && perms.values.all { it.first }
 
+                if (!allOk) {
+                    // 权限不足：不允许登录（首次登录与切换账号都执行此检查），提示重新获取；
+                    // 不保存配置、不退出当前账号、不关闭弹窗
+                    runOnUiThread {
+                        dlg.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+                        tilError(dlg, "token 权限不足，请重新获取（classic 需勾选 repo + workflow）")
+                        Toast.makeText(this@MainActivity, "token 权限不足，登录失败，请重新获取", Toast.LENGTH_LONG).show()
+                        showPermissionReport(user, prepared.repoName, perms, false)
+                    }
+                    return@launch
+                }
+
                 config.username = user
                 config.token = token
                 config.repoOwner = user
@@ -583,7 +595,6 @@ private fun showGithubDialog() {
                 runOnUiThread {
                     dismissGithubDialog()
                     Toast.makeText(this@MainActivity, "GitHub 验证成功，仓库: $user/${prepared.repoName}", Toast.LENGTH_LONG).show()
-                    showPermissionReport(user, prepared.repoName, perms, allOk)
                     refresh()
                 }
                 // 首次连接云端：显示加载动画覆盖账号/时间拉取过程

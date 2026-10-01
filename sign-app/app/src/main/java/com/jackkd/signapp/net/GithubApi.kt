@@ -84,69 +84,71 @@ class GithubApi(private val username: String, private val token: String) {
     }
 
     /**
-     * 检测 token 对目标仓库的关键权限（实现所有功能所必需的）。
-     * 返回一个 Map，key 为权限名，value 为 (是否可用, 说明)。
+     * 当前 token 的 classic scopes（如 "repo, workflow"），来自 API 响应头 X-OAuth-Scopes（权威）。
+     * 注意：GET /repos 的 permissions 字段反映的是"登录用户身份的权限"，对仓库 owner 恒为 true，
+     *       不能用它判断 token 权限（曾被无 scope 的 token 骗过）。
      */
+    private fun currentScopes(): String? {
+        return try {
+            val req = Request.Builder()
+                .url("https://api.github.com/user")
+                .header("Authorization", auth())
+                .build()
+            client.newCall(req).execute().use { it.header("X-OAuth-Scopes") }
+        } catch (e: Exception) { null }
+    }
+
+    /** 检测 token 对目标仓库的关键权限（实现所有功能所必需的）。 */
     fun checkPermissions(owner: String, repo: String): LinkedHashMap<String, Pair<Boolean, String>> {
         val result = LinkedHashMap<String, Pair<Boolean, String>>()
         try {
-            // 1. 读仓库信息，获取 permissions 对象（Contents/push 等基础读写标记）
-            //    注意：GitHub 的 permissions 对象只有 admin/push/pull/triage/maintain，
-            //    并没有 actions/workflows 字段。因此 Actions/Workflows 需通过实测接口判断。
-            val req = Request.Builder()
-                .url("https://api.github.com/repos/$owner/$repo")
-                .header("Authorization", auth())
-                .header("Accept", "application/vnd.github+json")
-                .build()
-            val perm = client.newCall(req).execute().use { resp ->
-                if (resp.code != 200) null
-                else {
-                    val obj = JsonParser.parseString(resp.body?.string() ?: "{}").asJsonObject
-                    obj.getAsJsonObject("permissions")
-                }
-            }
-            val push = perm?.get("push")?.asBoolean == true
-            result["仓库写入(Contents/上传账号)"] = push to if (push)
-                "可读写仓库文件（上传账号、写日志等）" else "无写权限：无法上传账号/更新文件"
+            // 权威依据：classic token 的 X-OAuth-Scopes 头
+            val scopes = (currentScopes() ?: "").split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            val isFineGrained = token.startsWith("github_pat_")
+            val hasRepo = scopes.contains("repo") || scopes.contains("public_repo")
+            val hasWorkflow = scopes.contains("workflow")
 
-            // 2. 实测 Actions 权限：能读取工作流列表即代表有 Actions 权限
-            val wfReq = Request.Builder()
-                .url("https://api.github.com/repos/$owner/$repo/actions/workflows")
-                .header("Authorization", auth())
-                .header("Accept", "application/vnd.github+json")
-                .build()
-            val actionsOk = try {
-                client.newCall(wfReq).execute().use { r -> r.code == 200 }
+            // 实测读取类接口（public 仓库匿名可读，仅作辅助）
+            val wfListOk = try {
+                val wfReq = Request.Builder()
+                    .url("https://api.github.com/repos/$owner/$repo/actions/workflows")
+                    .header("Authorization", auth()).header("Accept", "application/vnd.github+json").build()
+                client.newCall(wfReq).execute().use { it.code == 200 }
             } catch (e: Exception) { false }
-            result["Actions(手动触发签到)"] = actionsOk to if (actionsOk)
-                "可访问 Actions 接口，能手动触发签到工作流" else "无 Actions 权限：立即签到将失败（请在 token 开启 Actions: Read and write）"
-
-            // 3. Workflows 权限：普通 user token 只要能写仓库文件（push），就能修改 .github/workflows 下的工作流
-            //    （工作流本质是仓库内文件，通过 contents API 写入即可）。用 push 判断足够。
-            val wfOk = push && actionsOk
-            result["Workflows(写签到脚本/定时)"] = wfOk to if (wfOk)
-                "可修改工作流文件（设置签到时间）" else "无 Workflows 权限：设置签到时间可能失败（classic token 需同时勾选 repo 与 workflow）"
-
-            // 4. 额外：实测读仓库文件权限（Contents 读）
-            // 注意：无权限访问也可能返回 404/403，不能用 404 当作"可读"；
-            // 仅当文件可读(200) 或（404 且已有写权限 push）才判定可读，避免误报
             val readOk = try {
                 val rfReq = Request.Builder()
                     .url("https://api.github.com/repos/$owner/$repo/contents/scripts/trae_accounts.json")
-                    .header("Authorization", auth())
-                    .header("Accept", "application/vnd.github+json")
-                    .build()
-                client.newCall(rfReq).execute().use { r -> r.code == 200 || (r.code == 404 && push) }
+                    .header("Authorization", auth()).header("Accept", "application/vnd.github+json").build()
+                client.newCall(rfReq).execute().use { it.code == 200 }
             } catch (e: Exception) { false }
+
+            // 写权限综合判定：classic 看 scopes；fine-grained 用实测回退
+            val pushOk = if (isFineGrained) wfListOk else hasRepo
+            val actionsOk = if (isFineGrained) wfListOk else (hasRepo || hasWorkflow)
+            val wfOk = if (isFineGrained) (wfListOk && readOk) else hasWorkflow
+
+            result["仓库写入(Contents/上传账号)"] = pushOk to if (pushOk)
+                "可读写仓库文件（上传账号、写日志等）" else if (isFineGrained)
+                "无法确认写权限（Fine-grained 需授权 Contents 读写）" else "无 repo 权限：无法上传账号/更新文件（classic Token 需勾选 repo）"
+
+            result["Actions(手动触发签到)"] = actionsOk to if (actionsOk)
+                "可触发签到工作流" else "无 Actions 权限：立即签到将失败" + (if (isFineGrained) "（Fine-grained 需授权 Actions 读写）" else "（classic 需勾选 repo/workflow）")
+
+            result["Workflows(写签到脚本/定时)"] = wfOk to if (wfOk)
+                "可修改工作流文件（设置签到时间）" else "无 Workflows 权限：设置签到时间可能失败" + (if (isFineGrained) "（Fine-grained 需授权 Workflows 读写）" else "（classic Token 需勾选 workflow）")
+
             result["Contents 读取(看账号/日志)"] = readOk to if (readOk)
                 "可读取仓库文件（账号列表、签到日志）" else "无法读取仓库文件（token 权限不足）"
+
+            if (!isFineGrained && scopes.isEmpty()) {
+                result["⚠ 权限说明"] = false to "当前 Token 没有任何权限 scope（classic Token 需勾选 repo + workflow），仅能读取公开仓库内容，无法上传账号/签到"
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             result["检测异常"] = false to (e.message ?: "网络错误")
         }
         return result
     }
-
     /** 获取仓库默认分支（main/master），用于写入工作流 */
     fun getDefaultBranch(owner: String, repo: String): String? {
         val req = Request.Builder()

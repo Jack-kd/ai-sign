@@ -335,6 +335,20 @@
                 android:visibility="gone" />
         </LinearLayout>
 
+        <!-- 重命名按钮 -->
+        <TextView
+            android:id="@+id/btnWbRename"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_badge"
+            android:gravity="center"
+            android:padding="13dp"
+            android:text="✏️ 重命名账号"
+            android:textColor="@color/primary"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
         <!-- 复制按钮 -->
         <TextView
             android:id="@+id/btnWbCopyAll"

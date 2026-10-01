@@ -9,17 +9,22 @@ import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.view.View
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.textfield.TextInputEditText
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.jackkd.signapp.R
 import com.jackkd.signapp.data.AccountStore
 import com.jackkd.signapp.data.CloudSignLog
 import com.jackkd.signapp.data.GithubConfig
+import com.jackkd.signapp.data.TraeAccount
+import com.jackkd.signapp.data.UploadAccount
 import com.jackkd.signapp.net.GithubApi
+import com.jackkd.signapp.net.UploadService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -67,6 +72,8 @@ class AccountDetailActivity : AppCompatActivity() {
         setupCollapse("refresh", R.id.headerRefresh, R.id.tvRefreshToken, R.id.iconRefresh)
         setupCollapse("uid", R.id.headerUid, R.id.tvUid, R.id.iconUid)
         setupCollapse("device", R.id.headerDevice, R.id.tvDeviceId, R.id.iconDevice)
+
+        findViewById<TextView>(R.id.btnRename).setOnClickListener { renameAccount(account) }
 
         findViewById<TextView>(R.id.btnCopyAll).setOnClickListener {
             val all = """
@@ -167,5 +174,58 @@ deviceId: ${c.deviceId}
 
     private fun formatTime(millis: Long): String {
         return SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(millis))
+    }
+
+    /** 手动重命名账号：更新本地并同步云端（若已授权 GitHub） */
+    private fun renameAccount(account: TraeAccount) {
+        val store = AccountStore(this)
+        val input = TextInputEditText(this)
+        input.setText(account.label)
+        input.setSelection(account.label.length)
+        MaterialAlertDialogBuilder(this)
+            .setTitle("重命名账号")
+            .setMessage("重命名后本地与云端(GitHub)同步更新")
+            .setView(input)
+            .setPositiveButton("保存", { _, _ ->
+                val name = input.text?.toString()?.trim() ?: ""
+                if (name.isBlank()) {
+                    Toast.makeText(this, "名称不能为空", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                val updated = account.copy(label = name)
+                store.update(updated)
+                findViewById<TextView>(R.id.tvDetailLabel).text = name
+                Toast.makeText(this, "已重命名为 $name", Toast.LENGTH_SHORT).show()
+
+                // 同步云端
+                val config = GithubConfig(this)
+                if (!config.verified || config.token.isBlank()) {
+                    Toast.makeText(this, "未授权 GitHub，已保存到本地", Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                lifecycleScope.launch {
+                    val api = GithubApi(config.username, config.token)
+                    val uploadList = store.load().map {
+                        UploadAccount(
+                            label = it.label, accessToken = it.credentials.accessToken,
+                            refreshToken = it.credentials.refreshToken, uid = it.credentials.uid,
+                            deviceId = it.credentials.deviceId, nickname = it.credentials.nickname
+                        )
+                    }
+                    val err = withContext(Dispatchers.IO) {
+                        runCatching {
+                            UploadService(api, config.repoOwner, config.repoName, config.workflowBranch)
+                                .uploadAccounts(uploadList)
+                        }.getOrNull()
+                    }
+                    if (err == null) {
+                        Toast.makeText(this@AccountDetailActivity, "已同步到云端", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@AccountDetailActivity, "云端同步失败：$err", Toast.LENGTH_LONG).show()
+                    }
+                }
+            })
+            .setNegativeButton("取消", null)
+            .show()
     }
 }

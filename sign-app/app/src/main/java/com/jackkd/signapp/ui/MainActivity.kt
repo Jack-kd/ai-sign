@@ -192,12 +192,6 @@ class MainActivity : AppCompatActivity() {
         view.findViewById<View>(R.id.btnSyncSchedule).setOnClickListener {
             dialog.dismiss(); showGlobalScheduleDialog()
         }
-        view.findViewById<View>(R.id.btnSetTraeOnly).setOnClickListener {
-            dialog.dismiss(); showSingleScheduleDialog("TRAE")
-        }
-        view.findViewById<View>(R.id.btnSetWbOnly).setOnClickListener {
-            dialog.dismiss(); showSingleScheduleDialog("WorkBuddy")
-        }
         view.findViewById<View>(R.id.btnQuickCheckin).setOnClickListener {
             dialog.dismiss(); triggerBothNow()
         }

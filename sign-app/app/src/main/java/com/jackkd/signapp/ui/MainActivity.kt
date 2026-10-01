@@ -211,6 +211,9 @@ class MainActivity : AppCompatActivity() {
         view.findViewById<View>(R.id.btnLogsEntry).setOnClickListener {
             dialog.dismiss(); showLogsDialog()
         }
+        view.findViewById<View>(R.id.btnStatsEntry).setOnClickListener {
+            dialog.dismiss(); showStatsDialog()
+        }
         view.findViewById<View>(R.id.btnCloseSettings).setOnClickListener { dialog.dismiss() }
         dialog.show()
     }
@@ -873,6 +876,103 @@ private fun showGithubDialog() {
             refresh()
             logStore.add(SignLog(System.currentTimeMillis(), acc.label, "删除成功", "已从本地和云端删除 WorkBuddy"))
             Toast.makeText(this@MainActivity, "${acc.label} 已从本地和云端删除", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** 积分趋势统计：终端样式弹窗（今日/本周/本月/累计领取 + 近 7 天趋势） */
+    private fun showStatsDialog() {
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_stats, null)
+        val tv = view.findViewById<TextView>(R.id.tvStatsContent)
+        val dlg = MaterialAlertDialogBuilder(this)
+            .setView(view)
+            .create()
+        dlg.window?.setBackgroundDrawableResource(R.drawable.bg_terminal_window)
+        view.findViewById<View>(R.id.btnStatsClose).setOnClickListener { dlg.dismiss() }
+        view.findViewById<View>(R.id.btnStatsCloseX).setOnClickListener { dlg.dismiss() }
+        dlg.setOnShowListener { loadStats(tv) }
+        dlg.show()
+    }
+
+    private fun loadStats(tv: TextView) {
+        val cGreen = ContextCompat.getColor(this, R.color.terminal_green)
+        val cCyan = ContextCompat.getColor(this, R.color.terminal_cyan)
+        val cYellow = ContextCompat.getColor(this, R.color.terminal_yellow)
+        val cGray = ContextCompat.getColor(this, R.color.terminal_gray)
+        val cWhite = ContextCompat.getColor(this, R.color.terminal_white)
+        fun line(text: String, color: Int): CharSequence {
+            val sp = SpannableString(text)
+            sp.setSpan(ForegroundColorSpan(color), 0, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            return sp
+        }
+        lifecycleScope.launch {
+            val raw = withContext(Dispatchers.IO) {
+                runCatching {
+                    GithubApi(config.username, config.token)
+                        .readRepoFile(config.repoOwner, config.repoName, config.logPath)
+                }.getOrNull()
+            }
+            if (raw == null) {
+                tv.text = line("$ 无日志数据（请先运行签到）", cYellow)
+                return@launch
+            }
+            val list: List<CloudSignLog> = try {
+                val type = object : TypeToken<List<CloudSignLog>>() {}.type
+                Gson().fromJson<List<CloudSignLog>>(raw, type) ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+            if (list.isEmpty()) {
+                tv.text = line("$ 暂无签到记录", cYellow)
+                return@launch
+            }
+            val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val today = fmt.format(java.util.Date())
+            val now = java.util.Calendar.getInstance()
+            val month = now.get(java.util.Calendar.MONTH)
+            val year = now.get(java.util.Calendar.YEAR)
+
+            fun earnedOf(log: CloudSignLog): Long = log.earned
+            val earnedToday = list.filter { fmt.format(java.util.Date(it.time)) == today }.sumOf { earnedOf(it) }
+            // 近 7 天（含今天）每日领取
+            val trend = ArrayList<Pair<String, Long>>()
+            val trendTotal = list.filter {
+                val d = fmt.format(java.util.Date(it.time))
+                val c = java.util.Calendar.getInstance().apply { time = java.util.Date(it.time) }
+                java.lang.Math.abs(c.get(java.util.Calendar.DAY_OF_YEAR) - now.get(java.util.Calendar.DAY_OF_YEAR)) <= 6 || d == today
+            }.sumOf { earnedOf(it) }
+            for (offset in 6 downTo 0) {
+                val c = java.util.Calendar.getInstance()
+                c.add(java.util.Calendar.DAY_OF_YEAR, -offset)
+                val ds = fmt.format(c.time)
+                val sum = list.filter { fmt.format(java.util.Date(it.time)) == ds }.sumOf { earnedOf(it) }
+                trend.add(ds to sum)
+            }
+            val earnedMonth = list.filter {
+                val c = java.util.Calendar.getInstance().apply { time = java.util.Date(it.time) }
+                c.get(java.util.Calendar.MONTH) == month && c.get(java.util.Calendar.YEAR) == year
+            }.sumOf { earnedOf(it) }
+            val earnedTotal = list.sumOf { earnedOf(it) }
+            val success = list.count { it.result == "成功" }
+            val fail = list.count { it.result == "失败" }
+            val manual = list.count { it.source == "手动" }
+            val auto = list.size - manual
+
+            val sb = SpannableStringBuilder()
+            sb.append(line("# 积分统计（TRAE + WorkBuddy）\n", cCyan))
+            sb.append(line("今日领取：" + earnedToday + " 分\n", cGreen))
+            sb.append(line("近 7 天：" + trendTotal + " 分\n", cCyan))
+            sb.append(line("本月领取：" + earnedMonth + " 分\n", cGreen))
+            sb.append(line("累计领取：" + earnedTotal + " 分\n", cCyan))
+            sb.append(line("成功 " + success + " 次 / 失败 " + fail + " 次\n", cGray))
+            sb.append(line("手动 " + manual + " 条 / 自动 " + auto + " 条\n", cGray))
+            sb.append(line("\n# 近 7 天趋势\n", cCyan))
+            val max = (trend.maxOfOrNull { it.second } ?: 0L).coerceAtLeast(1)
+            for ((date, sum) in trend) {
+                val bars = "█".repeat(((sum * 24 / max).toInt()))
+                val mark = if (date == today) " ◀ 今天" else ""
+                sb.append(line("  " + date.substring(5) + "  +" + sum + " " + bars + mark + "\n", if (sum > 0) cGreen else cGray))
+            }
+            tv.text = sb
         }
     }
 

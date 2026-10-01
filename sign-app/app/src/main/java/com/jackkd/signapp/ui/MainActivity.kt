@@ -855,6 +855,8 @@ private fun showGithubDialog() {
         val dlg = MaterialAlertDialogBuilder(this)
             .setView(view)
             .create()
+        // 弹窗整体为深色终端窗口背景，避免圆角外露出白色
+        dlg.window?.setBackgroundDrawableResource(R.drawable.bg_terminal_window)
 
         /** 终端行：● [时间] 内容（● 按结果着色，时间灰色） */
         fun logLine(result: String, time: String, body: String): CharSequence {

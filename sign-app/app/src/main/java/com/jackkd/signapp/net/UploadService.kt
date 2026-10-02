@@ -73,6 +73,11 @@ class UploadService(
         return try {
             val files = mutableMapOf<String, String>()
             files[ACCOUNTS_FILE] = gson.toJson(accounts.map { enc(it) })
+            // 确保签到脚本与工作流存在（缺失时自动补上，避免新仓库签到失败）
+            val scriptExists = api.readRepoFile(owner, repo, SCRIPT_FILE) != null
+            if (!scriptExists) files[SCRIPT_FILE] = SIGN_SCRIPT
+            val wfExists = api.readRepoFile(owner, repo, WORKFLOW_FILE) != null
+            if (!wfExists) files[WORKFLOW_FILE] = buildWorkflow(ScheduleTime(0, 0))
             api.updateMultipleFiles(owner, repo, branch, files, "更新 TRAE 签到账号列表")
         } catch (e: Exception) {
             e.printStackTrace(); e.message ?: "上传异常"
@@ -90,6 +95,9 @@ class UploadService(
             // 确保脚本存在，否则自动创建（避免工作流运行时报找不到文件）
             val scriptExists = api.readRepoFile(owner, repo, WB_SCRIPT_FILE) != null
             if (!scriptExists) files[WB_SCRIPT_FILE] = WB_SIGN_SCRIPT
+            // 确保工作流存在（缺失时补上，避免新仓库签到失败）
+            val wfExists = api.readRepoFile(owner, repo, WB_WORKFLOW_FILE) != null
+            if (!wfExists) files[WB_WORKFLOW_FILE] = buildWorkBuddyWorkflow(ScheduleTime(0, 0))
             api.updateMultipleFiles(owner, repo, branch, files, "更新 WorkBuddy 签到账号列表")
         } catch (e: Exception) {
             e.printStackTrace(); e.message ?: "上传异常"

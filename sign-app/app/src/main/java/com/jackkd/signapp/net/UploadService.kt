@@ -625,6 +625,8 @@ def sign_one(acc):
 
 def push_logs(entries):
     # 把本次签到结果回写到仓库 sign_logs.json（用 GITHUB_TOKEN）。
+    # 注意：TRAE/WorkBuddy 同时触发会并发写同一日志文件，409 冲突重试时
+    # 必须重新读取最新内容再合并（不能沿用旧内容，否则会覆盖对方刚写入的日志）。
     try:
         repo = os.environ.get("GITHUB_REPOSITORY", "")
         token = os.environ.get("GITHUB_TOKEN", "")
@@ -632,34 +634,25 @@ def push_logs(entries):
             print("[日志] 未配置 GITHUB_TOKEN，跳过日志回写")
             return
         owner, reponame = repo.split("/", 1)
-
-        logs = []
-        if os.path.exists(LOG_FILE):
-            try:
-                with open(LOG_FILE, "r", encoding="utf-8") as f:
-                    existing = json.load(f)
-                if isinstance(existing, list):
-                    logs = existing
-            except Exception:
-                logs = []
-        logs = entries + logs
-        logs = logs[:MAX_LOGS]
-        content = json.dumps(logs, ensure_ascii=False)
-        b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
-
-        # 获取现有文件 sha 并 PUT；TRAE/WorkBuddy 同时触发会并发写同一日志文件，
-        # 后写者会遇 409 冲突——重取 sha 重试（最多 3 次，间隔递增）
         url = "https://api.github.com/repos/" + owner + "/" + reponame + "/contents/" + REMOTE_LOG_FILE
+
         for attempt in range(3):
-            sha = None
+            # 读取最新内容与 sha（每次重试都重新读，避免覆盖并发写入的日志）
+            latest, sha = [], None
             try:
                 req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token, "Accept": "application/vnd.github+json"})
                 with urllib.request.urlopen(req, timeout=30) as resp:
                     obj = json.loads(resp.read().decode("utf-8", "replace"))
                     sha = obj.get("sha")
+                    latest = json.loads(base64.b64decode(obj.get("content", "")).decode("utf-8", "replace")) if obj.get("content") else []
+                if not isinstance(latest, list):
+                    latest = []
             except Exception:
-                sha = None
+                latest, sha = [], None
 
+            logs = entries + latest
+            logs = logs[:MAX_LOGS]
+            b64 = base64.b64encode(json.dumps(logs, ensure_ascii=False).encode("utf-8")).decode("ascii")
             data = {"message": "update sign logs", "content": b64}
             if sha:
                 data["sha"] = sha
@@ -674,12 +667,11 @@ def push_logs(entries):
                     return
             except urllib.error.HTTPError as e:
                 if e.code == 409 and attempt < 2:
-                    time.sleep(2 * (attempt + 1))  # 冲突：等对方写完再重试
+                    time.sleep(2 * (attempt + 1))  # 冲突：等对方写完，重新读最新内容再合并
                     continue
                 raise
     except Exception as e:
         print("[Log] 回写失败: " + str(e))
-
 
 def push_accounts(accounts):
     # 纠正 deviceId / 刷新 token 后，把最新账号凭证回写到仓库 trae_accounts.json（用 GITHUB_TOKEN）。
@@ -1237,6 +1229,8 @@ def sign_one(acc):
 
 def push_logs(entries):
     # 把本次签到结果回写到仓库 sign_logs.json（用 GITHUB_TOKEN）。
+    # 注意：TRAE/WorkBuddy 同时触发会并发写同一日志文件，409 冲突重试时
+    # 必须重新读取最新内容再合并（不能沿用旧内容，否则会覆盖对方刚写入的日志）。
     try:
         repo = os.environ.get("GITHUB_REPOSITORY", "")
         token = os.environ.get("GITHUB_TOKEN", "")
@@ -1244,34 +1238,25 @@ def push_logs(entries):
             print("[日志] 未配置 GITHUB_TOKEN，跳过日志回写")
             return
         owner, reponame = repo.split("/", 1)
-
-        logs = []
-        if os.path.exists(LOG_FILE):
-            try:
-                with open(LOG_FILE, "r", encoding="utf-8") as f:
-                    existing = json.load(f)
-                if isinstance(existing, list):
-                    logs = existing
-            except Exception:
-                logs = []
-        logs = entries + logs
-        logs = logs[:MAX_LOGS]
-        content = json.dumps(logs, ensure_ascii=False)
-        b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
-
-        # 获取现有文件 sha 并 PUT；TRAE/WorkBuddy 同时触发会并发写同一日志文件，
-        # 后写者会遇 409 冲突——重取 sha 重试（最多 3 次，间隔递增）
         url = "https://api.github.com/repos/" + owner + "/" + reponame + "/contents/" + REMOTE_LOG_FILE
+
         for attempt in range(3):
-            sha = None
+            # 读取最新内容与 sha（每次重试都重新读，避免覆盖并发写入的日志）
+            latest, sha = [], None
             try:
                 req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token, "Accept": "application/vnd.github+json"})
                 with urllib.request.urlopen(req, timeout=30) as resp:
                     obj = json.loads(resp.read().decode("utf-8", "replace"))
                     sha = obj.get("sha")
+                    latest = json.loads(base64.b64decode(obj.get("content", "")).decode("utf-8", "replace")) if obj.get("content") else []
+                if not isinstance(latest, list):
+                    latest = []
             except Exception:
-                sha = None
+                latest, sha = [], None
 
+            logs = entries + latest
+            logs = logs[:MAX_LOGS]
+            b64 = base64.b64encode(json.dumps(logs, ensure_ascii=False).encode("utf-8")).decode("ascii")
             data = {"message": "update sign logs", "content": b64}
             if sha:
                 data["sha"] = sha
@@ -1286,12 +1271,11 @@ def push_logs(entries):
                     return
             except urllib.error.HTTPError as e:
                 if e.code == 409 and attempt < 2:
-                    time.sleep(2 * (attempt + 1))  # 冲突：等对方写完再重试
+                    time.sleep(2 * (attempt + 1))  # 冲突：等对方写完，重新读最新内容再合并
                     continue
                 raise
     except Exception as e:
         print("[Log] 回写失败: " + str(e))
-
 
 def push_accounts(accounts):
     # 刷新 token 后，把最新账号凭证回写到仓库 workbuddy_accounts.json（用 GITHUB_TOKEN）。

@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_dialog_light"
+    android:paddingTop="18dp"
+    android:paddingLeft="20dp"
+    android:paddingRight="20dp"
+    android:paddingBottom="16dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="📮 签到信息推送"
+        android:textColor="@color/text_primary"
+        android:textSize="17sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="云端签到脚本每次运行完后，会把每个账号的签到结果推送到你的微信（ClawBot）或 WxPusher 客户端，内容包括：时间、手动/自动、平台、签到成功或失败、是否领取到积分。\n\n本功能非强制，默认关闭；关闭时不推送任何消息。"
+        android:textColor="@color/gray"
+        android:textSize="13sp"
+        android:lineSpacingExtra="3dp" />
+
+    <!-- 启用开关 -->
+    <Switch
+        android:id="@+id/switchWxpusher"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="启用微信 ClawBot 推送"
+        android:textColor="@color/text_primary"
+        android:textSize="15sp" />
+
+    <!-- SPT 输入框 -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/tilWxSpt"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:hint="SPT（极简推送令牌，SPT_ 开头）"
+        app:boxCornerRadiusBottomEnd="18dp"
+        app:boxCornerRadiusBottomStart="18dp"
+        app:boxCornerRadiusTopEnd="18dp"
+        app:boxCornerRadiusTopStart="18dp"
+        app:boxStrokeColor="?attr/signPrimary"
+        app:hintTextColor="?attr/signPrimary"
+        app:passwordToggleEnabled="true">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etWxSpt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textPassword"
+            android:textSize="14sp" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- 如何获取 SPT 教程 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:text="📖 如何获取 SPT（极简推送令牌）"
+        android:textColor="@color/text_primary"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="1️⃣ 打开 WxPusher 官方 SPT 页面（点下方「打开获取 SPT 教程」）\n2️⃣ 用微信扫码页面中的二维码，微信内会收到你的 SPT（SPT_ 开头）\n3️⃣ 把 SPT 粘贴到上方输入框\n4️⃣ 在 GitHub 仓库 Settings → Secrets 里新建 WXPUSHER_SPT，值填同一个 SPT（点下方按钮一键跳转）\n5️⃣ 打开「启用微信 ClawBot 推送」并保存\n\n⚠️ SPT 等同密码，泄漏后任何人都能给你发消息，请勿写进仓库文件或分享。\n💡 想在微信里收到推送：在 WxPusher App「我的 → 推送渠道 → 绑定微信 ClawBot」完成绑定后即可。"
+        android:textColor="@color/gray"
+        android:textSize="13sp"
+        android:lineSpacingExtra="3dp" />
+
+    <!-- 快捷跳转按钮 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/btnOpenSptGuide"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/bg_badge"
+            android:gravity="center"
+            android:padding="10dp"
+            android:text="打开获取 SPT 教程"
+            android:textColor="?attr/signPrimary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnOpenSecrets"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_badge"
+            android:gravity="center"
+            android:padding="10dp"
+            android:text="配置 GitHub Secret"
+            android:textColor="?attr/signPrimary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- 保存 / 关闭 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/btnWxSave"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/bg_btn_gradient"
+            android:gravity="center"
+            android:padding="11dp"
+            android:text="保存"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnWxClose"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:background="@drawable/bg_badge"
+            android:gravity="center"
+            android:padding="11dp"
+            android:text="关闭"
+            android:textColor="?attr/signPrimary"
+            android:textSize="14sp" />
+    </LinearLayout>
+</LinearLayout>

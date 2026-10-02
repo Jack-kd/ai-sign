@@ -24,3 +24,4 @@ jobs:
         run: cd scripts && python trae_checkin_multi.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WXPUSHER_SPT: ${{ secrets.WXPUSHER_SPT }}

@@ -83,6 +83,18 @@ class GithubApi(private val username: String, private val token: String) {
         }
     }
 
+    /** 检查仓库是否已配置某 Actions Secret（200=存在，404=不存在或无权限） */
+    fun hasSecret(owner: String, repo: String, name: String): Boolean {
+        return try {
+            val req = Request.Builder()
+                .url("https://api.github.com/repos/$owner/$repo/actions/secrets/$name")
+                .header("Authorization", auth())
+                .header("Accept", "application/vnd.github+json")
+                .build()
+            client.newCall(req).execute().use { it.code == 200 }
+        } catch (e: Exception) { false }
+    }
+
     /**
      * 当前 token 的 classic scopes（如 "repo, workflow"），来自 API 响应头 X-OAuth-Scopes（权威）。
      * 注意：GET /repos 的 permissions 字段反映的是"登录用户身份的权限"，对仓库 owner 恒为 true，

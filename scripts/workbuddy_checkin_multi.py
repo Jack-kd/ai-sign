@@ -546,6 +546,68 @@ def push_accounts(accounts):
         print("[日志] 账号回写失败: " + str(e))
 
 
+def _wx_enabled():
+    # 微信 ClawBot 推送开关：由 App 同步到 scripts/wxpusher_config.json（默认关闭）
+    try:
+        with open("wxpusher_config.json", "r", encoding="utf-8") as f:
+            return bool(json.load(f).get("enabled", False))
+    except Exception:
+        return False
+
+
+def push_wxpusher(entries):
+    # 可选功能：把本次签到结果推送到微信 ClawBot / WxPusher 客户端（极简推送 SPT）。
+    # SPT 从环境变量 WXPUSHER_SPT 读取（GitHub Actions Secret，不写进仓库文件），
+    # 开关在 scripts/wxpusher_config.json（App「设置-签到信息推送」里开启）。
+    spt = os.environ.get("WXPUSHER_SPT", "").strip()
+    if not spt or not _wx_enabled():
+        print("[推送] 未开启微信推送（需在 App 开启开关，并在仓库 Secrets 配置 WXPUSHER_SPT），跳过")
+        return
+    t = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    source = "手动触发" if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch" else "云端自动运行"
+    lines = [
+        "<p><b>⏰ 时间：</b>%s</p>" % t,
+        "<p><b>🔔 来源：</b>%s</p>" % source,
+        "<p><b>🧩 平台：</b>WorkBuddy</p>",
+        "<h3 style='margin:8px 0 4px'>账号明细</h3>",
+    ]
+    ok = already = fail = 0
+    for e in entries:
+        label = e.get("account") or "账号"
+        result = e.get("result") or ""
+        earned = e.get("earned") or 0
+        if result == "成功":
+            ok += 1
+            if earned > 0:
+                line = "✅ %s：签到成功，领取 <b>+%d</b> 额度" % (label, earned)
+            else:
+                line = "✅ %s：签到成功（未领取到额度）" % label
+        elif result == "已签到":
+            already += 1
+            line = "🔁 %s：今日已签到，未领到额度" % label
+        else:
+            fail += 1
+            detail = (e.get("detail") or "").strip()
+            line = "❌ %s：签到失败%s" % (label, ("（" + detail[:100] + "）") if detail else "")
+        lines.append("<p style='margin:2px 0'>%s</p>" % line)
+    lines.append("<p style='margin-top:6px'><b>汇总：</b>成功 %d · 已签到 %d · 失败 %d</p>" % (ok, already, fail))
+    html = "<h2>📮 WorkBuddy 签到报告</h2>" + "".join(lines)
+    summary = "WorkBuddy 签到：成功 %d，已签到 %d，失败 %d" % (ok, already, fail)
+    body = json.dumps({
+        "content": html, "summary": summary[:100],
+        "contentType": 2, "spt": spt,
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        "https://wxpusher.zjiecode.com/api/send/message/simple-push",
+        data=body, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            obj = json.loads(resp.read().decode("utf-8", "replace"))
+        print("[推送] WxPusher code=%s msg=%s" % (obj.get("code"), obj.get("msg")))
+    except Exception as e:
+        print("[推送] WxPusher 调用失败: " + str(e))
+
+
 def main():
     try:
         with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
@@ -592,6 +654,11 @@ def main():
 
     print("[结果] 成功 {0}，已签到 {1}，失败 {2}，共 {3}".format(ok, already, fail, len(accounts)))
     push_logs(entries)
+    # 微信 ClawBot 推送（可选，默认关闭；失败不影响签到结果）
+    try:
+        push_wxpusher(entries)
+    except Exception as e:
+        print("[推送] 异常: " + str(e))
     sys.exit(0 if (ok + already) == len(accounts) else 1)
 
 

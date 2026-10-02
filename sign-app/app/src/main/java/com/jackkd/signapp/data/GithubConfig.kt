@@ -59,6 +59,21 @@ class GithubConfig(context: Context) {
         sp.edit().putString("color_before_dark", t).apply()
     }
 
+    // ===== 微信 ClawBot 推送（WxPusher 极简推送 SPT）=====
+    /** 是否启用签到结果推送（默认关闭） */
+    fun isWxpusherEnabled(): Boolean = sp.getBoolean("wxpusher_enabled", false)
+
+    fun setWxpusherEnabled(v: Boolean) {
+        sp.edit().putBoolean("wxpusher_enabled", v).apply()
+    }
+
+    /** 用户填写的 SPT（仅存本地，绝不写入仓库文件；云端读取 GitHub Secret WXPUSHER_SPT） */
+    fun wxpusherSpt(): String = sp.getString("wxpusher_spt", "") ?: ""
+
+    fun setWxpusherSpt(t: String) {
+        sp.edit().putString("wxpusher_spt", t).apply()
+    }
+
     /** 目标仓库默认分支 */
     var workflowBranch: String
         get() = sp.getString("workflow_branch", "main") ?: "main"

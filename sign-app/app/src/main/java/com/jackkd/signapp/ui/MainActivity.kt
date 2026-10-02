@@ -105,6 +105,7 @@ class MainActivity : AppCompatActivity() {
     private var pendingLoginPlatform: String = "TRAE"   // 登录态失效横幅点击跳转的平台
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        config = GithubConfig(this)
         // 深色模式：用户强制深色 或 跟随系统（系统深色自动深色）
         AppCompatDelegate.setDefaultNightMode(
             if (config.isForceDark()) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
@@ -113,7 +114,6 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         CredentialCrypto.init(this)
 
-        config = GithubConfig(this)
         accountStore = AccountStore(this)
         wbAccountStore = WorkBuddyAccountStore(this)
         logStore = LogStore(this)

@@ -65,6 +65,53 @@ fun themePrimary(context: Context): Int {
     return tv.data
 }
 
+/** 配色渐变颜色（深浅自适应） */
+fun themeGrad(theme: String, dark: Boolean): Pair<Int, Int> = when {
+    theme == "green" -> if (dark) 0xFF1F6B45.toInt() to 0xFF164830.toInt() else 0xFF4CD889.toInt() to 0xFF2FA666.toInt()
+    theme == "orange" -> if (dark) 0xFFA5560F.toInt() to 0xFF7A3E0A.toInt() else 0xFFFFB84D.toInt() to 0xFFE88A1F.toInt()
+    else -> if (dark) 0xFF264B82.toInt() to 0xFF19375C.toInt() else 0xFF5A9EFF.toInt() to 0xFF3B7BD9.toInt()
+}
+
+/** ARGB 线性插值 */
+fun lerpColor(a: Int, b: Int, f: Float): Int {
+    val ar = (a ushr 24) and 0xFF; val ag = (a ushr 16) and 0xFF; val ab = (a ushr 8) and 0xFF; val aa = a and 0xFF
+    val br = (b ushr 24) and 0xFF; val bg = (b ushr 16) and 0xFF; val bb = (b ushr 8) and 0xFF; val ba = b and 0xFF
+    fun mix(x: Int, y: Int) = (x + ((y - x) * f)).toInt()
+    return (mix(ar, br) shl 24) or (mix(ag, bg) shl 16) or (mix(ab, bb) shl 8) or mix(aa, ba)
+}
+
+/** 渐变背景动画（ValueAnimator 插值） */
+fun animateGradient(view: android.view.View, start: Int, end: Int, radiusDp: Float) {
+    val old = view.background as? android.graphics.drawable.GradientDrawable
+    val from0 = old?.colors?.getOrNull(0) ?: start
+    val from1 = old?.colors?.getOrNull(1) ?: end
+    val anim = android.animation.ValueAnimator.ofFloat(0f, 1f)
+    anim.duration = 450
+    anim.interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+    anim.addUpdateListener { va ->
+        val f = va.animatedFraction
+        view.background = android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+            intArrayOf(lerpColor(from0, start, f), lerpColor(from1, end, f))
+        ).apply { if (radiusDp > 0) cornerRadius = radiusDp * view.resources.displayMetrics.density }
+    }
+    anim.start()
+}
+
+/** 主界面渐变元素平滑过渡到目标配色 */
+fun animateMainTheme(activity: android.app.Activity) {
+    val dark = (activity.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
+    val cfg = (activity as? MainActivity)?.config ?: return
+    val (s, e) = themeGrad(cfg.getColorTheme(), dark)
+    listOf(R.id.mainTopBar, R.id.btnLoginTrae, R.id.btnTriggerTrae, R.id.btnLoginWorkBuddy, R.id.btnTriggerWb,
+        R.id.tabTrae, R.id.tabWb).forEach { id ->
+        activity.findViewById<android.view.View>(id)?.let {
+            animateGradient(it, s, e, if (id == R.id.mainTopBar) 0f else 8f)
+        }
+    }
+}
+
 /** 解析 JWT accessToken 的过期时间（毫秒）；非 JWT/失败返回 null */
 fun jwtExpiryMs(token: String): Long? {
     if (!token.contains(".")) return null
@@ -1058,7 +1105,10 @@ private fun showGithubDialog() {
                 "green" -> "绿色"; "orange" -> "橙色"; else -> "蓝色"
             } + "主题", Toast.LENGTH_SHORT).show()
             dlg.dismiss()
-            recreate()   // 重建使新主题（按钮/账号/详情等全局配色）生效
+            // 1) 主界面渐变先做平滑过渡动画
+            animateMainTheme(this@MainActivity)
+            // 2) 动画结束后重建，刷新全局 attr（文字/描边/卡片文字色等）
+            window.decorView.postDelayed({ recreate() }, 500)
         }
         view.findViewById<View>(R.id.btnThemeBlue).setOnClickListener { pick("blue") }
         view.findViewById<View>(R.id.btnThemeGreen).setOnClickListener { pick("green") }

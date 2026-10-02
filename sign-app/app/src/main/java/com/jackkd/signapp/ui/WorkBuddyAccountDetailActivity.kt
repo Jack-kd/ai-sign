@@ -174,7 +174,7 @@ nickname: ${c.nickname}
             if (shown.isEmpty()) {
                 tvMode.text = "empty"
                 tvLogs.text = terminalLine(
-                    "$ 暂无该账号的签到记录\n# 若刚重命名过账号，旧记录仍使用原名称",
+                    "$ 暂无该账号的签到记录",
                     terminalColorOrange
                 )
                 return@launch

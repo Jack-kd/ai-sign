@@ -7,8 +7,8 @@
         <item name="android:statusBarColor">@color/gradient_start</item>
         <item name="android:windowBackground">@color/black</item>
         <item name="signPrimary">#5A9EFF</item>
-        <item name="signGradientStart">#4A8FE8</item>
-        <item name="signGradientEnd">#2F6FBE</item>
+        <item name="signGradientStart">#2F5D9E</item>
+        <item name="signGradientEnd">#1E4370</item>
         <item name="signIconCircle">#1B3A5C</item>
         <item name="signCardStart">#182C44</item>
         <item name="signCardEnd">#1B3A5C</item>
@@ -19,8 +19,8 @@
         <item name="colorPrimary">#4CD889</item>
         <item name="colorPrimaryVariant">#2FA666</item>
         <item name="signPrimary">#4CD889</item>
-        <item name="signGradientStart">#37B876</item>
-        <item name="signGradientEnd">#238E58</item>
+        <item name="signGradientStart">#2B8E5C</item>
+        <item name="signGradientEnd">#1C6B46</item>
         <item name="signIconCircle">#1B2E25</item>
         <item name="signCardStart">#16281F</item>
         <item name="signCardEnd">#1B2E25</item>
@@ -31,8 +31,8 @@
         <item name="colorPrimary">#FFB84D</item>
         <item name="colorPrimaryVariant">#E88A1F</item>
         <item name="signPrimary">#FFB84D</item>
-        <item name="signGradientStart">#F0A030</item>
-        <item name="signGradientEnd">#C26E16</item>
+        <item name="signGradientStart">#C26E16</item>
+        <item name="signGradientEnd">#8A4A10</item>
         <item name="signIconCircle">#33230E</item>
         <item name="signCardStart">#2A2010</item>
         <item name="signCardEnd">#33230E</item>

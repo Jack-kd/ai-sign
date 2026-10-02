@@ -1,34 +1,40 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- 默认：蓝色主题 -->
+    <!-- 默认：蓝色主题（浅色渐变） -->
     <style name="Theme.SignApp" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/primary</item>
-        <item name="colorPrimaryVariant">@color/primary_dark</item>
+        <item name="colorPrimary">#5A9EFF</item>
+        <item name="colorPrimaryVariant">#3B7BD9</item>
         <item name="colorOnPrimary">@color/white</item>
         <item name="android:statusBarColor">@color/gradient_start</item>
         <item name="android:windowBackground">@color/white</item>
-        <item name="signPrimary">@color/primary</item>
-        <item name="signGradientStart">@color/gradient_start</item>
-        <item name="signGradientEnd">@color/gradient_end</item>
-        <item name="signIconCircle">@color/icon_circle_bg</item>
+        <item name="signPrimary">#5A9EFF</item>
+        <item name="signGradientStart">#5A9EFF</item>
+        <item name="signGradientEnd">#3B7BD9</item>
+        <item name="signIconCircle">#EAF3FF</item>
+        <item name="signCardStart">#F4F8FF</item>
+        <item name="signCardEnd">#E8F1FF</item>
     </style>
 
     <!-- 绿色主题 -->
     <style name="Theme.SignAppGreen" parent="Theme.SignApp">
-        <item name="colorPrimary">#34C77B</item>
-        <item name="colorPrimaryVariant">#1F8A52</item>
-        <item name="signPrimary">#34C77B</item>
-        <item name="signGradientStart">#34C77B</item>
-        <item name="signGradientEnd">#1F8A52</item>
-        <item name="signIconCircle">#E4F5EC</item>
+        <item name="colorPrimary">#4CD889</item>
+        <item name="colorPrimaryVariant">#2FA666</item>
+        <item name="signPrimary">#4CD889</item>
+        <item name="signGradientStart">#4CD889</item>
+        <item name="signGradientEnd">#2FA666</item>
+        <item name="signIconCircle">#E6F7EE</item>
+        <item name="signCardStart">#F2FAF6</item>
+        <item name="signCardEnd">#E2F4E9</item>
     </style>
 
     <!-- 橙色主题 -->
     <style name="Theme.SignAppOrange" parent="Theme.SignApp">
-        <item name="colorPrimary">#F5A623</item>
-        <item name="colorPrimaryVariant">#D9790A</item>
-        <item name="signPrimary">#F5A623</item>
-        <item name="signGradientStart">#F5A623</item>
-        <item name="signGradientEnd">#D9790A</item>
+        <item name="colorPrimary">#FFB84D</item>
+        <item name="colorPrimaryVariant">#E88A1F</item>
+        <item name="signPrimary">#FFB84D</item>
+        <item name="signGradientStart">#FFB84D</item>
+        <item name="signGradientEnd">#E88A1F</item>
         <item name="signIconCircle">#FFF3E0</item>
+        <item name="signCardStart">#FFF8EC</item>
+        <item name="signCardEnd">#FFEEDC</item>
     </style>
 </resources>

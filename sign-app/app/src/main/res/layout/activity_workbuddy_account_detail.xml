@@ -113,7 +113,7 @@
                 android:fontFamily="monospace"
                 android:gravity="center_vertical"
                 android:textIsSelectable="true"
-                android:textColor="@color/primary_dark"
+                android:textColor="?attr/signPrimary_dark"
                 android:textSize="12sp"
                 android:visibility="gone" />
 
@@ -160,7 +160,7 @@
                 android:fontFamily="monospace"
                 android:gravity="center_vertical"
                 android:textIsSelectable="true"
-                android:textColor="@color/primary_dark"
+                android:textColor="?attr/signPrimary_dark"
                 android:textSize="12sp"
                 android:visibility="gone" />
 
@@ -207,7 +207,7 @@
                 android:fontFamily="monospace"
                 android:gravity="center_vertical"
                 android:textIsSelectable="true"
-                android:textColor="@color/primary_dark"
+                android:textColor="?attr/signPrimary_dark"
                 android:textSize="12sp"
                 android:visibility="gone" />
 
@@ -254,7 +254,7 @@
                 android:fontFamily="monospace"
                 android:gravity="center_vertical"
                 android:textIsSelectable="true"
-                android:textColor="@color/primary_dark"
+                android:textColor="?attr/signPrimary_dark"
                 android:textSize="12sp"
                 android:visibility="gone" />
 
@@ -301,7 +301,7 @@
                 android:fontFamily="monospace"
                 android:gravity="center_vertical"
                 android:textIsSelectable="true"
-                android:textColor="@color/primary_dark"
+                android:textColor="?attr/signPrimary_dark"
                 android:textSize="12sp"
                 android:visibility="gone" />
 
@@ -348,7 +348,7 @@
                 android:fontFamily="monospace"
                 android:gravity="center_vertical"
                 android:textIsSelectable="true"
-                android:textColor="@color/primary_dark"
+                android:textColor="?attr/signPrimary_dark"
                 android:textSize="12sp"
                 android:visibility="gone" />
         </LinearLayout>

@@ -15,7 +15,7 @@
         android:layout_height="wrap_content"
         android:gravity="center"
         android:text="修改名称"
-        android:textColor="@color/primary"
+        android:textColor="?attr/signPrimary"
         android:textSize="20sp"
         android:textStyle="bold" />
 
@@ -35,8 +35,8 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="18dp"
         android:hint="账号名称"
-        app:boxStrokeColor="@color/primary"
-        app:hintTextColor="@color/primary"
+        app:boxStrokeColor="?attr/signPrimary"
+        app:hintTextColor="?attr/signPrimary"
         app:startIconDrawable="@drawable/ic_edit">
 
         <com.google.android.material.textfield.TextInputEditText

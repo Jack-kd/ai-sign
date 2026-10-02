@@ -32,7 +32,7 @@
         android:layout_marginTop="14dp"
         android:gravity="center"
         android:text="00:30"
-        android:textColor="@color/primary"
+        android:textColor="?attr/signPrimary"
         android:textSize="44sp"
         android:textStyle="bold"
         android:fontFamily="monospace" />
@@ -57,7 +57,7 @@
             android:layout_height="wrap_content"
             android:gravity="center"
             android:text=":"
-            android:textColor="@color/primary"
+            android:textColor="?attr/signPrimary"
             android:textSize="30sp"
             android:textStyle="bold" />
 

@@ -35,11 +35,12 @@ class WorkBuddyLoginActivity : AppCompatActivity() {
     private lateinit var btnCopyStatus: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        config = GithubConfig(this)
+        setTheme(themeFor(config.getColorTheme()))
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_workbuddy_login)
 
         accountStore = WorkBuddyAccountStore(this)
-        config = GithubConfig(this)
         tvStatus = findViewById(R.id.tvStatus)
 
         findViewById<TextView>(R.id.btnOpenBrowser).setOnClickListener { startWorkBuddyLogin() }

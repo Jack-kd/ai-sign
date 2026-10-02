@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 主题配色：主色 / 渐变两端 / 浅色底 -->
+    <attr name="signPrimary" format="color" />
+    <attr name="signGradientStart" format="color" />
+    <attr name="signGradientEnd" format="color" />
+    <attr name="signIconCircle" format="color" />
+</resources>

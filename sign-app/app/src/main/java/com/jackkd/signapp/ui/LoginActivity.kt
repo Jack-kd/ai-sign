@@ -55,11 +55,12 @@ class LoginActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        config = GithubConfig(this)
+        setTheme(themeFor(config.getColorTheme()))
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_login)
 
         accountStore = AccountStore(this)
-        config = GithubConfig(this)
         tvStatus = findViewById(R.id.tvStatus)
 
         findViewById<TextView>(R.id.btnOpenBrowser).setOnClickListener {

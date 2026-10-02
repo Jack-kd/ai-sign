@@ -55,7 +55,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
         android:text="➡ 打开 GitHub Secrets 页面（去配置 SIGN_KEY）"
-        android:textColor="@color/primary"
+        android:textColor="?attr/signPrimary"
         android:textSize="13sp"
         android:textStyle="bold" />
 
@@ -120,7 +120,7 @@
             android:gravity="center"
             android:padding="11dp"
             android:text="关闭"
-            android:textColor="@color/primary"
+            android:textColor="?attr/signPrimary"
             android:textSize="14sp" />
     </LinearLayout>
 </LinearLayout>

@@ -157,7 +157,7 @@
                 android:paddingTop="4dp"
                 android:paddingBottom="4dp"
                 android:text="设置"
-                android:textColor="@color/primary"
+                android:textColor="?attr/signPrimary"
                 android:textSize="12sp"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -247,7 +247,7 @@
                 android:paddingTop="4dp"
                 android:paddingBottom="4dp"
                 android:text="设置"
-                android:textColor="@color/primary"
+                android:textColor="?attr/signPrimary"
                 android:textSize="12sp"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -322,14 +322,14 @@
         <ProgressBar
             android:layout_width="22dp"
             android:layout_height="22dp"
-            android:indeterminateTint="@color/primary" />
+            android:indeterminateTint="?attr/signPrimary" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
             android:text="正在同步..."
-            android:textColor="@color/primary"
+            android:textColor="?attr/signPrimary"
             android:textSize="13sp" />
     </LinearLayout>
 </FrameLayout>

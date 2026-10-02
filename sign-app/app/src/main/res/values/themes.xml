@@ -1,9 +1,34 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- 默认：蓝色主题 -->
     <style name="Theme.SignApp" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryVariant">@color/primary_dark</item>
         <item name="colorOnPrimary">@color/white</item>
         <item name="android:statusBarColor">@color/gradient_start</item>
         <item name="android:windowBackground">@color/white</item>
+        <item name="signPrimary">@color/primary</item>
+        <item name="signGradientStart">@color/gradient_start</item>
+        <item name="signGradientEnd">@color/gradient_end</item>
+        <item name="signIconCircle">@color/icon_circle_bg</item>
+    </style>
+
+    <!-- 绿色主题 -->
+    <style name="Theme.SignAppGreen" parent="Theme.SignApp">
+        <item name="colorPrimary">#34C77B</item>
+        <item name="colorPrimaryVariant">#1F8A52</item>
+        <item name="signPrimary">#34C77B</item>
+        <item name="signGradientStart">#34C77B</item>
+        <item name="signGradientEnd">#1F8A52</item>
+        <item name="signIconCircle">#E4F5EC</item>
+    </style>
+
+    <!-- 橙色主题 -->
+    <style name="Theme.SignAppOrange" parent="Theme.SignApp">
+        <item name="colorPrimary">#F5A623</item>
+        <item name="colorPrimaryVariant">#D9790A</item>
+        <item name="signPrimary">#F5A623</item>
+        <item name="signGradientStart">#F5A623</item>
+        <item name="signGradientEnd">#D9790A</item>
+        <item name="signIconCircle">#FFF3E0</item>
     </style>
 </resources>

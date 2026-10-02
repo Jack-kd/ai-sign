@@ -48,6 +48,8 @@ class AccountDetailActivity : AppCompatActivity() {
     private var terminalColorPurple = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val cfg = GithubConfig(this)
+        setTheme(themeFor(cfg.getColorTheme()))
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_account_detail)
         terminalColorWhite = ContextCompat.getColor(this, R.color.terminal_white)
@@ -120,7 +122,7 @@ deviceId: ${c.deviceId}
     /** 从云端 sign_logs.json 拉取日志，过滤出属于该账号的记录（按 TRAE 平台 + uid 匹配，旧日志无 uid 时匹配账号名/昵称） */
     private fun loadAccountLogs(tvLogs: TextView, account: TraeAccount) {
         val tvMode = findViewById<TextView>(R.id.tvLogsMode)
-        val config = GithubConfig(this)
+        val config = cfg
         if (!config.verified || config.token.isBlank()) {
             tvMode.text = "offline"
             tvLogs.text = terminalLine("! 未授权 GitHub，无法获取云端日志", terminalColorYellow)

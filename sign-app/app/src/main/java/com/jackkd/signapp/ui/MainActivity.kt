@@ -51,6 +51,20 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
+/** 按配色返回主题样式 */
+fun themeFor(theme: String): Int = when (theme) {
+    "green" -> R.style.Theme_SignAppGreen
+    "orange" -> R.style.Theme_SignAppOrange
+    else -> R.style.Theme_SignApp
+}
+
+/** 读取主题主色（signPrimary attr） */
+fun themePrimary(context: Context): Int {
+    val tv = android.util.TypedValue()
+    context.theme.resolveAttribute(R.attr.signPrimary, tv, true)
+    return tv.data
+}
+
 /** 解析 JWT accessToken 的过期时间（毫秒）；非 JWT/失败返回 null */
 fun jwtExpiryMs(token: String): Long? {
     if (!token.contains(".")) return null
@@ -106,6 +120,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         config = GithubConfig(this)
+        setTheme(themeFor(config.getColorTheme()))
         // 深色模式：用户强制深色 或 跟随系统（系统深色自动深色）
         AppCompatDelegate.setDefaultNightMode(
             if (config.isForceDark()) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
@@ -162,8 +177,7 @@ class MainActivity : AppCompatActivity() {
         // ⚙️ 设置菜单（仿微信"+"弹出）
         findViewById<TextView>(R.id.btnSettings).setOnClickListener { showSettingsMenu() }
 
-        // 应用主题颜色（蓝/绿）
-        applyTheme()
+
 
         // 左上角账号名(▽)：切换 GitHub 账号
         findViewById<View>(R.id.btnSwitchAccount).setOnClickListener { showSwitchAccountMenu() }
@@ -536,7 +550,7 @@ private fun showGithubDialog() {
                 val row = TextView(this)
                 row.text = acc.username
                 row.textSize = 15f
-                row.setTextColor(resources.getColor(R.color.primary))
+                row.setTextColor(themePrimary(this@MainActivity))
                 row.setPadding(8, 12, 8, 12)
                 row.setBackgroundResource(R.drawable.bg_badge)
                 val lp = LinearLayout.LayoutParams(
@@ -1016,68 +1030,6 @@ private fun showGithubDialog() {
         dlg.show()
     }
 
-    /** 根据配色与当前深浅模式取渐变颜色 */
-    private fun themeGrad(theme: String, dark: Boolean): Pair<Int, Int> = when {
-        theme == "green" -> if (dark) 0xFF1F8A52.toInt() to 0xFF144A33.toInt() else 0xFF34C77B.toInt() to 0xFF1F8A52.toInt()
-        theme == "orange" -> if (dark) 0xFFC2681F.toInt() to 0xFF8A4510.toInt() else 0xFFF5A623.toInt() to 0xFFD9790A.toInt()
-        else -> if (dark) 0xFF2A5DA6.toInt() to 0xFF1B3A66.toInt() else 0xFF3B8BFF.toInt() to 0xFF0E5FCC.toInt()
-    }
-
-    /** ARGB 线性插值 */
-    private fun lerpColor(a: Int, b: Int, f: Float): Int {
-        val ar = (a ushr 24) and 0xFF; val ag = (a ushr 16) and 0xFF; val ab = (a ushr 8) and 0xFF; val aa = a and 0xFF
-        val br = (b ushr 24) and 0xFF; val bg = (b ushr 16) and 0xFF; val bb = (b ushr 8) and 0xFF; val ba = b and 0xFF
-        fun mix(x: Int, y: Int) = (x + ((y - x) * f)).toInt()
-        return (mix(ar, br) shl 24) or (mix(ag, bg) shl 16) or (mix(ab, bb) shl 8) or mix(aa, ba)
-    }
-
-    /** 给视图应用渐变背景（带颜色过渡动画） */
-    private fun applyGradient(view: View, start: Int, end: Int, radiusDp: Float, animate: Boolean) {
-        if (!animate) {
-            view.background = android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(start, end)
-            ).apply { if (radiusDp > 0) cornerRadius = radiusDp * resources.displayMetrics.density }
-            return
-        }
-        val old = view.background as? android.graphics.drawable.GradientDrawable
-        val from0 = old?.colors?.getOrNull(0) ?: start
-        val from1 = old?.colors?.getOrNull(1) ?: end
-        val anim = android.animation.ValueAnimator.ofFloat(0f, 1f)
-        anim.duration = 450
-        anim.interpolator = android.view.animation.AccelerateDecelerateInterpolator()
-        anim.addUpdateListener { va ->
-            val f = va.animatedFraction
-            view.background = android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
-                intArrayOf(lerpColor(from0, start, f), lerpColor(from1, end, f))
-            ).apply { if (radiusDp > 0) cornerRadius = radiusDp * resources.displayMetrics.density }
-        }
-        anim.start()
-    }
-
-    /** 应用主题颜色：按配色 + 深浅模式动态设置主界面渐变（带过渡动画） */
-    private fun applyTheme(animate: Boolean = true) {
-        val dark = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
-                android.content.res.Configuration.UI_MODE_NIGHT_YES
-        // 深浅状态迁移：进入深色时记住深色前配色；回到浅色时恢复该配色
-        if (dark) {
-            if (config.getColorBeforeDark().isBlank()) {
-                config.setColorBeforeDark(config.getColorTheme())
-            }
-        } else {
-            val before = config.getColorBeforeDark()
-            if (before.isNotBlank() && before != config.getColorTheme()) {
-                config.setColorTheme(before)
-            }
-            config.setColorBeforeDark("")
-        }
-        val (s, e) = themeGrad(config.getColorTheme(), dark)
-        findViewById<View>(R.id.mainTopBar)?.let { applyGradient(it, s, e, 0f, animate) }
-        listOf(R.id.btnLoginTrae, R.id.btnTriggerTrae, R.id.btnLoginWorkBuddy, R.id.btnTriggerWb).forEach { id ->
-            findViewById<View>(id)?.let { applyGradient(it, s, e, 8f, animate) }
-        }
-    }
-
     /** 主题颜色选择弹窗：蓝/绿/橙 + 深色模式开关（换色动画过渡，深浅切换 recreate） */
     private fun showThemeDialog() {
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_theme, null)
@@ -1101,10 +1053,12 @@ private fun showGithubDialog() {
         dlg.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
 
         fun pick(t: String) {
-            config.setColorTheme(t); refreshChecks(); applyTheme(true)
+            config.setColorTheme(t)
             Toast.makeText(this, "已切换" + when (t) {
                 "green" -> "绿色"; "orange" -> "橙色"; else -> "蓝色"
             } + "主题", Toast.LENGTH_SHORT).show()
+            dlg.dismiss()
+            recreate()   // 重建使新主题（按钮/账号/详情等全局配色）生效
         }
         view.findViewById<View>(R.id.btnThemeBlue).setOnClickListener { pick("blue") }
         view.findViewById<View>(R.id.btnThemeGreen).setOnClickListener { pick("green") }

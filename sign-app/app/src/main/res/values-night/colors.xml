@@ -26,4 +26,7 @@
     <color name="btn_info_text">#7FB4FF</color>
     <color name="warn_bg">#3A2E10</color>
     <color name="warn_text">#FFC861</color>
+    <color name="gradient_start">#1B4F8A</color>
+    <color name="gradient_end">#0E3A66</color>
+    <color name="icon_circle_bg">#1B3A5C</color>
 </resources>

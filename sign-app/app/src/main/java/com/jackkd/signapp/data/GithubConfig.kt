@@ -52,6 +52,13 @@ class GithubConfig(context: Context) {
         sp.edit().putBoolean("force_dark", v).apply()
     }
 
+    /** 进入深色模式前的配色（离开深色时恢复） */
+    fun getColorBeforeDark(): String = sp.getString("color_before_dark", "") ?: ""
+
+    fun setColorBeforeDark(t: String) {
+        sp.edit().putString("color_before_dark", t).apply()
+    }
+
     /** 目标仓库默认分支 */
     var workflowBranch: String
         get() = sp.getString("workflow_branch", "main") ?: "main"

@@ -1059,6 +1059,18 @@ private fun showGithubDialog() {
     private fun applyTheme(animate: Boolean = true) {
         val dark = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
                 android.content.res.Configuration.UI_MODE_NIGHT_YES
+        // 深浅状态迁移：进入深色时记住深色前配色；回到浅色时恢复该配色
+        if (dark) {
+            if (config.getColorBeforeDark().isBlank()) {
+                config.setColorBeforeDark(config.getColorTheme())
+            }
+        } else {
+            val before = config.getColorBeforeDark()
+            if (before.isNotBlank() && before != config.getColorTheme()) {
+                config.setColorTheme(before)
+            }
+            config.setColorBeforeDark("")
+        }
         val (s, e) = themeGrad(config.getColorTheme(), dark)
         findViewById<View>(R.id.mainTopBar)?.let { applyGradient(it, s, e, 0f, animate) }
         listOf(R.id.btnLoginTrae, R.id.btnTriggerTrae, R.id.btnLoginWb, R.id.btnTriggerWb).forEach { id ->

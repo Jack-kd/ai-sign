@@ -105,7 +105,7 @@ fun animateMainTheme(activity: android.app.Activity) {
     val cfg = (activity as? MainActivity)?.config ?: return
     val (s, e) = themeGrad(cfg.getColorTheme(), dark)
     listOf(R.id.mainTopBar, R.id.btnLoginTrae, R.id.btnTriggerTrae, R.id.btnLoginWorkBuddy, R.id.btnTriggerWb,
-        R.id.tabTrae, R.id.tabWb).forEach { id ->
+        R.id.tabTrae, R.id.tabWorkBuddy).forEach { id ->
         activity.findViewById<android.view.View>(id)?.let {
             animateGradient(it, s, e, if (id == R.id.mainTopBar) 0f else 8f)
         }

@@ -115,11 +115,15 @@ class GithubApi(private val username: String, private val token: String) {
                     .header("Authorization", auth()).header("Accept", "application/vnd.github+json").build()
                 client.newCall(wfReq).execute().use { it.code == 200 }
             } catch (e: Exception) { false }
+            // 读取检查：200 = 能读；404 = 文件不存在（新仓库还没有 scripts 文件），
+            // 但只要有 repo 写权限（classic）或能读 Actions（fine-grained），
+            // 就说明"可读"，不能把"文件不存在"误判为权限不足
             val readOk = try {
                 val rfReq = Request.Builder()
                     .url("https://api.github.com/repos/$owner/$repo/contents/scripts/trae_accounts.json")
                     .header("Authorization", auth()).header("Accept", "application/vnd.github+json").build()
-                client.newCall(rfReq).execute().use { it.code == 200 }
+                val rc = client.newCall(rfReq).execute().use { it.code }
+                rc == 200 || (rc == 404 && (hasRepo || wfListOk))
             } catch (e: Exception) { false }
 
             // 写权限综合判定：classic 看 scopes；fine-grained 用实测回退

@@ -144,7 +144,7 @@ fun renderTokenExpiry(tv: android.widget.TextView, token: String) {
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var config: GithubConfig
+    lateinit var config: GithubConfig
     private lateinit var accountStore: AccountStore
     private lateinit var wbAccountStore: WorkBuddyAccountStore
     private lateinit var logStore: LogStore

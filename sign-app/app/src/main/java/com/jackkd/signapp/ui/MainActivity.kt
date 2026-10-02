@@ -50,6 +50,36 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
+/** 解析 JWT accessToken 的过期时间（毫秒）；非 JWT/失败返回 null */
+fun jwtExpiryMs(token: String): Long? {
+    if (!token.contains(".")) return null
+    return try {
+        val parts = token.split(".")
+        if (parts.size < 2) return null
+        val pad = parts[1].padEnd(parts[1].length + ((4 - parts[1].length % 4) % 4), '=')
+        val payload = String(android.util.Base64.decode(pad, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP), Charsets.UTF_8)
+        val obj = com.google.gson.JsonParser.parseString(payload).asJsonObject
+        if (obj.has("exp")) obj.get("exp").asLong * 1000 else null
+    } catch (e: Exception) { null }
+}
+
+/** 渲染凭证到期行；返回是否显示 */
+fun renderTokenExpiry(tv: android.widget.TextView, token: String) {
+    val exp = jwtExpiryMs(token) ?: run { tv.visibility = android.view.View.GONE; return }
+    tv.visibility = android.view.View.VISIBLE
+    val remain = exp - System.currentTimeMillis()
+    val remainDays = remain / 86400000.0
+    val orange = tv.resources.getColor(R.color.terminal_orange)
+    val red = tv.resources.getColor(R.color.error_red)
+    val gray = tv.resources.getColor(R.color.gray)
+    tv.text = when {
+        remain < 0 -> { tv.setTextColor(red); "凭证已过期" }
+        remainDays <= 1 -> { tv.setTextColor(orange); "凭证今天到期（${java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(exp))}）" }
+        remainDays <= 3 -> { tv.setTextColor(orange); String.format(java.util.Locale.getDefault(), "凭证 %.0f 天后到期", Math.ceil(remainDays)) }
+        else -> { tv.setTextColor(gray); "凭证到期 " + java.text.SimpleDateFormat("MM-dd", java.util.Locale.getDefault()).format(java.util.Date(exp)) }
+    }
+}
+
 class MainActivity : AppCompatActivity() {
 
     private lateinit var config: GithubConfig
@@ -1355,6 +1385,7 @@ class AccountAdapter(
         val btnDel = holder.root.findViewById<TextView>(R.id.btnDelete)
         tvLabel.text = acc.label
         tvSub.text = "UID: " + acc.credentials.uid.ifBlank { "未获取" }
+        renderTokenExpiry(holder.root.findViewById<TextView>(R.id.tvTokenExpiry), acc.credentials.accessToken)
         holder.root.setOnClickListener { onDetail(acc) }
         btnDel.setOnClickListener { onDelete(acc) }
     }
@@ -1388,6 +1419,7 @@ class WorkBuddyAccountAdapter(
         val btnDel = holder.root.findViewById<TextView>(R.id.btnDelete)
         tvLabel.text = acc.label
         tvSub.text = "UID: " + acc.credentials.uid.ifBlank { "未获取" }
+        renderTokenExpiry(holder.root.findViewById<TextView>(R.id.tvTokenExpiry), acc.credentials.accessToken)
         holder.root.setOnClickListener { onDetail(acc) }
         btnDel.setOnClickListener { onDelete(acc) }
     }

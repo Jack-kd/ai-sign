@@ -201,7 +201,7 @@ class MainActivity : AppCompatActivity() {
             dialog.dismiss(); showGlobalScheduleDialog()
         }
         view.findViewById<View>(R.id.btnQuickCheckin).setOnClickListener {
-            dialog.dismiss(); triggerBothNow()
+            dialog.dismiss(); showCheckinConfirmDialog()
         }
         view.findViewById<View>(R.id.btnLogsEntry).setOnClickListener {
             dialog.dismiss(); showLogsDialog()
@@ -214,6 +214,20 @@ class MainActivity : AppCompatActivity() {
         }
         view.findViewById<View>(R.id.btnCloseSettings).setOnClickListener { dialog.dismiss() }
         dialog.show()
+    }
+
+    /** 一键签到确认弹窗（美化：浅渐变 + 图标标题 + 双按钮） */
+    private fun showCheckinConfirmDialog() {
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_confirm_checkin, null)
+        val dlg = MaterialAlertDialogBuilder(this)
+            .setView(view)
+            .create()
+        dlg.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
+        view.findViewById<View>(R.id.btnConfirmCheckin).setOnClickListener {
+            dlg.dismiss(); triggerBothNow()
+        }
+        view.findViewById<View>(R.id.btnCancelCheckin).setOnClickListener { dlg.dismiss() }
+        dlg.show()
     }
 
     /** 单独设置某个平台的签到时间（后操作优先：只覆盖该平台，不影响另一平台） */

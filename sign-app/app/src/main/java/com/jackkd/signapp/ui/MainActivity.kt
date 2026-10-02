@@ -889,6 +889,24 @@ private fun showGithubDialog() {
                 wbAccountAdapter.submit(wbAccountStore.load())
             }
 
+            // 拉取微信 ClawBot 推送配置（开关 + SPT），换设备登录后自动回显
+            val wxRaw = withContext(Dispatchers.IO) {
+                runCatching {
+                    api.readRepoFile(config.repoOwner, config.repoName, UploadService.WXPUSHER_CONFIG_FILE)
+                }.getOrNull()
+            }
+            if (wxRaw != null) {
+                try {
+                    val obj = Gson().fromJson(wxRaw, com.google.gson.JsonObject::class.java)
+                    val cloudEnabled = obj.get("enabled")?.asBoolean ?: false
+                    val cloudSpt = obj.get("spt")?.asString ?: ""
+                    config.setWxpusherEnabled(cloudEnabled)
+                    config.setWxpusherSpt(cloudSpt)
+                } catch (e: Exception) {
+                    // 配置文件异常时忽略，保持本地配置
+                }
+            }
+
             accountAdapter.submit(accountStore.load())
             showScheduleText()
             showWbScheduleText()
@@ -1150,16 +1168,6 @@ private fun showGithubDialog() {
                 Toast.makeText(this, "无法打开浏览器", Toast.LENGTH_SHORT).show()
             }
         }
-        view.findViewById<View>(R.id.btnOpenSecrets).setOnClickListener {
-            val url = if (config.repoName.isNotBlank())
-                "https://github.com/${config.username}/${config.repoName}/settings/secrets/actions"
-            else "https://github.com/settings/secrets/actions"
-            try {
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-            } catch (e: Exception) {
-                Toast.makeText(this, "无法打开浏览器", Toast.LENGTH_SHORT).show()
-            }
-        }
         view.findViewById<View>(R.id.btnWxClose).setOnClickListener { dlg.dismiss() }
         view.findViewById<View>(R.id.btnWxSave).setOnClickListener {
             val enabled = sw.isChecked
@@ -1173,18 +1181,18 @@ private fun showGithubDialog() {
             config.setWxpusherSpt(spt)
             dlg.dismiss()
             Toast.makeText(this, if (enabled) "已开启签到信息推送" else "已关闭签到信息推送", Toast.LENGTH_SHORT).show()
-            syncWxpusherCloud(enabled)
+            syncWxpusherCloud(enabled, spt)
         }
         dlg.show()
     }
 
     /**
-     * 把推送开关状态同步到云端（写 scripts/wxpusher_config.json，云端脚本据此决定是否推送）。
-     * SPT 本身只存本地 + GitHub Secret，绝不下发到仓库文件（仓库公开时防泄漏）。
+     * 把推送配置（开关 + SPT）同步到云端（scripts/wxpusher_config.json）。
+     * SPT 随仓库文件同步：换设备登录 GitHub 后 App 自动拉回显示，无需配置 GitHub Secret。
      */
-    private fun syncWxpusherCloud(enabled: Boolean) {
+    private fun syncWxpusherCloud(enabled: Boolean, spt: String) {
         if (!config.verified || config.token.isBlank()) {
-            if (enabled) Toast.makeText(this, "未授权 GitHub，云端开关未同步（请先完成授权）", Toast.LENGTH_LONG).show()
+            if (enabled) Toast.makeText(this, "未授权 GitHub，云端配置未同步（请先完成授权后重新保存）", Toast.LENGTH_LONG).show()
             return
         }
         lifecycleScope.launch {
@@ -1192,30 +1200,16 @@ private fun showGithubDialog() {
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
                     UploadService(api, config.repoOwner, config.repoName, config.workflowBranch)
-                        .syncWxpusherConfig(enabled)
+                        .syncWxpusherConfig(enabled, spt)
                 }.getOrDefault(false)
             }
-            if (!ok) {
-                runOnUiThread {
-                    Toast.makeText(this@MainActivity, "云端开关同步失败，请检查 GitHub 授权", Toast.LENGTH_LONG).show()
-                }
-                return@launch
-            }
-            if (!enabled) {
-                runOnUiThread {
-                    Toast.makeText(this@MainActivity, "已关闭，云端脚本不再推送", Toast.LENGTH_SHORT).show()
-                }
-                return@launch
-            }
-            // 开启：检查仓库是否已配置 WXPUSHER_SPT Secret（SPT 由此传给云端脚本）
-            val hasSecret = withContext(Dispatchers.IO) {
-                runCatching { api.hasSecret(config.repoOwner, config.repoName, "WXPUSHER_SPT") }.getOrDefault(false)
-            }
             runOnUiThread {
-                if (hasSecret) {
-                    Toast.makeText(this@MainActivity, "已开启：签到脚本将推送结果到微信 ClawBot", Toast.LENGTH_LONG).show()
+                if (ok) {
+                    Toast.makeText(this@MainActivity,
+                        if (enabled) "已开启：SPT 已同步到仓库，签到结果将推送微信 ClawBot"
+                        else "已关闭：云端脚本不再推送", Toast.LENGTH_LONG).show()
                 } else {
-                    Toast.makeText(this@MainActivity, "请到仓库 Secrets 配置 WXPUSHER_SPT（值=你填的 SPT），否则脚本不会推送", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "云端配置同步失败，请检查 GitHub 授权", Toast.LENGTH_LONG).show()
                 }
             }
         }

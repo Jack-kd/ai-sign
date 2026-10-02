@@ -142,13 +142,17 @@ class UploadService(
     }
 
     /**
-     * 同步微信 ClawBot 推送开关到云端（scripts/wxpusher_config.json）。
-     * 文件只记录 enabled，SPT 由用户在 GitHub Secret WXPUSHER_SPT 配置，避免公开仓库泄漏。
+     * 同步微信 ClawBot 推送配置到云端（scripts/wxpusher_config.json，含开关与 SPT）。
+     * SPT 随仓库文件同步：换设备登录后 App 自动拉回显示，无需配置 GitHub Secret。
      */
-    fun syncWxpusherConfig(enabled: Boolean): Boolean {
+    fun syncWxpusherConfig(enabled: Boolean, spt: String): Boolean {
         return try {
-            val content = "{\"enabled\": " + enabled + "}\n"
-            api.createOrUpdateFile(owner, repo, WXPUSHER_CONFIG_FILE, content, "更新签到信息推送开关")
+            val obj = com.google.gson.JsonObject().apply {
+                addProperty("enabled", enabled)
+                addProperty("spt", spt)
+            }
+            val content = gson.toJson(obj) + "\n"
+            api.createOrUpdateFile(owner, repo, WXPUSHER_CONFIG_FILE, content, "更新签到信息推送配置")
         } catch (e: Exception) {
             e.printStackTrace(); false
         }
@@ -233,7 +237,6 @@ jobs:
         run: cd scripts && python trae_checkin_multi.py
         env:
           GITHUB_TOKEN: ${'$'}{{ secrets.GITHUB_TOKEN }}
-          WXPUSHER_SPT: ${'$'}{{ secrets.WXPUSHER_SPT }}
 """.trimIndent()
     }
 
@@ -266,7 +269,6 @@ jobs:
         run: cd scripts && python workbuddy_checkin_multi.py
         env:
           GITHUB_TOKEN: ${'$'}{{ secrets.GITHUB_TOKEN }}
-          WXPUSHER_SPT: ${'$'}{{ secrets.WXPUSHER_SPT }}
 """.trimIndent()
     }
 
@@ -734,22 +736,23 @@ def push_accounts(accounts):
         print("[日志] 账号回写失败: " + str(e))
 
 
-def _wx_enabled():
-    # 微信 ClawBot 推送开关：由 App 同步到 scripts/wxpusher_config.json（默认关闭）
+def _wx_config():
+    # 微信 ClawBot 推送配置：开关 + SPT 由 App 同步到 scripts/wxpusher_config.json
     try:
         with open("wxpusher_config.json", "r", encoding="utf-8") as f:
-            return bool(json.load(f).get("enabled", False))
+            cfg = json.load(f)
+        return bool(cfg.get("enabled", False)), str(cfg.get("spt") or "").strip()
     except Exception:
-        return False
+        return False, ""
 
 
 def push_wxpusher(entries):
     # 可选功能：把本次签到结果推送到微信 ClawBot / WxPusher 客户端（极简推送 SPT）。
-    # SPT 从环境变量 WXPUSHER_SPT 读取（GitHub Actions Secret，不写进仓库文件），
-    # 开关在 scripts/wxpusher_config.json（App「设置-签到信息推送」里开启）。
-    spt = os.environ.get("WXPUSHER_SPT", "").strip()
-    if not spt or not _wx_enabled():
-        print("[推送] 未开启微信推送（需在 App 开启开关，并在仓库 Secrets 配置 WXPUSHER_SPT），跳过")
+    # 开关与 SPT 都来自 scripts/wxpusher_config.json（App「设置-签到信息推送」里开启保存，
+    # SPT 随仓库同步，换设备登录后自动显示）。
+    enabled, spt = _wx_config()
+    if not enabled or not spt:
+        print("[推送] 未开启微信推送（App「设置-签到信息推送」开启并填写 SPT 后生效），跳过")
         return
     t = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     source = "手动触发" if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch" else "云端自动运行"
@@ -1405,22 +1408,23 @@ def push_accounts(accounts):
         print("[日志] 账号回写失败: " + str(e))
 
 
-def _wx_enabled():
-    # 微信 ClawBot 推送开关：由 App 同步到 scripts/wxpusher_config.json（默认关闭）
+def _wx_config():
+    # 微信 ClawBot 推送配置：开关 + SPT 由 App 同步到 scripts/wxpusher_config.json
     try:
         with open("wxpusher_config.json", "r", encoding="utf-8") as f:
-            return bool(json.load(f).get("enabled", False))
+            cfg = json.load(f)
+        return bool(cfg.get("enabled", False)), str(cfg.get("spt") or "").strip()
     except Exception:
-        return False
+        return False, ""
 
 
 def push_wxpusher(entries):
     # 可选功能：把本次签到结果推送到微信 ClawBot / WxPusher 客户端（极简推送 SPT）。
-    # SPT 从环境变量 WXPUSHER_SPT 读取（GitHub Actions Secret，不写进仓库文件），
-    # 开关在 scripts/wxpusher_config.json（App「设置-签到信息推送」里开启）。
-    spt = os.environ.get("WXPUSHER_SPT", "").strip()
-    if not spt or not _wx_enabled():
-        print("[推送] 未开启微信推送（需在 App 开启开关，并在仓库 Secrets 配置 WXPUSHER_SPT），跳过")
+    # 开关与 SPT 都来自 scripts/wxpusher_config.json（App「设置-签到信息推送」里开启保存，
+    # SPT 随仓库同步，换设备登录后自动显示）。
+    enabled, spt = _wx_config()
+    if not enabled or not spt:
+        print("[推送] 未开启微信推送（App「设置-签到信息推送」开启并填写 SPT 后生效），跳过")
         return
     t = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     source = "手动触发" if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch" else "云端自动运行"

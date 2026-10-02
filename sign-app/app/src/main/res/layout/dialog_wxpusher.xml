@@ -76,45 +76,24 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
-        android:text="1️⃣ 打开 WxPusher 官方 SPT 页面（点下方「打开获取 SPT 教程」）\n2️⃣ 用微信扫码页面中的二维码，微信内会收到你的 SPT（SPT_ 开头）\n3️⃣ 把 SPT 粘贴到上方输入框\n4️⃣ 在 GitHub 仓库 Settings → Secrets 里新建 WXPUSHER_SPT，值填同一个 SPT（点下方按钮一键跳转）\n5️⃣ 打开「启用微信 ClawBot 推送」并保存\n\n⚠️ SPT 等同密码，泄漏后任何人都能给你发消息，请勿写进仓库文件或分享。\n💡 想在微信里收到推送：在 WxPusher App「我的 → 推送渠道 → 绑定微信 ClawBot」完成绑定后即可。"
+        android:text="1️⃣ 打开 WxPusher 官方 SPT 页面（点下方「打开获取 SPT 教程」）\n2️⃣ 用微信扫码页面中的二维码，微信内会收到你的 SPT（SPT_ 开头）\n3️⃣ 把 SPT 粘贴到上方输入框\n4️⃣ 打开「启用微信 ClawBot 推送」，点「保存」即可\n\n📱 换设备：新手机登录 GitHub 后打开本弹窗，SPT 与开关会自动同步显示。\n⚠️ SPT 等同密码：只会写入你的私有仓库，泄漏后任何人都能给你发消息。\n💡 想在微信里收到推送：在 WxPusher App「我的 → 推送渠道 → 绑定微信 ClawBot」完成绑定后即可。"
         android:textColor="@color/gray"
         android:textSize="13sp"
         android:lineSpacingExtra="3dp" />
 
-    <!-- 快捷跳转按钮 -->
-    <LinearLayout
+    <!-- 打开获取 SPT 教程 -->
+    <TextView
+        android:id="@+id/btnOpenSptGuide"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:orientation="horizontal">
-
-        <TextView
-            android:id="@+id/btnOpenSptGuide"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:background="@drawable/bg_badge"
-            android:gravity="center"
-            android:padding="10dp"
-            android:text="打开获取 SPT 教程"
-            android:textColor="?attr/signPrimary"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/btnOpenSecrets"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:background="@drawable/bg_badge"
-            android:gravity="center"
-            android:padding="10dp"
-            android:text="配置 GitHub Secret"
-            android:textColor="?attr/signPrimary"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-    </LinearLayout>
+        android:background="@drawable/bg_badge"
+        android:gravity="center"
+        android:padding="10dp"
+        android:text="打开获取 SPT 教程"
+        android:textColor="?attr/signPrimary"
+        android:textSize="13sp"
+        android:textStyle="bold" />
 
     <!-- 保存 / 关闭 -->
     <LinearLayout

@@ -1062,7 +1062,16 @@ private fun showGithubDialog() {
     private fun showLogsDialog() {
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_logs, null)
         val tv = view.findViewById<TextView>(R.id.tvLogsContent)
-        val tvMode = view.findViewById<TextView>(R.id.tvLogsMode)
+        val tabLocal = view.findViewById<TextView>(R.id.btnLogsLocalTab)
+        val tabCloud = view.findViewById<TextView>(R.id.btnLogsCloudTab)
+
+        // 分段条选中态：本地/云端
+        fun updateTabs(localSelected: Boolean) {
+            tabLocal.setBackgroundResource(if (localSelected) R.drawable.bg_tab_on else R.drawable.bg_tab_off)
+            tabCloud.setBackgroundResource(if (localSelected) R.drawable.bg_tab_off else R.drawable.bg_tab_on)
+            tabLocal.setTextColor(resources.getColor(if (localSelected) R.color.terminal_green else R.color.terminal_gray))
+            tabCloud.setTextColor(resources.getColor(if (localSelected) R.color.terminal_gray else R.color.terminal_green))
+        }
         val btnClose = view.findViewById<TextView>(R.id.btnLogsClose)
 
         val cGreen = ContextCompat.getColor(this, R.color.terminal_green)
@@ -1109,7 +1118,7 @@ private fun showGithubDialog() {
         }
 
         fun renderLocal() {
-            tvMode.text = "local"
+            updateTabs(true)
             val logs = logStore.load()
             if (logs.isEmpty()) {
                 tv.text = info("$ 暂无本地日志")
@@ -1125,7 +1134,7 @@ private fun showGithubDialog() {
         }
 
         fun renderCloud(list: List<CloudSignLog>) {
-            tvMode.text = "cloud"
+            updateTabs(false)
             if (list.isEmpty()) {
                 tv.text = info("$ 暂无云端签到记录\n\n# 请先在 GitHub Actions 运行一次签到，或等待自动签到")
                 return
@@ -1148,7 +1157,7 @@ private fun showGithubDialog() {
         }
 
         fun fetchCloud() {
-            tvMode.text = "cloud ..."
+            updateTabs(false)
             tv.text = info("$ 正在拉取云端日志...")
             lifecycleScope.launch {
                 val api = GithubApi(config.username, config.token)
@@ -1169,11 +1178,9 @@ private fun showGithubDialog() {
             }
         }
 
-        // 点击标题栏 local/cloud 在本地与云端日志间切换
-        tvMode.setOnClickListener {
-            val isLocal = tvMode.text == "local"
-            if (isLocal) fetchCloud() else renderLocal()
-        }
+        // 分段条切换：本地 / 云端
+        tabLocal.setOnClickListener { renderLocal() }
+        tabCloud.setOnClickListener { fetchCloud() }
         btnClose.setOnClickListener { dlg.dismiss() }
         view.findViewById<View>(R.id.btnLogsCloseX)?.setOnClickListener { dlg.dismiss() }
         dlg.setOnShowListener { renderLocal() }

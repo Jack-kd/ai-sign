@@ -38,10 +38,3 @@ jobs:
         with:
           name: sign-app-debug
           path: sign-app/app/build/outputs/apk/debug/*.apk
-      # [一次性] 上传 APK 到 v1.0.0（发布后移除本步骤）
-      - name: Upload APK to v1.0.0 (one-off)
-        run: |
-          cd sign-app/app/build/outputs/apk/debug
-          gh release create v1.0.0 *.apk --title "定时云签 v1.0.0" --notes "TRAE / WorkBuddy 多账号自动签到助手" || gh release upload v1.0.0 *.apk --clobber
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

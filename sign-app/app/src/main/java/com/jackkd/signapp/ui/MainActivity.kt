@@ -107,7 +107,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // 深色模式：用户强制深色 或 跟随系统（系统深色自动深色）
         AppCompatDelegate.setDefaultNightMode(
-            if (config.forceDark) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+            if (config.isForceDark()) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
         )
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -1073,7 +1073,7 @@ private fun showGithubDialog() {
         }
         val (s, e) = themeGrad(config.getColorTheme(), dark)
         findViewById<View>(R.id.mainTopBar)?.let { applyGradient(it, s, e, 0f, animate) }
-        listOf(R.id.btnLoginTrae, R.id.btnTriggerTrae, R.id.btnLoginWb, R.id.btnTriggerWb).forEach { id ->
+        listOf(R.id.btnLoginTrae, R.id.btnTriggerTrae, R.id.btnLoginWorkBuddy, R.id.btnTriggerWb).forEach { id ->
             findViewById<View>(id)?.let { applyGradient(it, s, e, 8f, animate) }
         }
     }

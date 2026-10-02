@@ -11,6 +11,7 @@
 
     <!-- 顶部栏：GitHub 账号(可点击切换) + 设置图标 -->
     <LinearLayout
+        android:id="@+id/mainTopBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"

@@ -157,6 +157,9 @@ class MainActivity : AppCompatActivity() {
         // ⚙️ 设置菜单（仿微信"+"弹出）
         findViewById<TextView>(R.id.btnSettings).setOnClickListener { showSettingsMenu() }
 
+        // 应用主题颜色（蓝/绿）
+        applyTheme()
+
         // 左上角账号名(▽)：切换 GitHub 账号
         findViewById<View>(R.id.btnSwitchAccount).setOnClickListener { showSwitchAccountMenu() }
 
@@ -241,6 +244,9 @@ class MainActivity : AppCompatActivity() {
         }
         view.findViewById<View>(R.id.btnCryptoEntry).setOnClickListener {
             dialog.dismiss(); showCryptoDialog()
+        }
+        view.findViewById<View>(R.id.btnThemeEntry).setOnClickListener {
+            dialog.dismiss(); showThemeDialog()
         }
         view.findViewById<View>(R.id.btnCloseSettings).setOnClickListener { dialog.dismiss() }
         dialog.show()
@@ -1002,6 +1008,43 @@ private fun showGithubDialog() {
             Toast.makeText(this, "密钥已复制，请到 GitHub Actions Secrets 新建 SIGN_KEY 并粘贴", Toast.LENGTH_LONG).show()
         }
         view.findViewById<View>(R.id.btnCryptoClose).setOnClickListener { dlg.dismiss() }
+        dlg.show()
+    }
+
+    /** 应用主题颜色：绿色主题时主界面顶部栏与按钮换绿色渐变 */
+    private fun applyTheme() {
+        val green = config.isGreenTheme()
+        findViewById<View>(R.id.mainTopBar)?.setBackgroundResource(
+            if (green) R.drawable.bg_top_gradient_green else R.drawable.bg_top_gradient)
+        listOf(R.id.btnLoginTrae, R.id.btnTriggerTrae, R.id.btnLoginWb, R.id.btnTriggerWb).forEach { id ->
+            findViewById<View>(id)?.setBackgroundResource(
+                if (green) R.drawable.bg_btn_gradient_green else R.drawable.bg_btn_gradient)
+        }
+    }
+
+    /** 主题颜色选择弹窗（蓝/绿） */
+    private fun showThemeDialog() {
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_theme, null)
+        val checkBlue = view.findViewById<TextView>(R.id.checkBlue)
+        val checkGreen = view.findViewById<TextView>(R.id.checkGreen)
+        val blue = config.getTheme() == "blue"
+        checkBlue.visibility = if (blue) View.VISIBLE else View.GONE
+        checkGreen.visibility = if (blue) View.GONE else View.VISIBLE
+
+        val dlg = MaterialAlertDialogBuilder(this)
+            .setView(view)
+            .create()
+        dlg.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
+        view.findViewById<View>(R.id.btnThemeBlue).setOnClickListener {
+            config.setTheme("blue"); applyTheme()
+            Toast.makeText(this, "已切换蓝色主题", Toast.LENGTH_SHORT).show()
+            dlg.dismiss()
+        }
+        view.findViewById<View>(R.id.btnThemeGreen).setOnClickListener {
+            config.setTheme("green"); applyTheme()
+            Toast.makeText(this, "已切换绿色主题", Toast.LENGTH_SHORT).show()
+            dlg.dismiss()
+        }
         dlg.show()
     }
 

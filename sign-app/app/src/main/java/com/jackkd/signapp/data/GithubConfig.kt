@@ -38,6 +38,15 @@ class GithubConfig(context: Context) {
         get() = sp.getString("repo_name", "") ?: ""
         set(value) = sp.edit().putString("repo_name", value).apply()
 
+    /** 主题颜色：blue / green（默认蓝色） */
+    fun getTheme(): String = sp.getString("theme", "blue") ?: "blue"
+
+    fun setTheme(theme: String) {
+        sp.edit().putString("theme", theme).apply()
+    }
+
+    fun isGreenTheme(): Boolean = getTheme() == "green"
+
     /** 目标仓库默认分支 */
     var workflowBranch: String
         get() = sp.getString("workflow_branch", "main") ?: "main"

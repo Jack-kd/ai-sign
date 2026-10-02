@@ -104,12 +104,14 @@ fun animateMainTheme(activity: android.app.Activity) {
             android.content.res.Configuration.UI_MODE_NIGHT_YES
     val cfg = (activity as? MainActivity)?.config ?: return
     val (s, e) = themeGrad(cfg.getColorTheme(), dark)
-    listOf(R.id.mainTopBar, R.id.btnLoginTrae, R.id.btnTriggerTrae, R.id.btnLoginWorkBuddy, R.id.btnTriggerWb,
-        R.id.tabTrae, R.id.tabWorkBuddy).forEach { id ->
+    listOf(R.id.mainTopBar, R.id.btnLoginTrae, R.id.btnTriggerTrae, R.id.btnLoginWorkBuddy, R.id.btnTriggerWb).forEach { id ->
         activity.findViewById<android.view.View>(id)?.let {
             animateGradient(it, s, e, if (id == R.id.mainTopBar) 0f else 8f)
         }
     }
+    // 平台切换按钮：只动画当前选中的那个（未选中的保持 tab_unselected 白色，避免"变绿又变白"）
+    val tabId = if (activity.config.currentTab == "TRAE") R.id.tabTrae else R.id.tabWorkBuddy
+    activity.findViewById<android.view.View>(tabId)?.let { animateGradient(it, s, e, 8f) }
 }
 
 /** 解析 JWT accessToken 的过期时间（毫秒）；非 JWT/失败返回 null */
@@ -162,7 +164,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tabWb: TextView
 
     private var githubDialog: AlertDialog? = null
-    private var currentTab: String = "TRAE"
+    var currentTab: String = "TRAE"
     private var pendingLoginPlatform: String = "TRAE"   // 登录态失效横幅点击跳转的平台
 
     override fun onCreate(savedInstanceState: Bundle?) {

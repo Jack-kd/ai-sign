@@ -100,17 +100,17 @@ fun animateGradient(view: android.view.View, start: Int, end: Int, radiusDp: Flo
 
 /** 主界面渐变元素平滑过渡到目标配色 */
 fun animateMainTheme(activity: android.app.Activity) {
+    val main = activity as? MainActivity ?: return
     val dark = (activity.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
             android.content.res.Configuration.UI_MODE_NIGHT_YES
-    val cfg = (activity as? MainActivity)?.config ?: return
-    val (s, e) = themeGrad(cfg.getColorTheme(), dark)
+    val (s, e) = themeGrad(main.config.getColorTheme(), dark)
     listOf(R.id.mainTopBar, R.id.btnLoginTrae, R.id.btnTriggerTrae, R.id.btnLoginWorkBuddy, R.id.btnTriggerWb).forEach { id ->
         activity.findViewById<android.view.View>(id)?.let {
             animateGradient(it, s, e, if (id == R.id.mainTopBar) 0f else 8f)
         }
     }
     // 平台切换按钮：只动画当前选中的那个（未选中的保持 tab_unselected 白色，避免"变绿又变白"）
-    val tabId = if (activity.config.currentTab == "TRAE") R.id.tabTrae else R.id.tabWorkBuddy
+    val tabId = if (main.currentTab == "TRAE") R.id.tabTrae else R.id.tabWorkBuddy
     activity.findViewById<android.view.View>(tabId)?.let { animateGradient(it, s, e, 8f) }
 }
 

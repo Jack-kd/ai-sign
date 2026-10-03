@@ -95,8 +95,20 @@ class WorkBuddyAccountDetailActivity : AppCompatActivity() {
 
         findViewById<TextView>(R.id.btnWbRenameIcon).setOnClickListener { renameAccount(account) }
 
-        // 复制全部凭证
-        findViewById<TextView>(R.id.btnWbCopyAll).setOnClickListener {
+        // 复制全部凭证：JSON / 文本 两种格式
+        findViewById<TextView>(R.id.btnWbCopyJson).setOnClickListener {
+            val json = com.google.gson.JsonObject().apply {
+                addProperty("label", account.label)
+                addProperty("accessToken", c.accessToken)
+                addProperty("refreshToken", c.refreshToken)
+                addProperty("uid", c.uid)
+                addProperty("domain", c.domain)
+                addProperty("enterpriseId", c.enterpriseId)
+                addProperty("nickname", c.nickname)
+            }.toString()
+            copyToClipboard("WB凭证JSON", json, "已复制 JSON 凭证，可在 WorkBuddy 登录页「粘贴凭证」导入")
+        }
+        findViewById<TextView>(R.id.btnWbCopyText).setOnClickListener {
             val all = """
 账号: ${account.label}
 accessToken: ${c.accessToken}
@@ -106,14 +118,18 @@ domain: ${c.domain}
 enterpriseId: ${c.enterpriseId}
 nickname: ${c.nickname}
 """.trimIndent()
-            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            cm.setPrimaryClip(ClipData.newPlainText("WorkBuddy凭证", all))
-            MaterialAlertDialogBuilder(this)
-                .setMessage("已复制全部凭证到剪贴板")
-                .setPositiveButton("好", null).show()
+            copyToClipboard("WorkBuddy凭证", all, "已复制文本凭证，可在 WorkBuddy 登录页「粘贴凭证」导入")
         }
         // 拉取云端日志并过滤该账号（WorkBuddy 平台）
         loadAccountLogs(tvLogs, account)
+    }
+
+    private fun copyToClipboard(label: String, text: String, toast: String) {
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText(label, text))
+        MaterialAlertDialogBuilder(this)
+            .setMessage(toast)
+            .setPositiveButton("好", null).show()
     }
 
     private fun setupCollapse(key: String, headerId: Int, contentId: Int, iconId: Int) {

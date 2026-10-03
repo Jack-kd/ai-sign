@@ -89,7 +89,19 @@ class AccountDetailActivity : AppCompatActivity() {
 
         findViewById<TextView>(R.id.btnRenameIcon).setOnClickListener { renameAccount(account) }
 
-        findViewById<TextView>(R.id.btnCopyAll).setOnClickListener {
+        findViewById<TextView>(R.id.btnCopyJson).setOnClickListener {
+            // JSON 格式：与云端 trae_accounts.json / 粘贴导入 兼容
+            val json = com.google.gson.JsonObject().apply {
+                addProperty("label", account.label)
+                addProperty("accessToken", c.accessToken)
+                addProperty("refreshToken", c.refreshToken)
+                addProperty("uid", c.uid)
+                addProperty("deviceId", c.deviceId)
+                addProperty("nickname", c.nickname)
+            }.toString()
+            copyToClipboard("凭证JSON", json, "已复制 JSON 凭证，可在登录页「粘贴凭证」导入")
+        }
+        findViewById<TextView>(R.id.btnCopyText).setOnClickListener {
             val all = """
 账号: ${account.label}
 accessToken: ${c.accessToken}
@@ -97,14 +109,18 @@ refreshToken: ${c.refreshToken}
 uid: ${c.uid}
 deviceId: ${c.deviceId}
 """.trimIndent()
-            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            cm.setPrimaryClip(ClipData.newPlainText("凭证", all))
-            MaterialAlertDialogBuilder(this)
-                .setMessage("已复制全部凭证到剪贴板")
-                .setPositiveButton("好", null).show()
+            copyToClipboard("凭证", all, "已复制文本凭证，可在登录页「粘贴凭证」导入")
         }
         // 拉取云端日志并过滤该账号
         loadAccountLogs(tvLogs, account)
+    }
+
+    private fun copyToClipboard(label: String, text: String, toast: String) {
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText(label, text))
+        MaterialAlertDialogBuilder(this)
+            .setMessage(toast)
+            .setPositiveButton("好", null).show()
     }
 
     private fun setupCollapse(key: String, headerId: Int, contentId: Int, iconId: Int) {

@@ -19,6 +19,7 @@ import com.jackkd.signapp.data.UploadWorkBuddyAccount
 import com.jackkd.signapp.data.WorkBuddyAccount
 import com.jackkd.signapp.data.WorkBuddyAccountStore
 import com.jackkd.signapp.data.WorkBuddyCredentials
+import com.jackkd.signapp.net.CredentialParser
 import com.jackkd.signapp.net.GithubApi
 import com.jackkd.signapp.net.UploadService
 import com.jackkd.signapp.net.WorkBuddyApi
@@ -206,6 +207,12 @@ class WorkBuddyLoginActivity : AppCompatActivity() {
         val text = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text?.toString() ?: "" else ""
         if (text.isBlank()) {
             Toast.makeText(this, "剪贴板为空，请先复制 WorkBuddy 凭证", Toast.LENGTH_SHORT).show()
+            return
+        }
+        // 先识别两种格式：JSON（{...}）或 多行 key:value（详情页复制导出）；识别不出再走原 JSON 逻辑
+        val parsed = CredentialParser.parseWorkBuddyCredentials(text)
+        if (parsed != null && parsed.isComplete()) {
+            saveAccount(parsed)
             return
         }
         try {

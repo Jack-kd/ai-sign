@@ -16,6 +16,7 @@ import com.jackkd.signapp.data.GithubConfig
 import com.jackkd.signapp.data.TraeAccount
 import com.jackkd.signapp.data.TraeCredentials
 import com.jackkd.signapp.data.UploadAccount
+import com.jackkd.signapp.net.CredentialParser
 import com.jackkd.signapp.net.GithubApi
 import com.jackkd.signapp.net.TraeCredentialExtractor
 import com.jackkd.signapp.net.UploadService
@@ -271,9 +272,11 @@ class LoginActivity : AppCompatActivity() {
             Toast.makeText(this, "剪贴板为空，请先复制 TRAE 账号凭证", Toast.LENGTH_SHORT).show()
             return
         }
-        val creds = TraeCredentialExtractor.extract(text)
+        // 先识别 JSON / 多行 key:value 格式（详情页复制的两种格式），识别不出再走 URL/query 解析
+        val parsed = CredentialParser.parseTraeCredentials(text, TraeCredentialExtractor.generateDeviceId())
+        val creds = if (parsed != null && parsed.isComplete()) parsed else TraeCredentialExtractor.extract(text)
         if (!creds.isComplete()) {
-            tvStatus.text = "未能从剪贴板识别完整凭证。\n请确认复制的内容包含 accessToken / refreshToken / uid / deviceId。"
+            tvStatus.text = "未能从剪贴板识别完整凭证。\n支持 JSON（{...}）或文本（accessToken: xxx ...）格式。\n请确认包含 accessToken / refreshToken / uid / deviceId。"
             btnCopyStatus.visibility = View.VISIBLE
             return
         }

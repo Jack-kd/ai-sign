@@ -244,14 +244,8 @@ class MainActivity : AppCompatActivity() {
         // 左上角账号名(▽)：切换 GitHub 账号
         findViewById<View>(R.id.btnSwitchAccount).setOnClickListener { showSwitchAccountMenu() }
 
-        // 登录态失效横幅：点击跳转对应平台登录页
-        findViewById<View>(R.id.loginAlertBanner).setOnClickListener {
-            if (pendingLoginPlatform == "WorkBuddy") {
-                startActivity(Intent(this, WorkBuddyLoginActivity::class.java))
-            } else {
-                startActivity(Intent(this, LoginActivity::class.java))
-            }
-        }
+        // 登录态失效横幅：点击弹出全部失效账号列表，选哪个跳对应平台登录页
+        findViewById<View>(R.id.loginAlertBanner).setOnClickListener { showLoginIssuesDialog() }
 
         switchTab("TRAE")
         refresh()
@@ -787,17 +781,52 @@ private fun showGithubDialog() {
         return null
     }
 
-    /** 显示登录态失效横幅（本地积分查询发现凭证失效 / 云端日志发现失效记录 共用） */
-    private fun showLoginIssueBanner(platform: String, accountLabel: String) {
-        pendingLoginPlatform = platform
-        val banner = findViewById<View>(R.id.loginAlertBanner) ?: return
-        val text = findViewById<TextView>(R.id.loginAlertText)
-        text.text = "⚠️ $platform 账号「$accountLabel」登录态已失效，点击重新登录"
-        banner.visibility = View.VISIBLE
+    /** 失效账号集合：key = platform:label（去重），value = (平台, 账号名)。横幅与弹窗统一从此渲染 */
+    private val loginIssues = LinkedHashMap<String, Pair<String, String>>()
+
+    /** 添加一个失效账号（本地积分查询 / 云端日志共用），并刷新横幅 */
+    private fun addLoginIssue(platform: String, accountLabel: String) {
+        loginIssues["$platform:$accountLabel"] = platform to accountLabel
+        renderLoginIssues()
     }
 
-    private fun hideLoginIssueBanner() {
-        findViewById<View>(R.id.loginAlertBanner)?.visibility = View.GONE
+    /** 账号恢复（积分查询成功）：从集合移除并刷新横幅 */
+    private fun removeLoginIssue(platform: String, accountLabel: String) {
+        loginIssues.remove("$platform:$accountLabel")
+        renderLoginIssues()
+    }
+
+    /** 统一渲染横幅：集合空则隐藏；非空显示"⚠️ N 个账号登录态已失效，点击查看" */
+    private fun renderLoginIssues() {
+        val banner = findViewById<View>(R.id.loginAlertBanner) ?: return
+        val text = findViewById<TextView>(R.id.loginAlertText)
+        if (loginIssues.isEmpty()) {
+            banner.visibility = View.GONE
+        } else {
+            pendingLoginPlatform = loginIssues.values.first().first
+            text.text = "⚠️ ${loginIssues.size} 个账号登录态已失效，点击查看"
+            banner.visibility = View.VISIBLE
+        }
+    }
+
+    /** 点击横幅：弹窗列出全部失效账号，点击某条跳对应平台登录页 */
+    private fun showLoginIssuesDialog() {
+        if (loginIssues.isEmpty()) {
+            renderLoginIssues()
+            return
+        }
+        if (isFinishing || isDestroyed) return
+        val entries = loginIssues.values.toList()
+        val items = entries.map { "「${it.second}」 · ${it.first}" }.toTypedArray()
+        MaterialAlertDialogBuilder(this)
+            .setTitle("登录态失效账号（${entries.size}）")
+            .setItems(items) { _, which ->
+                val (platform, _) = entries[which]
+                startActivity(Intent(this,
+                    if (platform == "WorkBuddy") WorkBuddyLoginActivity::class.java else LoginActivity::class.java))
+            }
+            .setNegativeButton("关闭", null)
+            .show()
     }
 
     /** 检测登录态失效：拉云端日志，若有"需重新登录/失效"的失败记录则显示顶部警告横幅 */
@@ -811,7 +840,7 @@ private fun showGithubDialog() {
                 }.getOrNull()
             }
             if (raw == null) {
-                hideLoginIssueBanner()
+                // 日志拉取失败：不改变横幅（本地检测到的失效保留）
                 return@launch
             }
             val list: List<CloudSignLog> = try {
@@ -820,18 +849,20 @@ private fun showGithubDialog() {
             } catch (e: Exception) {
                 emptyList()
             }
-            // 最近 20 条中找"需重新登录/凭证失效"的失败记录
-            val issue = list.take(20).firstOrNull { log ->
-                log.result == "失败" && (
-                    log.detail.contains("需重新登录") || log.detail.contains("已失效") ||
-                        log.detail.contains("重新登录") || log.detail.contains("失效")
-                    )
-            }
-            if (issue != null) {
-                val platform = if (issue.platform == "WorkBuddy") "WorkBuddy" else "TRAE"
-                showLoginIssueBanner(platform, issue.account)
-            } else {
-                hideLoginIssueBanner()
+            // 最近 20 条中所有"需重新登录/凭证失效"的失败账号（按平台+账号去重）
+            val issues = list.take(20)
+                .filter { log ->
+                    log.result == "失败" && (
+                        log.detail.contains("需重新登录") || log.detail.contains("已失效") ||
+                            log.detail.contains("重新登录") || log.detail.contains("失效")
+                        )
+                }
+                .distinctBy { "${it.platform}:${it.account}" }
+            if (issues.isNotEmpty()) {
+                issues.forEach { log ->
+                    val platform = if (log.platform == "WorkBuddy") "WorkBuddy" else "TRAE"
+                    addLoginIssue(platform, log.account)
+                }
             }
         }
     }
@@ -1342,11 +1373,14 @@ private fun showGithubDialog() {
                 jobs.forEach { job ->
                     val (id, label, r) = job.await()
                     when (r) {
-                        is CreditsQuery.Ok -> accountAdapter.setCredits(id, "当前积分 ${r.credits}")
+                        is CreditsQuery.Ok -> {
+                            accountAdapter.setCredits(id, "当前积分 ${r.credits}")
+                            removeLoginIssue("TRAE", label)
+                        }
                         CreditsQuery.AuthFailed -> {
-                            // 凭证失效：卡片红色提示 + 立即弹横幅（无需等云端日志）
+                            // 凭证失效：卡片红色提示 + 加入失效集合（多个账号聚合显示，不互相顶掉）
                             accountAdapter.setCredits(id, "当前积分 -- 凭证已失效", R.color.error_red, true)
-                            showLoginIssueBanner("TRAE", label)
+                            addLoginIssue("TRAE", label)
                         }
                         CreditsQuery.Failed -> accountAdapter.setCredits(id, "当前积分 获取失败", R.color.gray)
                     }
@@ -1357,15 +1391,20 @@ private fun showGithubDialog() {
             lifecycleScope.launch {
                 val jobs = wbList.map { acc ->
                     async(Dispatchers.IO) {
-                        acc.id to WorkBuddyApi().queryQuota(
+                        Triple(acc.id, acc.label, WorkBuddyApi().queryQuota(
                             acc.credentials.domain, acc.credentials.accessToken,
                             acc.credentials.uid, acc.credentials.enterpriseId
-                        )
+                        ))
                     }
                 }
                 jobs.forEach { job ->
-                    val (id, v) = job.await()
-                    wbAccountAdapter.setCredits(id, if (v != null) "当前积分 $v" else "当前积分 获取失败", if (v != null) 0 else R.color.gray)
+                    val (id, label, v) = job.await()
+                    if (v != null) {
+                        wbAccountAdapter.setCredits(id, "当前积分 $v")
+                        removeLoginIssue("WorkBuddy", label)
+                    } else {
+                        wbAccountAdapter.setCredits(id, "当前积分 获取失败", R.color.gray)
+                    }
                 }
             }
         }
@@ -1548,33 +1587,41 @@ private fun showGithubDialog() {
                     }
                     tvAccountTitleTrae.text = "TRAE 账号 · 今日已领 ${todayEarned("TRAE")} 分"
                     tvAccountTitleWb.text = "WorkBuddy 账号 · 今日已领 ${todayEarned("WorkBuddy")} 额度"
-                    // 4b) 登录态失效横幅（复用日志检测）
-                    val issue = logs.take(20).firstOrNull { log ->
-                        log.result == "失败" && (
-                            log.detail.contains("需重新登录") || log.detail.contains("已失效") ||
-                                log.detail.contains("重新登录") || log.detail.contains("失效")
-                            )
-                    }
-                    if (issue != null) {
-                        showLoginIssueBanner(if (issue.platform == "WorkBuddy") "WorkBuddy" else "TRAE", issue.account)
-                    } else {
-                        hideLoginIssueBanner()
+                    // 4b) 登录态失效（收集日志中全部命中账号加入集合，多个账号聚合显示）
+                    val issues = logs.take(20)
+                        .filter { log ->
+                            log.result == "失败" && (
+                                log.detail.contains("需重新登录") || log.detail.contains("已失效") ||
+                                    log.detail.contains("重新登录") || log.detail.contains("失效")
+                                )
+                        }
+                        .distinctBy { "${it.platform}:${it.account}" }
+                    if (issues.isNotEmpty()) {
+                        issues.forEach { log ->
+                            addLoginIssue(if (log.platform == "WorkBuddy") "WorkBuddy" else "TRAE", log.account)
+                        }
                     }
                 } catch (e: Exception) { }
 
-                // 5) 账号积分回填
+                // 5) 账号积分回填（成功→移除失效标记；凭证失效→加入集合）
                 traeCredits.forEach { (id, label, r) ->
                     when (r) {
-                        is CreditsQuery.Ok -> accountAdapter.setCredits(id, "当前积分 ${r.credits}")
+                        is CreditsQuery.Ok -> {
+                            accountAdapter.setCredits(id, "当前积分 ${r.credits}")
+                            removeLoginIssue("TRAE", label)
+                        }
                         CreditsQuery.AuthFailed -> {
                             accountAdapter.setCredits(id, "当前积分 -- 凭证已失效", R.color.error_red, true)
-                            showLoginIssueBanner("TRAE", label)
+                            addLoginIssue("TRAE", label)
                         }
                         CreditsQuery.Failed -> { }
                     }
                 }
                 wbCredits.forEach { (id, label, v) ->
-                    if (v != null) wbAccountAdapter.setCredits(id, "当前积分 $v") else { }
+                    if (v != null) {
+                        wbAccountAdapter.setCredits(id, "当前积分 $v")
+                        removeLoginIssue("WorkBuddy", label)
+                    } else { }
                 }
 
                 Toast.makeText(this@MainActivity, "刷新成功", Toast.LENGTH_SHORT).show()

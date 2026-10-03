@@ -887,7 +887,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()""".trimIndent()
+    main()
+""".trimIndent()
 
     val WB_SIGN_SCRIPT: String = """
 #!/usr/bin/env python3

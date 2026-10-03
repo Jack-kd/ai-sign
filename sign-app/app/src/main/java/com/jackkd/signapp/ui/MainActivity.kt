@@ -45,8 +45,11 @@ import com.jackkd.signapp.data.WorkBuddyAccountStore
 import com.jackkd.signapp.data.WorkBuddyCredentials
 import com.jackkd.signapp.net.CredentialCrypto
 import com.jackkd.signapp.net.GithubApi
+import com.jackkd.signapp.net.TraeApi
 import com.jackkd.signapp.net.UploadService
+import com.jackkd.signapp.net.WorkBuddyApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -472,6 +475,7 @@ class MainActivity : AppCompatActivity() {
             fetchCloudAccounts()
             checkLoginIssues()
             refreshTodayCredits()
+            refreshAccountCredits()
         }
     }
 
@@ -1051,6 +1055,7 @@ private fun showGithubDialog() {
 
             accountStore.remove(acc.id)
             refresh()
+            refreshAccountCredits()
             logStore.add(SignLog(System.currentTimeMillis(), acc.label, "删除成功", "已从本地和云端删除"))
             Toast.makeText(this@MainActivity, "${acc.label} 已从本地和云端删除", Toast.LENGTH_SHORT).show()
         }
@@ -1114,6 +1119,7 @@ private fun showGithubDialog() {
 
             wbAccountStore.remove(acc.id)
             refresh()
+            refreshAccountCredits()
             logStore.add(SignLog(System.currentTimeMillis(), acc.label, "删除成功", "已从本地和云端删除 WorkBuddy"))
             Toast.makeText(this@MainActivity, "${acc.label} 已从本地和云端删除", Toast.LENGTH_SHORT).show()
         }
@@ -1274,6 +1280,49 @@ private fun showGithubDialog() {
                         else "已关闭：云端脚本不再推送", Toast.LENGTH_LONG).show()
                 } else {
                     Toast.makeText(this@MainActivity, "云端配置同步失败，请检查 GitHub 授权", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    /**
+     * 并发查询各账号当前积分/额度并回填账号卡片。
+     * TRAE 用 pay/ide_user_ent_usage，WorkBuddy 用 get-user-resource（与签到脚本同一接口）。
+     * 单个账号查询失败显示"获取失败"，不影响其它账号。
+     */
+    private fun refreshAccountCredits() {
+        if (!config.verified || config.token.isBlank()) return
+        val traeList = accountStore.load()
+        val wbList = wbAccountStore.load()
+
+        if (traeList.isNotEmpty()) {
+            lifecycleScope.launch {
+                val jobs = traeList.map { acc ->
+                    async(Dispatchers.IO) {
+                        acc.id to TraeApi().queryCredits(
+                            acc.credentials.accessToken, acc.credentials.uid, acc.credentials.deviceId
+                        )
+                    }
+                }
+                jobs.forEach { job ->
+                    val (id, v) = job.await()
+                    accountAdapter.setCredits(id, if (v != null) "当前积分 $v" else "当前积分 获取失败")
+                }
+            }
+        }
+        if (wbList.isNotEmpty()) {
+            lifecycleScope.launch {
+                val jobs = wbList.map { acc ->
+                    async(Dispatchers.IO) {
+                        acc.id to WorkBuddyApi().queryQuota(
+                            acc.credentials.domain, acc.credentials.accessToken,
+                            acc.credentials.uid, acc.credentials.enterpriseId
+                        )
+                    }
+                }
+                jobs.forEach { job ->
+                    val (id, v) = job.await()
+                    wbAccountAdapter.setCredits(id, if (v != null) "当前积分 $v" else "当前积分 获取失败")
                 }
             }
         }
@@ -1556,8 +1605,11 @@ private fun showGithubDialog() {
                 if (done) {
                     Toast.makeText(this@MainActivity, "$platform 云端签到完成，可在「日志-拉取云端」查看结果", Toast.LENGTH_LONG).show()
                     logStore.add(SignLog(System.currentTimeMillis(), platform, "云端完成", "云端签到已执行完成"))
-                    // 延迟刷新今日积分：云端脚本回写日志有几秒延迟，等写完再拉才准
-                    window.decorView.postDelayed({ refreshTodayCredits() }, 3000)
+                    // 延迟刷新今日积分与账号当前积分：云端脚本回写日志有几秒延迟，等写完再拉才准
+                    window.decorView.postDelayed({
+                        refreshTodayCredits()
+                        refreshAccountCredits()
+                    }, 3000)
                 } else {
                     Toast.makeText(this@MainActivity, "$platform 云端签到仍在运行，请稍后在「日志-拉取云端」查看", Toast.LENGTH_LONG).show()
                 }
@@ -1641,10 +1693,19 @@ class AccountAdapter(
 ) : RecyclerView.Adapter<AccountAdapter.VH>() {
 
     private var items: List<TraeAccount> = emptyList()
+    private val credits = HashMap<String, String>()   // accountId -> 积分显示文本
 
     fun submit(list: List<TraeAccount>) {
         items = list
+        credits.clear()
         notifyDataSetChanged()
+    }
+
+    /** 异步查询结果回填：按账号 id 更新"当前积分"行 */
+    fun setCredits(accountId: String, text: String) {
+        credits[accountId] = text
+        val idx = items.indexOfFirst { it.id == accountId }
+        if (idx >= 0) notifyItemChanged(idx)
     }
 
     class VH(val root: android.view.View) : RecyclerView.ViewHolder(root)
@@ -1660,9 +1721,11 @@ class AccountAdapter(
         val acc = items[position]
         val tvLabel = holder.root.findViewById<TextView>(R.id.tvAccountLabel)
         val tvSub = holder.root.findViewById<TextView>(R.id.tvAccountSub)
+        val tvCredits = holder.root.findViewById<TextView>(R.id.tvAccountCredits)
         val btnDel = holder.root.findViewById<TextView>(R.id.btnDelete)
         tvLabel.text = acc.label
         tvSub.text = "UID: " + acc.credentials.uid.ifBlank { "未获取" }
+        tvCredits.text = credits[acc.id] ?: "当前积分 --"
         renderTokenExpiry(holder.root.findViewById<TextView>(R.id.tvTokenExpiry), acc.credentials.accessToken)
         holder.root.setOnClickListener { onDetail(acc) }
         btnDel.setOnClickListener { onDelete(acc) }
@@ -1675,10 +1738,19 @@ class WorkBuddyAccountAdapter(
 ) : RecyclerView.Adapter<WorkBuddyAccountAdapter.VH>() {
 
     private var items: List<WorkBuddyAccount> = emptyList()
+    private val credits = HashMap<String, String>()   // accountId -> 额度显示文本
 
     fun submit(list: List<WorkBuddyAccount>) {
         items = list
+        credits.clear()
         notifyDataSetChanged()
+    }
+
+    /** 异步查询结果回填：按账号 id 更新"当前积分"行 */
+    fun setCredits(accountId: String, text: String) {
+        credits[accountId] = text
+        val idx = items.indexOfFirst { it.id == accountId }
+        if (idx >= 0) notifyItemChanged(idx)
     }
 
     class VH(val root: android.view.View) : RecyclerView.ViewHolder(root)
@@ -1694,9 +1766,11 @@ class WorkBuddyAccountAdapter(
         val acc = items[position]
         val tvLabel = holder.root.findViewById<TextView>(R.id.tvAccountLabel)
         val tvSub = holder.root.findViewById<TextView>(R.id.tvAccountSub)
+        val tvCredits = holder.root.findViewById<TextView>(R.id.tvAccountCredits)
         val btnDel = holder.root.findViewById<TextView>(R.id.btnDelete)
         tvLabel.text = acc.label
         tvSub.text = "UID: " + acc.credentials.uid.ifBlank { "未获取" }
+        tvCredits.text = credits[acc.id] ?: "当前积分 --"
         renderTokenExpiry(holder.root.findViewById<TextView>(R.id.tvTokenExpiry), acc.credentials.accessToken)
         holder.root.setOnClickListener { onDetail(acc) }
         btnDel.setOnClickListener { onDelete(acc) }

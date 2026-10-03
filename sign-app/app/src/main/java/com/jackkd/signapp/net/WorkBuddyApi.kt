@@ -156,4 +156,77 @@ class WorkBuddyApi {
             return resp.code to obj
         }
     }
+
+    /** 递归查找任意 key 的数组值（对齐脚本 _deep_find_list，兼容 data 嵌套不同层级） */
+    private fun findList(obj: JsonElement?, key: String): List<JsonElement> {
+        if (obj == null || obj.isJsonNull) return emptyList()
+        if (obj.isJsonObject) {
+            val o = obj.asJsonObject
+            val direct = o.get(key)
+            if (direct != null && direct.isJsonArray) return direct.asJsonArray.toList()
+            for ((_, v) in o.entrySet()) {
+                if (v.isJsonObject || v.isJsonArray) {
+                    val found = findList(v, key)
+                    if (found.isNotEmpty()) return found
+                }
+            }
+        } else if (obj.isJsonArray) {
+            for (el in obj.asJsonArray) {
+                val found = findList(el, key)
+                if (found.isNotEmpty()) return found
+            }
+        }
+        return emptyList()
+    }
+
+    /**
+     * 查询 WorkBuddy/CodeBuddy 账号当前周期剩余额度（对齐脚本 _wb_quota：get-user-resource）。
+     * @return 周期剩余合计（CycleCapacityRemain 求和）；失败返回 null
+     */
+    fun queryQuota(domain: String, accessToken: String, uid: String, enterpriseId: String = ""): Long? {
+        if (accessToken.isBlank()) return null
+        return try {
+            val host = if (domain.contains(".workbuddy.ai") || domain.equals("workbuddy.ai")) "https://www.workbuddy.ai" else "https://www.codebuddy.cn"
+            val nowMs = System.currentTimeMillis()
+            val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+            val body = JsonObject().apply {
+                addProperty("PageNumber", 1)
+                addProperty("PageSize", 100)
+                addProperty("ProductCode", "p_tcaca")
+                add("Status", com.google.gson.JsonArray().apply { add(0); add(3) })
+                addProperty("PackageEndTimeRangeBegin", fmt.format(java.util.Date(nowMs)))
+                addProperty("PackageEndTimeRangeEnd", fmt.format(java.util.Date(nowMs + 3185136000000L)))
+            }.toString()
+            val headers = baseHeaders().newBuilder()
+                .add("Authorization", "Bearer $accessToken")
+                .add("X-Requested-With", "XMLHttpRequest")
+                .add("Origin", host)
+                .add("Referer", "$host/")
+                .add("X-Product", "SaaS")
+                .apply { if (uid.isNotBlank()) add("X-User-Id", uid) }
+                .apply { if (enterpriseId.isNotBlank()) { add("X-Enterprise-Id", enterpriseId); add("X-Tenant-Id", enterpriseId) } }
+                .apply { if (domain.isNotBlank()) add("X-Domain", domain) }
+                .build()
+            val req = Request.Builder()
+                .url("$host/v2/billing/meter/get-user-resource")
+                .headers(headers)
+                .post(body.toRequestBody(json))
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (resp.code !in 200..299) return null
+                val root = JsonParser.parseString(resp.body?.string() ?: "{}")
+                val accounts = findList(root, "Accounts")
+                if (accounts.isEmpty()) return null
+                var remain = 0L
+                for (a in accounts) {
+                    if (!a.isJsonObject) continue
+                    val r = a.asJsonObject.get("CycleCapacityRemain")
+                    if (r != null && r.isJsonPrimitive) remain += r.asJsonPrimitive.asLong
+                }
+                remain
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
 }

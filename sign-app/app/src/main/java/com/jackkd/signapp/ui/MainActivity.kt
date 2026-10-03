@@ -824,9 +824,15 @@ private fun showGithubDialog() {
      * 拉取云端签到日志，计算今日（设备本地时区）TRAE/WorkBuddy 领取的总积分，
      * 更新两个平台页的账号标题（如「TRAE 账号 · 今日已领 200 分」）。
      * 拉取失败时恢复默认标题，避免误导。
+     * 默认 60 秒节流；force=true 时立即刷新（如手动签到完成后）。
      */
-    private fun refreshTodayCredits() {
+    private var lastTodayRefresh = 0L
+
+    private fun refreshTodayCredits(force: Boolean = false) {
         if (!config.verified || config.token.isBlank()) return
+        val now = System.currentTimeMillis()
+        if (!force && now - lastTodayRefresh < 60_000L) return
+        lastTodayRefresh = now
         lifecycleScope.launch {
             val raw = withContext(Dispatchers.IO) {
                 runCatching {
@@ -1055,7 +1061,7 @@ private fun showGithubDialog() {
 
             accountStore.remove(acc.id)
             refresh()
-            refreshAccountCredits()
+            refreshAccountCredits(true)
             logStore.add(SignLog(System.currentTimeMillis(), acc.label, "删除成功", "已从本地和云端删除"))
             Toast.makeText(this@MainActivity, "${acc.label} 已从本地和云端删除", Toast.LENGTH_SHORT).show()
         }
@@ -1119,7 +1125,7 @@ private fun showGithubDialog() {
 
             wbAccountStore.remove(acc.id)
             refresh()
-            refreshAccountCredits()
+            refreshAccountCredits(true)
             logStore.add(SignLog(System.currentTimeMillis(), acc.label, "删除成功", "已从本地和云端删除 WorkBuddy"))
             Toast.makeText(this@MainActivity, "${acc.label} 已从本地和云端删除", Toast.LENGTH_SHORT).show()
         }
@@ -1289,9 +1295,15 @@ private fun showGithubDialog() {
      * 并发查询各账号当前积分/额度并回填账号卡片。
      * TRAE 用 pay/ide_user_ent_usage，WorkBuddy 用 get-user-resource（与签到脚本同一接口）。
      * 单个账号查询失败显示"获取失败"，不影响其它账号。
+     * 默认 60 秒节流；force=true 时立即刷新（如手动签到完成/删除账号后）。
      */
-    private fun refreshAccountCredits() {
+    private var lastCreditsRefresh = 0L
+
+    private fun refreshAccountCredits(force: Boolean = false) {
         if (!config.verified || config.token.isBlank()) return
+        val now = System.currentTimeMillis()
+        if (!force && now - lastCreditsRefresh < 60_000L) return
+        lastCreditsRefresh = now
         val traeList = accountStore.load()
         val wbList = wbAccountStore.load()
 
@@ -1607,8 +1619,8 @@ private fun showGithubDialog() {
                     logStore.add(SignLog(System.currentTimeMillis(), platform, "云端完成", "云端签到已执行完成"))
                     // 延迟刷新今日积分与账号当前积分：云端脚本回写日志有几秒延迟，等写完再拉才准
                     window.decorView.postDelayed({
-                        refreshTodayCredits()
-                        refreshAccountCredits()
+                        refreshTodayCredits(true)
+                        refreshAccountCredits(true)
                     }, 3000)
                 } else {
                     Toast.makeText(this@MainActivity, "$platform 云端签到仍在运行，请稍后在「日志-拉取云端」查看", Toast.LENGTH_LONG).show()
@@ -1697,7 +1709,7 @@ class AccountAdapter(
 
     fun submit(list: List<TraeAccount>) {
         items = list
-        credits.clear()
+        // 注意：不清空已获取的积分，列表重载时保留旧值，只有拿到新结果才更新（避免闪动）
         notifyDataSetChanged()
     }
 
@@ -1742,7 +1754,7 @@ class WorkBuddyAccountAdapter(
 
     fun submit(list: List<WorkBuddyAccount>) {
         items = list
-        credits.clear()
+        // 注意：不清空已获取的额度，列表重载时保留旧值，只有拿到新结果才更新（避免闪动）
         notifyDataSetChanged()
     }
 

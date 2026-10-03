@@ -172,6 +172,7 @@ class MainActivity : AppCompatActivity() {
     private var githubDialog: AlertDialog? = null
     var currentTab: String = "TRAE"
     private var pendingLoginPlatform: String = "TRAE"   // 登录态失效横幅点击跳转的平台
+    private var pullRefreshStarted = false              // 本次松手是否已触发下拉刷新（用于修复圈圈残留）
 
     override fun onCreate(savedInstanceState: Bundle?) {
         config = GithubConfig(this)
@@ -201,13 +202,8 @@ class MainActivity : AppCompatActivity() {
         tabWb = findViewById(R.id.tabWorkBuddy)
 
         // 下拉刷新：两页共用"全成功才提交"的刷新逻辑
-        val swipeTrae = findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeTrae)
-        val swipeWb = findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeWb)
-        val swipeColor = themePrimary(this)
-        swipeTrae.setColorSchemeColors(swipeColor)
-        swipeWb.setColorSchemeColors(swipeColor)
-        swipeTrae.setOnRefreshListener { pullRefreshAll() }
-        swipeWb.setOnRefreshListener { pullRefreshAll() }
+        setupPullRefresh(findViewById(R.id.swipeTrae))
+        setupPullRefresh(findViewById(R.id.swipeWb))
 
         accountAdapter = AccountAdapter(
             onDetail = { acc -> openDetail(acc) },
@@ -1390,6 +1386,32 @@ private fun showGithubDialog() {
         runOnUiThread {
             findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeTrae)?.isRefreshing = false
             findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeWb)?.isRefreshing = false
+        }
+    }
+
+    /**
+     * 配置下拉刷新控件：主题色 + "全成功才提交"刷新 + 修复圈圈残留。
+     * 修复说明：下拉后未松手就推回去时，SwipeRefreshLayout 的回弹动画会被手势打断，
+     * 顶部残留一小截刷新圈；松手/取消手势时若本次没有触发刷新，则强制完整收起。
+     */
+    private fun setupPullRefresh(swipe: androidx.swiperefreshlayout.widget.SwipeRefreshLayout) {
+        swipe.setColorSchemeColors(themePrimary(this))
+        swipe.setOnRefreshListener {
+            pullRefreshStarted = true
+            pullRefreshAll()
+        }
+        swipe.setOnTouchListener { v, event ->
+            if (event.actionMasked == android.view.MotionEvent.ACTION_UP ||
+                event.actionMasked == android.view.MotionEvent.ACTION_CANCEL) {
+                v.postDelayed({
+                    // 60ms 后判断：若松手时已触发刷新（onRefresh 先执行完），不干预；否则强制收起
+                    if (!pullRefreshStarted) {
+                        (v as androidx.swiperefreshlayout.widget.SwipeRefreshLayout).isRefreshing = false
+                    }
+                    pullRefreshStarted = false
+                }, 60)
+            }
+            false  // 不消费事件，保持 SwipeRefreshLayout 默认手势
         }
     }
 

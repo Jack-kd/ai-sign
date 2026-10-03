@@ -14,6 +14,7 @@
         android:textSize="34sp" />
 
     <TextView
+        android:id="@+id/tvConfirmTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
@@ -25,6 +26,7 @@
 
     <!-- 说明 -->
     <TextView
+        android:id="@+id/tvConfirmDesc"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"

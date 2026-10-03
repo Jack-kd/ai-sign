@@ -212,8 +212,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.btnLoginWorkBuddy).setOnClickListener {
             startActivity(Intent(this, WorkBuddyLoginActivity::class.java))
         }
-        findViewById<TextView>(R.id.btnTriggerTrae).setOnClickListener { triggerNow("TRAE") }
-        findViewById<TextView>(R.id.btnTriggerWb).setOnClickListener { triggerNow("WorkBuddy") }
+        findViewById<TextView>(R.id.btnTriggerTrae).setOnClickListener { showCheckinConfirmDialog("TRAE") }
+        findViewById<TextView>(R.id.btnTriggerWb).setOnClickListener { showCheckinConfirmDialog("WorkBuddy") }
 
         // 各平台时间行旁的"设置"：单独设置该平台签到时间
         findViewById<TextView>(R.id.btnSetTraeSchedule).setOnClickListener { showSingleScheduleDialog("TRAE") }
@@ -325,15 +325,25 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    /** 一键签到确认弹窗（美化：浅渐变 + 图标标题 + 双按钮） */
-    private fun showCheckinConfirmDialog() {
+    /**
+     * 签到确认弹窗（美化：浅渐变 + 图标标题 + 双按钮）。
+     * @param platform null = 一键签到（双平台）；"TRAE"/"WorkBuddy" = 单平台立即签到
+     */
+    private fun showCheckinConfirmDialog(platform: String? = null) {
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_confirm_checkin, null)
+        val both = platform == null
+        view.findViewById<TextView>(R.id.tvConfirmTitle).text = if (both) "一键签到" else "立即签到$platform"
+        view.findViewById<TextView>(R.id.tvConfirmDesc).text = if (both)
+            "将立即触发 TRAE 与 WorkBuddy\n全部账号的云端签到，并等待执行完成。\n\n确定现在签到吗？"
+        else
+            "将立即触发 $platform 全部账号的云端签到\n并等待执行完成。\n\n确定现在签到吗？"
         val dlg = MaterialAlertDialogBuilder(this)
             .setView(view)
             .create()
         dlg.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
         view.findViewById<View>(R.id.btnConfirmCheckin).setOnClickListener {
-            dlg.dismiss(); triggerBothNow()
+            dlg.dismiss()
+            if (both) triggerBothNow() else triggerNow(platform!!)
         }
         view.findViewById<View>(R.id.btnCancelCheckin).setOnClickListener { dlg.dismiss() }
         dlg.show()

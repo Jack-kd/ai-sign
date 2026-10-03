@@ -297,6 +297,8 @@ class MainActivity : AppCompatActivity() {
         val dialog = MaterialAlertDialogBuilder(this)
             .setView(view)
             .create()
+        // 弹窗整体浅色渐变 + 大圆角（与其他美化弹窗一致）
+        dialog.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
 
         view.findViewById<View>(R.id.btnSyncSchedule).setOnClickListener {
             dialog.dismiss(); showGlobalScheduleDialog()

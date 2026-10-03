@@ -197,10 +197,19 @@ def _quota_suffix(before, after):
     return "（额度: " + a + "）"
 
 
+def _is_auth_error_msg(msg):
+    # 认证失败（token 过期/无效）的典型提示：这类响应不是"已签到"
+    return any(k in msg for k in ("authenticate", "unauthorized", "invalid token", "not able"))
+
+
 def _is_checked_in(obj):
     if not isinstance(obj, dict):
         return False
     if _first(obj, "code") in (10001, 1001):
+        # 若文案是认证失败，不能算已签到（避免 token 失效被误判为已签到而不刷新）
+        msg = str(_first(obj, "message", "msg") or "").lower()
+        if _is_auth_error_msg(msg):
+            return False
         return True
     msg = str(_first(obj, "message", "msg", "data") or "").lower()
     return any(k.lower() in msg for k in ALREADY_KEYWORDS)

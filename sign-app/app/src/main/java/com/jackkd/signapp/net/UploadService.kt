@@ -399,6 +399,23 @@ def _credits_suffix(before, after):
     return "（积分 剩余 " + a + "）"
 
 
+def _is_auth_error_msg(msg):
+    # TRAE 服务端对无效/过期 token 的典型提示（code 1001 + 认证类文案 = 凭证失效，不是"已签到"）
+    return any(k in msg for k in ("authenticate", "unauthorized", "invalid token", "not able"))
+
+
+def _is_auth_error(obj):
+    # 判断响应是否为"凭证失效"：code 1001 且 checked_in 不为 true 且文案含认证失败特征
+    if not isinstance(obj, dict):
+        return False
+    if _first(obj, "code") != 1001:
+        return False
+    data = obj.get("data") or obj.get("result") or obj.get("Result") or obj
+    if isinstance(data, dict) and (data.get("checked_in") is True or data.get("checkedIn") is True):
+        return False
+    return _is_auth_error_msg(str(_first(obj, "message", "msg") or "").lower())
+
+
 def _is_checked_in(obj):
     if not isinstance(obj, dict):
         return False
@@ -408,7 +425,10 @@ def _is_checked_in(obj):
             if isinstance(data.get(k), bool) and data.get(k) is True:
                 return True
     msg = str(_first(obj, "message", "msg", "data") or "").lower()
-    return any(k.lower() in msg for k in ALREADY_KEYWORDS) or _first(obj, "code") == 1001
+    if _first(obj, "code") == 1001:
+        # code 1001 也可能是"凭证失效"（认证失败），不能算已签到
+        return not _is_auth_error_msg(msg)
+    return any(k.lower() in msg for k in ALREADY_KEYWORDS)
 
 
 def _is_success(obj):
@@ -550,10 +570,13 @@ def checkin_claim(access_token, uid, device_id):
 
 
 def _attempt_checkin(access_token, uid, device_id):
-    # 返回 (status, desc, credits_before)：status 为 success / already / fail
+    # 返回 (status, desc, credits_before)：status 为 success / already / auth_fail / fail
     # credits_before 为签到前 status 响应里的积分（可能为空字符串）
     status_obj = checkin_status(access_token, uid, device_id)
     credits_before = _deep_find(status_obj, "credits")
+    if _is_auth_error(status_obj):
+        # 凭证失效（token 过期）：交由 sign_one 换新 token 重试，不要误判为已签到
+        return "auth_fail", "凭证已失效", credits_before
     if _is_checked_in(status_obj):
         return "already", "今日已签到", credits_before
 
@@ -564,6 +587,8 @@ def _attempt_checkin(access_token, uid, device_id):
 
     if _is_success(obj):
         return "success", "签到成功", credits_before
+    if _is_auth_error(obj):
+        return "auth_fail", "凭证已失效", credits_before
     if _is_checked_in(obj):
         return "already", "今日已签到", credits_before
     return "fail", "失败(HTTP " + str(code) + "): " + raw[:200], credits_before
@@ -609,15 +634,20 @@ def sign_one(acc):
 
         status, desc, checkin_credits = _attempt_checkin(access_token, uid, device_id)
 
-        # 首签失败且还有 refreshToken：很可能 accessToken 已过期，换新后重试一次
-        if status == "fail" and refresh_token:
+        # 首签失败或凭证失效且还有 refreshToken：很可能 accessToken 已过期，换新后重试一次
+        if status in ("fail", "auth_fail") and refresh_token:
             try:
                 access_token, refresh_token = exchange_token(refresh_token)
                 acc["accessToken"] = access_token
                 acc["refreshToken"] = refresh_token
                 status, desc, checkin_credits = _attempt_checkin(access_token, uid, device_id)
             except SystemExit:
-                pass  # 换 token 失败，保留首次失败结果
+                pass  # 换 token 失败，保留首次结果
+
+        # 凭证失效（换 token 后仍认证失败）：明确提示重新登录，App 会显示登录态失效横幅
+        if status == "auth_fail":
+            status = "fail"
+            desc = label + ": 凭证已失效，需重新登录"
 
         # 签到成功：显示本次领取的签到积分（status 响应的 credits，每日固定）
         credits_after = None
@@ -1059,10 +1089,19 @@ def _quota_suffix(before, after):
     return "（额度: " + a + "）"
 
 
+def _is_auth_error_msg(msg):
+    # 认证失败（token 过期/无效）的典型提示：这类响应不是"已签到"
+    return any(k in msg for k in ("authenticate", "unauthorized", "invalid token", "not able"))
+
+
 def _is_checked_in(obj):
     if not isinstance(obj, dict):
         return False
     if _first(obj, "code") in (10001, 1001):
+        # 若文案是认证失败，不能算已签到（避免 token 失效被误判为已签到而不刷新）
+        msg = str(_first(obj, "message", "msg") or "").lower()
+        if _is_auth_error_msg(msg):
+            return False
         return True
     msg = str(_first(obj, "message", "msg", "data") or "").lower()
     return any(k.lower() in msg for k in ALREADY_KEYWORDS)

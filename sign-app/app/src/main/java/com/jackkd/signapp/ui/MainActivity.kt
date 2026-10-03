@@ -156,6 +156,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvUser: TextView
     private lateinit var tvSchedule: TextView
     private lateinit var tvScheduleWb: TextView
+    private lateinit var tvAccountTitleTrae: TextView
+    private lateinit var tvAccountTitleWb: TextView
     private lateinit var rvAccounts: RecyclerView
     private lateinit var rvWbAccounts: RecyclerView
     private lateinit var pageTrae: View
@@ -185,6 +187,8 @@ class MainActivity : AppCompatActivity() {
         tvUser = findViewById(R.id.tvUser)
         tvSchedule = findViewById(R.id.tvSchedule)
         tvScheduleWb = findViewById(R.id.tvScheduleWorkBuddy)
+        tvAccountTitleTrae = findViewById(R.id.tvAccountTitleTrae)
+        tvAccountTitleWb = findViewById(R.id.tvAccountTitleWb)
         rvAccounts = findViewById(R.id.rvAccounts)
         rvWbAccounts = findViewById(R.id.rvWorkBuddyAccounts)
         pageTrae = findViewById(R.id.pageTrae)
@@ -467,6 +471,7 @@ class MainActivity : AppCompatActivity() {
             // fetchCloudAccounts 内部已拉取 TRAE/WorkBuddy 的账号与签到时间（静默刷新，不显示加载动画）
             fetchCloudAccounts()
             checkLoginIssues()
+            refreshTodayCredits()
         }
     }
 
@@ -807,6 +812,53 @@ private fun showGithubDialog() {
                 banner.visibility = View.VISIBLE
             } else {
                 banner.visibility = View.GONE
+            }
+        }
+    }
+
+    /**
+     * 拉取云端签到日志，计算今日（设备本地时区）TRAE/WorkBuddy 领取的总积分，
+     * 更新两个平台页的账号标题（如「TRAE 账号 · 今日已领 200 分」）。
+     * 拉取失败时恢复默认标题，避免误导。
+     */
+    private fun refreshTodayCredits() {
+        if (!config.verified || config.token.isBlank()) return
+        lifecycleScope.launch {
+            val raw = withContext(Dispatchers.IO) {
+                runCatching {
+                    GithubApi(config.username, config.token)
+                        .readRepoFile(config.repoOwner, config.repoName, config.logPath)
+                }.getOrNull()
+            }
+            if (raw == null) {
+                runOnUiThread {
+                    tvAccountTitleTrae.text = "TRAE 账号"
+                    tvAccountTitleWb.text = "WorkBuddy 账号"
+                }
+                return@launch
+            }
+            val list: List<CloudSignLog> = try {
+                val type = object : TypeToken<List<CloudSignLog>>() {}.type
+                Gson().fromJson<List<CloudSignLog>>(raw, type) ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+            val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val today = fmt.format(java.util.Date())
+            fun todayEarned(platform: String): Long {
+                return list.filter { log ->
+                    val p = log.platform
+                    val match = if (platform == "TRAE")
+                        p.isNullOrBlank() || p.equals("TRAE", true)
+                    else p != null && p.equals("WorkBuddy", true)
+                    match && fmt.format(java.util.Date(log.time)) == today
+                }.sumOf { log.earned }
+            }
+            val trae = todayEarned("TRAE")
+            val wb = todayEarned("WorkBuddy")
+            runOnUiThread {
+                tvAccountTitleTrae.text = "TRAE 账号 · 今日已领 $trae 分"
+                tvAccountTitleWb.text = "WorkBuddy 账号 · 今日已领 $wb 额度"
             }
         }
     }
@@ -1504,6 +1556,8 @@ private fun showGithubDialog() {
                 if (done) {
                     Toast.makeText(this@MainActivity, "$platform 云端签到完成，可在「日志-拉取云端」查看结果", Toast.LENGTH_LONG).show()
                     logStore.add(SignLog(System.currentTimeMillis(), platform, "云端完成", "云端签到已执行完成"))
+                    // 延迟刷新今日积分：云端脚本回写日志有几秒延迟，等写完再拉才准
+                    window.decorView.postDelayed({ refreshTodayCredits() }, 3000)
                 } else {
                     Toast.makeText(this@MainActivity, "$platform 云端签到仍在运行，请稍后在「日志-拉取云端」查看", Toast.LENGTH_LONG).show()
                 }

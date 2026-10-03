@@ -787,7 +787,7 @@ private fun showGithubDialog() {
         pendingLoginPlatform = platform
         val banner = findViewById<View>(R.id.loginAlertBanner) ?: return
         val text = findViewById<TextView>(R.id.loginAlertText)
-        text.text = "⚠️ 账号「$accountLabel」登录态已失效，点击重新登录"
+        text.text = "⚠️ $platform 账号「$accountLabel」登录态已失效，点击重新登录"
         banner.visibility = View.VISIBLE
     }
 

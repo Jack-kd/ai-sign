@@ -369,10 +369,11 @@ def sign_one(acc):
             except SystemExit:
                 pass  # 换 token 失败，保留首次结果
 
-        # 凭证失效（换 token 后仍认证失败）：明确提示重新登录，App 会显示登录态失效横幅
+        # 凭证失效（换 token 后仍认证失败）：明确提示重新登录，App 会显示登录态失效横幅。
+        # 注意：sign_one 末尾会统一拼接 label，这里不要再加 label，避免"M: M:"重复
         if status == "auth_fail":
             status = "fail"
-            desc = label + ": 凭证已失效，需重新登录"
+            desc = "凭证已失效，需重新登录"
 
         # 签到成功：显示本次领取的签到积分（status 响应的 credits，每日固定）
         credits_after = None

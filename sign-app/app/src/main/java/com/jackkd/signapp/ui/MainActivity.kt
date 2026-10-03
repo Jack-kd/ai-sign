@@ -782,6 +782,19 @@ private fun showGithubDialog() {
         return null
     }
 
+    /** 显示登录态失效横幅（本地积分查询发现凭证失效 / 云端日志发现失效记录 共用） */
+    private fun showLoginIssueBanner(platform: String, accountLabel: String) {
+        pendingLoginPlatform = platform
+        val banner = findViewById<View>(R.id.loginAlertBanner) ?: return
+        val text = findViewById<TextView>(R.id.loginAlertText)
+        text.text = "⚠️ 账号「$accountLabel」登录态已失效，点击重新登录"
+        banner.visibility = View.VISIBLE
+    }
+
+    private fun hideLoginIssueBanner() {
+        findViewById<View>(R.id.loginAlertBanner)?.visibility = View.GONE
+    }
+
     /** 检测登录态失效：拉云端日志，若有"需重新登录/失效"的失败记录则显示顶部警告横幅 */
     private fun checkLoginIssues() {
         if (!config.verified || config.token.isBlank()) return
@@ -792,10 +805,8 @@ private fun showGithubDialog() {
                         .readRepoFile(config.repoOwner, config.repoName, config.logPath)
                 }.getOrNull()
             }
-            val banner = findViewById<View>(R.id.loginAlertBanner) ?: return@launch
-            val text = findViewById<TextView>(R.id.loginAlertText)
             if (raw == null) {
-                banner.visibility = View.GONE
+                hideLoginIssueBanner()
                 return@launch
             }
             val list: List<CloudSignLog> = try {
@@ -812,11 +823,10 @@ private fun showGithubDialog() {
                     )
             }
             if (issue != null) {
-                pendingLoginPlatform = if (issue.platform == "WorkBuddy") "WorkBuddy" else "TRAE"
-                text.text = "⚠️ 账号「${issue.account}」登录态已失效，点击重新登录"
-                banner.visibility = View.VISIBLE
+                val platform = if (issue.platform == "WorkBuddy") "WorkBuddy" else "TRAE"
+                showLoginIssueBanner(platform, issue.account)
             } else {
-                banner.visibility = View.GONE
+                hideLoginIssueBanner()
             }
         }
     }
@@ -987,6 +997,13 @@ private fun showGithubDialog() {
             showWbScheduleText()
             } finally {
                 hideLoading()
+                // 首次登录/切换账号（showLoading=true）：账号拉取入库后立即刷新积分与失效横幅，
+                // 换设备登录后无需再等 onResume 节流，直接显示各账号当前积分
+                if (showLoading) {
+                    refreshTodayCredits(true)
+                    refreshAccountCredits(true)
+                    checkLoginIssues()
+                }
             }
         }
     }
@@ -1312,16 +1329,20 @@ private fun showGithubDialog() {
             lifecycleScope.launch {
                 val jobs = traeList.map { acc ->
                     async(Dispatchers.IO) {
-                        acc.id to TraeApi().queryCredits(
+                        Triple(acc.id, acc.label, TraeApi().queryCredits(
                             acc.credentials.accessToken, acc.credentials.uid, acc.credentials.deviceId
-                        )
+                        ))
                     }
                 }
                 jobs.forEach { job ->
-                    val (id, r) = job.await()
+                    val (id, label, r) = job.await()
                     when (r) {
                         is CreditsQuery.Ok -> accountAdapter.setCredits(id, "当前积分 ${r.credits}")
-                        CreditsQuery.AuthFailed -> accountAdapter.setCredits(id, "当前积分 -- 凭证已失效", R.color.error_red)
+                        CreditsQuery.AuthFailed -> {
+                            // 凭证失效：卡片红色提示 + 立即弹横幅（无需等云端日志）
+                            accountAdapter.setCredits(id, "当前积分 -- 凭证已失效", R.color.error_red, true)
+                            showLoginIssueBanner("TRAE", label)
+                        }
                         CreditsQuery.Failed -> accountAdapter.setCredits(id, "当前积分 获取失败", R.color.gray)
                     }
                 }
@@ -1712,6 +1733,7 @@ class AccountAdapter(
     private var items: List<TraeAccount> = emptyList()
     private val credits = HashMap<String, String>()   // accountId -> 积分显示文本
     private val colors = HashMap<String, Int>()        // accountId -> 文本颜色资源（0=主题色）
+    private val expired = HashMap<String, Boolean>()   // accountId -> 凭证已失效标记
 
     fun submit(list: List<TraeAccount>) {
         items = list
@@ -1719,10 +1741,14 @@ class AccountAdapter(
         notifyDataSetChanged()
     }
 
-    /** 异步查询结果回填：按账号 id 更新"当前积分"行；colorRes=0 使用主题主色 */
-    fun setCredits(accountId: String, text: String, colorRes: Int = 0) {
+    /**
+     * 异步查询结果回填：按账号 id 更新"当前积分"行。
+     * @param tokenExpired 凭证已失效（服务端拒绝）：到期行强制显示红色"凭证已过期"
+     */
+    fun setCredits(accountId: String, text: String, colorRes: Int = 0, tokenExpired: Boolean = false) {
         credits[accountId] = text
         colors[accountId] = colorRes
+        expired[accountId] = tokenExpired
         val idx = items.indexOfFirst { it.id == accountId }
         if (idx >= 0) notifyItemChanged(idx)
     }
@@ -1741,13 +1767,21 @@ class AccountAdapter(
         val tvLabel = holder.root.findViewById<TextView>(R.id.tvAccountLabel)
         val tvSub = holder.root.findViewById<TextView>(R.id.tvAccountSub)
         val tvCredits = holder.root.findViewById<TextView>(R.id.tvAccountCredits)
+        val tvExpiry = holder.root.findViewById<TextView>(R.id.tvTokenExpiry)
         val btnDel = holder.root.findViewById<TextView>(R.id.btnDelete)
         tvLabel.text = acc.label
         tvSub.text = "UID: " + acc.credentials.uid.ifBlank { "未获取" }
         tvCredits.text = credits[acc.id] ?: "当前积分 --"
         val clr = colors[acc.id]
         tvCredits.setTextColor(if (clr != null && clr != 0) ContextCompat.getColor(holder.root.context, clr) else themePrimary(holder.root.context))
-        renderTokenExpiry(holder.root.findViewById<TextView>(R.id.tvTokenExpiry), acc.credentials.accessToken)
+        if (expired[acc.id] == true) {
+            // 凭证已失效（服务端拒绝）：优先显示"已过期"，覆盖 JWT exp 判断
+            tvExpiry.visibility = View.VISIBLE
+            tvExpiry.setTextColor(ContextCompat.getColor(holder.root.context, R.color.error_red))
+            tvExpiry.text = "凭证已过期"
+        } else {
+            renderTokenExpiry(tvExpiry, acc.credentials.accessToken)
+        }
         holder.root.setOnClickListener { onDetail(acc) }
         btnDel.setOnClickListener { onDelete(acc) }
     }
@@ -1761,6 +1795,7 @@ class WorkBuddyAccountAdapter(
     private var items: List<WorkBuddyAccount> = emptyList()
     private val credits = HashMap<String, String>()   // accountId -> 额度显示文本
     private val colors = HashMap<String, Int>()        // accountId -> 文本颜色资源（0=主题色）
+    private val expired = HashMap<String, Boolean>()   // accountId -> 凭证已失效标记
 
     fun submit(list: List<WorkBuddyAccount>) {
         items = list
@@ -1768,10 +1803,14 @@ class WorkBuddyAccountAdapter(
         notifyDataSetChanged()
     }
 
-    /** 异步查询结果回填：按账号 id 更新"当前积分"行；colorRes=0 使用主题主色 */
-    fun setCredits(accountId: String, text: String, colorRes: Int = 0) {
+    /**
+     * 异步查询结果回填：按账号 id 更新"当前积分"行。
+     * @param tokenExpired 凭证已失效（服务端拒绝）：到期行强制显示红色"凭证已过期"
+     */
+    fun setCredits(accountId: String, text: String, colorRes: Int = 0, tokenExpired: Boolean = false) {
         credits[accountId] = text
         colors[accountId] = colorRes
+        expired[accountId] = tokenExpired
         val idx = items.indexOfFirst { it.id == accountId }
         if (idx >= 0) notifyItemChanged(idx)
     }
@@ -1790,13 +1829,21 @@ class WorkBuddyAccountAdapter(
         val tvLabel = holder.root.findViewById<TextView>(R.id.tvAccountLabel)
         val tvSub = holder.root.findViewById<TextView>(R.id.tvAccountSub)
         val tvCredits = holder.root.findViewById<TextView>(R.id.tvAccountCredits)
+        val tvExpiry = holder.root.findViewById<TextView>(R.id.tvTokenExpiry)
         val btnDel = holder.root.findViewById<TextView>(R.id.btnDelete)
         tvLabel.text = acc.label
         tvSub.text = "UID: " + acc.credentials.uid.ifBlank { "未获取" }
         tvCredits.text = credits[acc.id] ?: "当前积分 --"
         val clr = colors[acc.id]
         tvCredits.setTextColor(if (clr != null && clr != 0) ContextCompat.getColor(holder.root.context, clr) else themePrimary(holder.root.context))
-        renderTokenExpiry(holder.root.findViewById<TextView>(R.id.tvTokenExpiry), acc.credentials.accessToken)
+        if (expired[acc.id] == true) {
+            // 凭证已失效（服务端拒绝）：优先显示"已过期"，覆盖 JWT exp 判断
+            tvExpiry.visibility = View.VISIBLE
+            tvExpiry.setTextColor(ContextCompat.getColor(holder.root.context, R.color.error_red))
+            tvExpiry.text = "凭证已过期"
+        } else {
+            renderTokenExpiry(tvExpiry, acc.credentials.accessToken)
+        }
         holder.root.setOnClickListener { onDetail(acc) }
         btnDel.setOnClickListener { onDelete(acc) }
     }

@@ -44,6 +44,7 @@ import com.jackkd.signapp.data.WorkBuddyAccount
 import com.jackkd.signapp.data.WorkBuddyAccountStore
 import com.jackkd.signapp.data.WorkBuddyCredentials
 import com.jackkd.signapp.net.CredentialCrypto
+import com.jackkd.signapp.net.CreditsQuery
 import com.jackkd.signapp.net.GithubApi
 import com.jackkd.signapp.net.TraeApi
 import com.jackkd.signapp.net.UploadService
@@ -1317,8 +1318,12 @@ private fun showGithubDialog() {
                     }
                 }
                 jobs.forEach { job ->
-                    val (id, v) = job.await()
-                    accountAdapter.setCredits(id, if (v != null) "当前积分 $v" else "当前积分 获取失败")
+                    val (id, r) = job.await()
+                    when (r) {
+                        is CreditsQuery.Ok -> accountAdapter.setCredits(id, "当前积分 ${r.credits}")
+                        CreditsQuery.AuthFailed -> accountAdapter.setCredits(id, "当前积分 -- 凭证已失效", R.color.error_red)
+                        CreditsQuery.Failed -> accountAdapter.setCredits(id, "当前积分 获取失败", R.color.gray)
+                    }
                 }
             }
         }
@@ -1334,7 +1339,7 @@ private fun showGithubDialog() {
                 }
                 jobs.forEach { job ->
                     val (id, v) = job.await()
-                    wbAccountAdapter.setCredits(id, if (v != null) "当前积分 $v" else "当前积分 获取失败")
+                    wbAccountAdapter.setCredits(id, if (v != null) "当前积分 $v" else "当前积分 获取失败", if (v != null) 0 else R.color.gray)
                 }
             }
         }
@@ -1706,6 +1711,7 @@ class AccountAdapter(
 
     private var items: List<TraeAccount> = emptyList()
     private val credits = HashMap<String, String>()   // accountId -> 积分显示文本
+    private val colors = HashMap<String, Int>()        // accountId -> 文本颜色资源（0=主题色）
 
     fun submit(list: List<TraeAccount>) {
         items = list
@@ -1713,9 +1719,10 @@ class AccountAdapter(
         notifyDataSetChanged()
     }
 
-    /** 异步查询结果回填：按账号 id 更新"当前积分"行 */
-    fun setCredits(accountId: String, text: String) {
+    /** 异步查询结果回填：按账号 id 更新"当前积分"行；colorRes=0 使用主题主色 */
+    fun setCredits(accountId: String, text: String, colorRes: Int = 0) {
         credits[accountId] = text
+        colors[accountId] = colorRes
         val idx = items.indexOfFirst { it.id == accountId }
         if (idx >= 0) notifyItemChanged(idx)
     }
@@ -1738,6 +1745,8 @@ class AccountAdapter(
         tvLabel.text = acc.label
         tvSub.text = "UID: " + acc.credentials.uid.ifBlank { "未获取" }
         tvCredits.text = credits[acc.id] ?: "当前积分 --"
+        val clr = colors[acc.id]
+        tvCredits.setTextColor(if (clr != null && clr != 0) ContextCompat.getColor(holder.root.context, clr) else themePrimary(holder.root.context))
         renderTokenExpiry(holder.root.findViewById<TextView>(R.id.tvTokenExpiry), acc.credentials.accessToken)
         holder.root.setOnClickListener { onDetail(acc) }
         btnDel.setOnClickListener { onDelete(acc) }
@@ -1751,6 +1760,7 @@ class WorkBuddyAccountAdapter(
 
     private var items: List<WorkBuddyAccount> = emptyList()
     private val credits = HashMap<String, String>()   // accountId -> 额度显示文本
+    private val colors = HashMap<String, Int>()        // accountId -> 文本颜色资源（0=主题色）
 
     fun submit(list: List<WorkBuddyAccount>) {
         items = list
@@ -1758,9 +1768,10 @@ class WorkBuddyAccountAdapter(
         notifyDataSetChanged()
     }
 
-    /** 异步查询结果回填：按账号 id 更新"当前积分"行 */
-    fun setCredits(accountId: String, text: String) {
+    /** 异步查询结果回填：按账号 id 更新"当前积分"行；colorRes=0 使用主题主色 */
+    fun setCredits(accountId: String, text: String, colorRes: Int = 0) {
         credits[accountId] = text
+        colors[accountId] = colorRes
         val idx = items.indexOfFirst { it.id == accountId }
         if (idx >= 0) notifyItemChanged(idx)
     }
@@ -1783,6 +1794,8 @@ class WorkBuddyAccountAdapter(
         tvLabel.text = acc.label
         tvSub.text = "UID: " + acc.credentials.uid.ifBlank { "未获取" }
         tvCredits.text = credits[acc.id] ?: "当前积分 --"
+        val clr = colors[acc.id]
+        tvCredits.setTextColor(if (clr != null && clr != 0) ContextCompat.getColor(holder.root.context, clr) else themePrimary(holder.root.context))
         renderTokenExpiry(holder.root.findViewById<TextView>(R.id.tvTokenExpiry), acc.credentials.accessToken)
         holder.root.setOnClickListener { onDetail(acc) }
         btnDel.setOnClickListener { onDelete(acc) }

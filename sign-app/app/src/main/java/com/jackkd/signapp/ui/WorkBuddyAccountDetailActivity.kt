@@ -127,9 +127,7 @@ nickname: ${c.nickname}
     private fun copyToClipboard(label: String, text: String, toast: String) {
         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         cm.setPrimaryClip(ClipData.newPlainText(label, text))
-        MaterialAlertDialogBuilder(this)
-            .setMessage(toast)
-            .setPositiveButton("好", null).show()
+        Toast.makeText(this, toast, Toast.LENGTH_SHORT).show()
     }
 
     private fun setupCollapse(key: String, headerId: Int, contentId: Int, iconId: Int) {

@@ -816,18 +816,66 @@ private fun showGithubDialog() {
             return
         }
         if (isFinishing || isDestroyed) return
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_login_issues, null)
+        val container = view.findViewById<LinearLayout>(R.id.containerIssues)
+        view.findViewById<TextView>(R.id.tvIssuesSub).text = "以下 ${loginIssues.size} 个账号凭证已失效，点击即可重新登录"
         val entries = loginIssues.values.toList()
-        val items = entries.map { "「${it.second}」 · ${it.first}" }.toTypedArray()
-        MaterialAlertDialogBuilder(this)
-            .setTitle("登录态失效账号（${entries.size}）")
-            .setItems(items) { _, which ->
-                val (platform, _) = entries[which]
-                startActivity(Intent(this,
-                    if (platform == "WorkBuddy") WorkBuddyLoginActivity::class.java else LoginActivity::class.java))
+
+        val dlg = MaterialAlertDialogBuilder(this).setView(view).create()
+        dlg.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
+        view.findViewById<View>(R.id.btnIssuesClose).setOnClickListener { dlg.dismiss() }
+
+        for ((index, pair) in entries.withIndex()) {
+            val (platform, label) = pair
+            val isTrae = platform != "WorkBuddy"
+            val platformColor = if (isTrae) 0xFF3B8BFF.toInt() else 0xFF4CD889.toInt()
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                background = ContextCompat.getDrawable(this@MainActivity, R.drawable.bg_card)
             }
-            .setNegativeButton("关闭", null)
-            .show()
+            // 平台徽章：TRAE 蓝 / WorkBuddy 绿
+            val badge = TextView(this).apply {
+                text = platform
+                setTextColor(android.graphics.Color.WHITE)
+                textSize = 11f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setPadding(dp(10), dp(3), dp(10), dp(3))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(14).toFloat()
+                    setColor(platformColor)
+                }
+            }
+            // 账号名
+            val name = TextView(this).apply {
+                text = "「$label」"
+                textSize = 15f
+                setTextColor(resources.getColor(R.color.text_primary, null))
+            }
+            // 跳转提示
+            val tip = TextView(this).apply {
+                text = "重新登录 ›"
+                textSize = 13f
+                setTextColor(platformColor)
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+            row.addView(badge, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            row.addView(name, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = dp(10) })
+            row.addView(tip, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { leftMargin = dp(8) })
+            row.setOnClickListener {
+                dlg.dismiss()
+                startActivity(Intent(this,
+                    if (isTrae) LoginActivity::class.java else WorkBuddyLoginActivity::class.java))
+            }
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            if (index < entries.size - 1) lp.bottomMargin = dp(8)
+            container.addView(row, lp)
+        }
+        dlg.show()
     }
+
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     /** 检测登录态失效：拉云端日志，若有"需重新登录/失效"的失败记录则显示顶部警告横幅 */
     private fun checkLoginIssues() {

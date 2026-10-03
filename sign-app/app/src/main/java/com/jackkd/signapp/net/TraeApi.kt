@@ -54,6 +54,8 @@ class TraeApi {
                 .build()
             client.newCall(req).execute().use { resp ->
                 val raw = resp.body?.string() ?: "{}"
+                // HTTP 401 = token 未被服务端接受（凭证已失效/被撤销），即使 JWT exp 未到也算失效
+                if (resp.code == 401) return CreditsQuery.AuthFailed
                 if (resp.code !in 200..299) {
                     return CreditsQuery.Failed
                 }

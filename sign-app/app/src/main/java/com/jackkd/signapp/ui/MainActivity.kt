@@ -1518,7 +1518,9 @@ private fun showGithubDialog() {
         else ".github/workflows/workbuddy-checkin.yml"
         val deadline = System.currentTimeMillis() + 300_000L
         while (System.currentTimeMillis() < deadline) {
-            try { Thread.sleep(5000) } catch (e: InterruptedException) { break }
+            // 2 秒轮询：token 配额 5000 次/小时，5 分钟窗口内 150 次请求远低于限流；
+            // 再密到 1 秒意义不大（Actions 状态同步有数秒滞后），且可能触发 GitHub 次级限流
+            try { Thread.sleep(2000) } catch (e: InterruptedException) { break }
             val runs = api.listWorkflowRuns(config.repoOwner, config.repoName, file)
             if (runs == null) continue
             for (r in runs) {

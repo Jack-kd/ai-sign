@@ -856,7 +856,7 @@ private fun showGithubDialog() {
                         p.isNullOrBlank() || p.equals("TRAE", true)
                     else p != null && p.equals("WorkBuddy", true)
                     match && fmt.format(java.util.Date(log.time)) == today
-                }.sumOf { log.earned }
+                }.sumOf { it.earned }
             }
             val trae = todayEarned("TRAE")
             val wb = todayEarned("WorkBuddy")

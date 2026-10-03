@@ -200,6 +200,15 @@ class MainActivity : AppCompatActivity() {
         tabTrae = findViewById(R.id.tabTrae)
         tabWb = findViewById(R.id.tabWorkBuddy)
 
+        // 下拉刷新：两页共用"全成功才提交"的刷新逻辑
+        val swipeTrae = findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeTrae)
+        val swipeWb = findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeWb)
+        val swipeColor = themePrimary(this)
+        swipeTrae.setColorSchemeColors(swipeColor)
+        swipeWb.setColorSchemeColors(swipeColor)
+        swipeTrae.setOnRefreshListener { pullRefreshAll() }
+        swipeWb.setOnRefreshListener { pullRefreshAll() }
+
         accountAdapter = AccountAdapter(
             onDetail = { acc -> openDetail(acc) },
             onDelete = { acc -> confirmDelete(acc) }
@@ -1362,6 +1371,192 @@ private fun showGithubDialog() {
                     val (id, v) = job.await()
                     wbAccountAdapter.setCredits(id, if (v != null) "当前积分 $v" else "当前积分 获取失败", if (v != null) 0 else R.color.gray)
                 }
+            }
+        }
+    }
+
+    /** 解析工作流 yml 里的 cron（UTC）→ 本地（北京）签到时间 */
+    private fun parseCron(yml: String): ScheduleTime? {
+        val m = Regex("cron\\s*:\\s*['\"]?([0-9]+)\\s+([0-9]+)\\s+\\*\\s+\\*\\s+\\*").find(yml) ?: return null
+        val minute = m.groupValues[1].toIntOrNull() ?: return null
+        val utcHour = m.groupValues[2].toIntOrNull() ?: return null
+        val localHour = (utcHour + 8) % 24
+        if (minute !in 0..59 || localHour !in 0..23) return null
+        return ScheduleTime(localHour, minute)
+    }
+
+    /** 停止两个平台页的下拉刷新圈 */
+    private fun stopPullRefresh() {
+        runOnUiThread {
+            findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeTrae)?.isRefreshing = false
+            findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeWb)?.isRefreshing = false
+        }
+    }
+
+    /**
+     * 下拉刷新（全成功才提交）：
+     * 并行拉取账号列表/签到时间/云端日志/推送配置/各账号积分，
+     * 全部获取成功才更新页面并提示"刷新成功"；任一失败则页面保持原样并提示"刷新失败"。
+     */
+    private fun pullRefreshAll() {
+        if (!config.verified || config.token.isBlank()) {
+            Toast.makeText(this, "刷新失败：未授权 GitHub", Toast.LENGTH_SHORT).show()
+            stopPullRefresh()
+            return
+        }
+        lifecycleScope.launch {
+            val api = GithubApi(config.username, config.token)
+            val owner = config.repoOwner
+            val repo = config.repoName
+
+            // 并行拉取云端文件
+            val traeRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, config.credentialsPath) }.getOrNull() }
+            val wbRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, config.wbCredentialsPath) }.getOrNull() }
+            val schRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, config.workflowPath) }.getOrNull() }
+            val wbSchRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, config.wbWorkflowPath) }.getOrNull() }
+            val logRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, config.logPath) }.getOrNull() }
+            val wxRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, UploadService.WXPUSHER_CONFIG_FILE) }.getOrNull() }
+
+            // 各账号当前积分（TRAE：AuthFailed 也算"获取到状态"；Failed 才算失败；WB：null 算失败）
+            val traeList = accountStore.load()
+            val wbList = wbAccountStore.load()
+            val traeJobs = traeList.map { acc ->
+                async(Dispatchers.IO) {
+                    Triple(acc.id, acc.label, TraeApi().queryCredits(
+                        acc.credentials.accessToken, acc.credentials.uid, acc.credentials.deviceId
+                    ))
+                }
+            }
+            val wbJobs = wbList.map { acc ->
+                async(Dispatchers.IO) {
+                    Triple(acc.id, acc.label, WorkBuddyApi().queryQuota(
+                        acc.credentials.domain, acc.credentials.accessToken,
+                        acc.credentials.uid, acc.credentials.enterpriseId
+                    ))
+                }
+            }
+
+            val traeAccounts = traeRaw.await()
+            val wbAccounts = wbRaw.await()
+            val schedule = schRaw.await()
+            val wbSchedule = wbSchRaw.await()
+            val logsRaw2 = logRaw.await()
+            val wxConfig = wxRaw.await()
+            val traeCredits = traeJobs.map { it.await() }
+            val wbCredits = wbJobs.map { it.await() }
+
+            // 成功判定：核心文件必须全部存在；积分查询不允许 Failed/null
+            val filesOk = traeAccounts != null && wbAccounts != null && schedule != null && wbSchedule != null && logsRaw2 != null
+            // wxpusher_config.json 可能从未配置（文件不存在=正常），不算失败
+            val creditsOk = traeCredits.all { it.third !is CreditsQuery.Failed } && wbCredits.all { it.third != null }
+            if (!filesOk || !creditsOk) {
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, "刷新失败：部分数据获取失败，页面未更新", Toast.LENGTH_LONG).show()
+                    stopPullRefresh()
+                }
+                return@launch
+            }
+
+            // ===== 全部成功 → 更新页面 =====
+            runOnUiThread {
+                // 1) 账号列表（解密云端凭证，解密失败跳过）
+                try {
+                    val type = object : TypeToken<List<UploadAccount>>() {}.type
+                    val list: List<UploadAccount> = Gson().fromJson(traeAccounts, type) ?: emptyList()
+                    for (ua in list) {
+                        val acc = ua.toTraeAccount()
+                        val at = CredentialCrypto.decrypt(acc.credentials.accessToken)
+                        val rt = CredentialCrypto.decrypt(acc.credentials.refreshToken)
+                        if (at.startsWith("v1:") || rt.startsWith("v1:")) continue
+                        accountStore.addOrUpdate(acc.copy(credentials = acc.credentials.copy(accessToken = at, refreshToken = rt)))
+                    }
+                } catch (e: Exception) { }
+                try {
+                    val type = object : TypeToken<List<UploadWorkBuddyAccount>>() {}.type
+                    val list: List<UploadWorkBuddyAccount> = Gson().fromJson(wbAccounts, type) ?: emptyList()
+                    for (ua in list) {
+                        val at = CredentialCrypto.decrypt(ua.accessToken ?: "")
+                        val rt = CredentialCrypto.decrypt(ua.refreshToken ?: "")
+                        if (at.startsWith("v1:") || rt.startsWith("v1:")) continue
+                        val acc = WorkBuddyAccount(
+                            id = "cloud_wb_" + (ua.uid.ifBlank { ua.label }),
+                            label = ua.label.ifBlank { (ua.nickname.ifBlank { "WorkBuddy" }) },
+                            credentials = WorkBuddyCredentials(
+                                accessToken = at, refreshToken = rt, domain = ua.domain ?: "",
+                                uid = ua.uid ?: "", enterpriseId = ua.enterpriseId ?: "", nickname = ua.nickname ?: ""
+                            )
+                        )
+                        wbAccountStore.addOrUpdate(acc)
+                    }
+                } catch (e: Exception) { }
+                accountAdapter.submit(accountStore.load())
+                wbAccountAdapter.submit(wbAccountStore.load())
+
+                // 2) 签到时间（cron → 本地时间）
+                try {
+                    parseCron(schedule ?: "")?.let { config.saveSchedule(it.hour, it.minute) }
+                } catch (e: Exception) { }
+                try {
+                    parseCron(wbSchedule ?: "")?.let { config.saveWbSchedule(it.hour, it.minute) }
+                } catch (e: Exception) { }
+                showScheduleText()
+                showWbScheduleText()
+
+                // 3) 推送配置回显（文件缺失=未配置，保持本地）
+                try {
+                    val obj = Gson().fromJson(wxConfig, com.google.gson.JsonObject::class.java)
+                    config.setWxpusherEnabled(obj.get("enabled")?.asBoolean ?: false)
+                    config.setWxpusherSpt(obj.get("spt")?.asString ?: "")
+                } catch (e: Exception) { }
+
+                // 4) 今日总积分标题
+                try {
+                    val type = object : TypeToken<List<CloudSignLog>>() {}.type
+                    val logs: List<CloudSignLog> = Gson().fromJson(logsRaw2, type) ?: emptyList()
+                    val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                    val today = fmt.format(java.util.Date())
+                    fun todayEarned(platform: String): Long {
+                        return logs.filter { log ->
+                            val p = log.platform
+                            val match = if (platform == "TRAE")
+                                p.isNullOrBlank() || p.equals("TRAE", true)
+                            else p != null && p.equals("WorkBuddy", true)
+                            match && fmt.format(java.util.Date(log.time)) == today
+                        }.sumOf { it.earned }
+                    }
+                    tvAccountTitleTrae.text = "TRAE 账号 · 今日已领 ${todayEarned("TRAE")} 分"
+                    tvAccountTitleWb.text = "WorkBuddy 账号 · 今日已领 ${todayEarned("WorkBuddy")} 额度"
+                    // 4b) 登录态失效横幅（复用日志检测）
+                    val issue = logs.take(20).firstOrNull { log ->
+                        log.result == "失败" && (
+                            log.detail.contains("需重新登录") || log.detail.contains("已失效") ||
+                                log.detail.contains("重新登录") || log.detail.contains("失效")
+                            )
+                    }
+                    if (issue != null) {
+                        showLoginIssueBanner(if (issue.platform == "WorkBuddy") "WorkBuddy" else "TRAE", issue.account)
+                    } else {
+                        hideLoginIssueBanner()
+                    }
+                } catch (e: Exception) { }
+
+                // 5) 账号积分回填
+                traeCredits.forEach { (id, label, r) ->
+                    when (r) {
+                        is CreditsQuery.Ok -> accountAdapter.setCredits(id, "当前积分 ${r.credits}")
+                        CreditsQuery.AuthFailed -> {
+                            accountAdapter.setCredits(id, "当前积分 -- 凭证已失效", R.color.error_red, true)
+                            showLoginIssueBanner("TRAE", label)
+                        }
+                        CreditsQuery.Failed -> { }
+                    }
+                }
+                wbCredits.forEach { (id, label, v) ->
+                    if (v != null) wbAccountAdapter.setCredits(id, "当前积分 $v") else { }
+                }
+
+                Toast.makeText(this@MainActivity, "刷新成功", Toast.LENGTH_SHORT).show()
+                stopPullRefresh()
             }
         }
     }

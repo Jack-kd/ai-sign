@@ -1608,7 +1608,7 @@ private fun showGithubDialog() {
                     }
                 } catch (e: Exception) { }
                 try {
-                    val list: List<UploadWorkBuddyAccount> = parseCloudWorkBuddy(wbAccounts)
+                    val list: List<UploadWorkBuddyAccount> = parseCloudWorkBuddy(wbAccounts ?: "")
                     for (ua in list) {
                         val at = CredentialCrypto.decrypt(ua.accessToken ?: "")
                         val rt = CredentialCrypto.decrypt(ua.refreshToken ?: "")

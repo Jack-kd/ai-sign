@@ -1031,15 +1031,11 @@ private fun showGithubDialog() {
                 runCatching { api.readRepoFile(config.repoOwner, config.repoName, config.wbCredentialsPath) }.getOrNull()
             }
             if (wbRaw != null) {
-                val wbList: List<UploadWorkBuddyAccount> = try {
-                    val type = object : TypeToken<List<UploadWorkBuddyAccount>>() {}.type
-                    Gson().fromJson<List<UploadWorkBuddyAccount>>(wbRaw, type) ?: emptyList()
-                } catch (e: Exception) {
-                    emptyList()
-                }
+                // 云端 workbuddy_accounts.json 兼容 snake_case 与历史 camelCase（手动解析，见 parseCloudWorkBuddy）
+                val wbList = parseCloudWorkBuddy(wbRaw)
                 for (ua in wbList) {
-                    val at = CredentialCrypto.decrypt(ua.accessToken ?: "")
-                    val rt = CredentialCrypto.decrypt(ua.refreshToken ?: "")
+                    val at = CredentialCrypto.decrypt(ua.accessToken)
+                    val rt = CredentialCrypto.decrypt(ua.refreshToken)
                     if (at.startsWith("v1:") || rt.startsWith("v1:")) continue
                     val acc = WorkBuddyAccount(
                         id = "cloud_wb_" + (ua.uid.ifBlank { ua.label }),
@@ -1047,10 +1043,10 @@ private fun showGithubDialog() {
                         credentials = WorkBuddyCredentials(
                             accessToken = at,
                             refreshToken = rt,
-                            domain = ua.domain ?: "",
-                            uid = ua.uid ?: "",
-                            enterpriseId = ua.enterpriseId ?: "",
-                            nickname = ua.nickname ?: ""
+                            domain = ua.domain,
+                            uid = ua.uid,
+                            enterpriseId = ua.enterpriseId,
+                            nickname = ua.nickname
                         )
                     )
                     wbAccountStore.addOrUpdate(acc)
@@ -1184,6 +1180,42 @@ private fun showGithubDialog() {
             .show()
     }
 
+    /**
+     * 解析云端 workbuddy_accounts.json，兼容对外 snake_case 与历史 camelCase 字段名。
+     * 手动解析（而非 Gson 绑定 data class）：避免缺失字段被注入成 null 触发 .isBlank()/.ifBlank() NPE。
+     */
+    private fun parseCloudWorkBuddy(raw: String): List<UploadWorkBuddyAccount> {
+        fun field(arr: com.google.gson.JsonArray, i: Int, keySnake: String, keyCamel: String): String {
+            return try {
+                val el = arr[i]
+                if (el is com.google.gson.JsonObject) {
+                    val v = if (el.has(keySnake)) el.get(keySnake) else el.get(keyCamel)
+                    if (v != null && !v.isJsonNull) v.asString else ""
+                } else ""
+            } catch (_: Exception) { "" }
+        }
+        return try {
+            val arr = com.google.gson.JsonParser.parseString(raw).asJsonArray
+            val out = ArrayList<UploadWorkBuddyAccount>()
+            for (i in 0 until arr.size()) {
+                out.add(
+                    UploadWorkBuddyAccount(
+                        label = field(arr, i, "label", "label"),
+                        accessToken = field(arr, i, "access_token", "accessToken"),
+                        refreshToken = field(arr, i, "refresh_token", "refreshToken"),
+                        uid = field(arr, i, "user_id", "uid"),
+                        domain = field(arr, i, "domain", "domain"),
+                        enterpriseId = field(arr, i, "enterprise_id", "enterpriseId"),
+                        nickname = field(arr, i, "nickname", "nickname")
+                    )
+                )
+            }
+            out
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     private fun deleteWbAccountSync(acc: WorkBuddyAccount) {
         Toast.makeText(this, "正在从云端删除 ${acc.label}...", Toast.LENGTH_SHORT).show()
         lifecycleScope.launch {
@@ -1199,12 +1231,7 @@ private fun showGithubDialog() {
                 return@launch
             }
 
-            val cloudList: List<UploadWorkBuddyAccount> = try {
-                val type = object : TypeToken<List<UploadWorkBuddyAccount>>() {}.type
-                Gson().fromJson<List<UploadWorkBuddyAccount>>(raw, type) ?: emptyList()
-            } catch (e: Exception) {
-                emptyList()
-            }
+            val cloudList: List<UploadWorkBuddyAccount> = parseCloudWorkBuddy(raw)
 
             val remaining = cloudList.filterNot { it.uid == acc.credentials.uid }
             if (remaining.size == cloudList.size) {
@@ -1581,8 +1608,7 @@ private fun showGithubDialog() {
                     }
                 } catch (e: Exception) { }
                 try {
-                    val type = object : TypeToken<List<UploadWorkBuddyAccount>>() {}.type
-                    val list: List<UploadWorkBuddyAccount> = Gson().fromJson(wbAccounts, type) ?: emptyList()
+                    val list: List<UploadWorkBuddyAccount> = parseCloudWorkBuddy(wbAccounts)
                     for (ua in list) {
                         val at = CredentialCrypto.decrypt(ua.accessToken ?: "")
                         val rt = CredentialCrypto.decrypt(ua.refreshToken ?: "")

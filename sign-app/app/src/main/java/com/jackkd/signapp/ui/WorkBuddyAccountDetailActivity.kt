@@ -97,26 +97,29 @@ class WorkBuddyAccountDetailActivity : AppCompatActivity() {
 
         // 复制全部凭证：JSON / 文本 两种格式
         findViewById<TextView>(R.id.btnWbCopyJson).setOnClickListener {
+            // 对外统一为插件导出的 snake_case，双向可互贴
             val json = com.google.gson.JsonObject().apply {
                 addProperty("label", account.label)
-                addProperty("accessToken", c.accessToken)
-                addProperty("refreshToken", c.refreshToken)
-                addProperty("uid", c.uid)
+                addProperty("access_token", c.accessToken)
+                addProperty("refresh_token", c.refreshToken)
+                addProperty("user_id", c.uid)
                 addProperty("domain", c.domain)
-                addProperty("enterpriseId", c.enterpriseId)
+                addProperty("enterprise_id", c.enterpriseId)
                 addProperty("nickname", c.nickname)
+                addProperty("expires_at", c.expiresAt)
             }.toString()
             copyToClipboard("WB凭证JSON", json, "已复制 JSON 凭证，可在 WorkBuddy 登录页「粘贴凭证」导入")
         }
         findViewById<TextView>(R.id.btnWbCopyText).setOnClickListener {
             val all = """
 账号: ${account.label}
-accessToken: ${c.accessToken}
-refreshToken: ${c.refreshToken}
-uid: ${c.uid}
+access_token: ${c.accessToken}
+refresh_token: ${c.refreshToken}
+user_id: ${c.uid}
 domain: ${c.domain}
-enterpriseId: ${c.enterpriseId}
+enterprise_id: ${c.enterpriseId}
 nickname: ${c.nickname}
+expires_at: ${c.expiresAt}
 """.trimIndent()
             copyToClipboard("WorkBuddy凭证", all, "已复制文本凭证，可在 WorkBuddy 登录页「粘贴凭证」导入")
         }

@@ -217,25 +217,35 @@ class WorkBuddyLoginActivity : AppCompatActivity() {
         }
         try {
             val obj = JsonParser.parseString(text).asJsonObject
-            fun str(k: String): String = obj.get(k)?.asString ?: ""
-            var uid = str("uid")
-            if (uid.isBlank()) uid = extractUidFromJwt(str("accessToken"))
-            if (uid.isBlank()) uid = "wb_" + Math.abs(str("accessToken").hashCode())
-            var nickname = str("nickname")
-            if (nickname.isBlank()) nickname = str("nickName")
-            if (nickname.isBlank()) nickname = str("name")
+            fun str(vararg ks: String): String {
+                for (k in ks) { val v = obj.get(k)?.asString; if (!v.isNullOrBlank()) return v }
+                return ""
+            }
+            var uid = str("user_id", "uid", "userId", "userID", "UserID")
+            val accessToken = str("access_token", "accessToken")
+            if (uid.isBlank()) uid = extractUidFromJwt(accessToken)
+            if (uid.isBlank()) uid = "wb_" + Math.abs(accessToken.hashCode())
+            val nickname = str("nickname", "nickName", "name")
+            var expiresAt = 0L
+            for (key in listOf("expires_at", "expiresAt", "expires_in")) {
+                val el = obj.get(key)
+                if (el != null && !el.isJsonNull && el.isJsonPrimitive) {
+                    expiresAt = el.asLong
+                    break
+                }
+            }
             val creds = WorkBuddyCredentials(
-                accessToken = str("accessToken"),
-                refreshToken = str("refreshToken"),
-                expiresAt = obj.get("expiresAt")?.asLong ?: 0L,
+                accessToken = accessToken,
+                refreshToken = str("refresh_token", "refreshToken"),
+                expiresAt = expiresAt,
                 domain = str("domain"),
                 uid = uid,
-                enterpriseId = str("enterpriseId"),
+                enterpriseId = str("enterprise_id", "enterpriseId"),
                 nickname = nickname
             )
             if (creds.isComplete()) saveAccount(creds)
             else {
-                tvStatus.text = "凭证不完整：需要 accessToken / refreshToken / uid"
+                tvStatus.text = "凭证不完整：需要 access_token / refresh_token / user_id"
                 btnCopyStatus.visibility = View.VISIBLE
             }
         } catch (e: Exception) {
@@ -245,12 +255,18 @@ class WorkBuddyLoginActivity : AppCompatActivity() {
     }
 
     private fun saveAccount(creds: WorkBuddyCredentials) {
+        // uid 兜底：部分导入渠道凭证缺失 user_id/uid 时，从 JWT 解出，仍不行再用 token 哈希占位，
+        // 保证账号能正常去重与签到。
+        var uid = creds.uid
+        if (uid.isBlank()) uid = extractUidFromJwt(creds.accessToken)
+        if (uid.isBlank()) uid = "wb_" + Math.abs(creds.accessToken.hashCode())
+        val c = if (uid == creds.uid) creds else creds.copy(uid = uid)
         lifecycleScope.launch {
-            val existing = accountStore.findByUid(creds.uid)
+            val existing = accountStore.findByUid(c.uid)
             val acc = WorkBuddyAccount(
                 id = existing?.id ?: (System.currentTimeMillis().toString() + (Math.random() * 1000).toInt()),
-                label = existing?.label ?: creds.nickname,
-                credentials = creds
+                label = existing?.label ?: c.nickname,
+                credentials = c
             )
             val saved = accountStore.addOrUpdate(acc)
             val isNew = existing == null

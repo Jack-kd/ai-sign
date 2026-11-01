@@ -16,6 +16,27 @@ REMOTE_LOG_FILE = "scripts/sign_logs.json"
 REMOTE_ACCOUNTS_FILE = "scripts/workbuddy_accounts.json"
 MAX_LOGS = 500
 
+
+def _g(acc, key, default=""):
+    """按对外 snake_case 优先读取账号字段，同时兼容历史 camelCase（旧云端文件）。"""
+    if not isinstance(acc, dict):
+        return default
+    snake = {
+        "access_token": "accessToken",
+        "refresh_token": "refreshToken",
+        "user_id": "uid",
+        "enterprise_id": "enterpriseId",
+        "domain": "domain",
+        "nickname": "nickname",
+        "label": "label",
+    }
+    if key not in snake:
+        return acc.get(key) or default
+    v = acc.get(key)
+    if v is None or v == "":
+        v = acc.get(snake[key])
+    return default if v is None else v
+
 ALREADY_KEYWORDS = ("已签到", "已经签到", "already", "checked", "明天再来", "明日再来")
 
 
@@ -260,10 +281,10 @@ def _encrypt_token(token):
 
 
 def refresh_token(acc):
-    access = acc.get("accessToken") or ""
-    refresh = acc.get("refreshToken") or ""
-    enterprise = acc.get("enterpriseId") or ""
-    domain = acc.get("domain") or ""
+    access = _g(acc, "access_token") or ""
+    refresh = _g(acc, "refresh_token") or ""
+    enterprise = _g(acc, "enterprise_id") or ""
+    domain = _g(acc, "domain") or ""
     headers = {
         "Content-Type": "application/json", "Accept": "application/json",
         "User-Agent": "CLI/2.63.2 CodeBuddy/2.63.2",
@@ -276,19 +297,19 @@ def refresh_token(acc):
     if obj is None:
         return None
     data = obj.get("data") or obj
-    new_access = (data.get("accessToken") or data.get("access_token") or "").strip()
-    new_refresh = (data.get("refreshToken") or data.get("refresh_token") or "").strip() or refresh
+    new_access = (data.get("access_token") or data.get("accessToken") or "").strip()
+    new_refresh = (data.get("refresh_token") or data.get("refreshToken") or "").strip() or refresh
     new_domain = (data.get("domain") or "").strip() or domain
     if not new_access:
         return None
-    return {"accessToken": new_access, "refreshToken": new_refresh, "domain": new_domain}
+    return {"access_token": new_access, "refresh_token": new_refresh, "domain": new_domain}
 
 
 def _checkin_headers(acc, access_token, host):
     # 对齐原软件 La2/b.p() 的完整请求头
-    uid = acc.get("uid") or ""
-    enterprise = acc.get("enterpriseId") or ""
-    domain = acc.get("domain") or ""
+    uid = _g(acc, "user_id") or ""
+    enterprise = _g(acc, "enterprise_id") or ""
+    domain = _g(acc, "domain") or ""
     h = {
         "Content-Type": "application/json", "Accept": "application/json",
         "Accept-Encoding": "identity",
@@ -308,12 +329,15 @@ def _checkin_headers(acc, access_token, host):
 
 
 def _apply_refresh(acc):
-    # 用 refreshToken 换取新 token，并把最新凭证写回 acc（accessToken/refreshToken/domain）。
+    # 用 refreshToken 换取新 token，并把最新凭证写回 acc（access_token/refresh_token/domain，snake 优先）。
     refreshed = refresh_token(acc)
     if refreshed is None:
         return None
-    acc["accessToken"] = refreshed["accessToken"]
-    acc["refreshToken"] = refreshed["refreshToken"]
+    acc["access_token"] = refreshed["access_token"]
+    acc["refresh_token"] = refreshed["refresh_token"]
+    # 兼容旧 camelCase 字段名，同时维持 snake
+    acc["accessToken"] = refreshed["access_token"]
+    acc["refreshToken"] = refreshed["refresh_token"]
     if refreshed["domain"]:
         acc["domain"] = refreshed["domain"]
     return refreshed
@@ -330,7 +354,7 @@ def travel_checkin(acc, access_token, host):
     #     idle               -> config(GET) 取 locations -> depart(POST {"location_id": id}) 派 Buddy 出发
     #     daily_limit_reached -> 今日已达上限
     # 返回 (状态, 描述)：success / already / fail / skip（功能未开放）
-    label = acc.get("label", "WorkBuddy")
+    label = _g(acc, "label") or "WorkBuddy"
     headers = _checkin_headers(acc, access_token, host)
     try:
         # 1. 查询旅行状态
@@ -382,23 +406,23 @@ def travel_checkin(acc, access_token, host):
 def sign_one(acc):
     # 返回 (状态, 描述)：status 为 success / already / fail
     # 日签到与旅行签到（buddy/travel）独立执行：旅行失败不影响日签结果，有进账则合并上报
-    label = acc.get("label", "WorkBuddy")
-    access_token = _decrypt_token((acc.get("accessToken") or "").strip())
-    refresh = _decrypt_token((acc.get("refreshToken") or "").strip())
+    label = _g(acc, "label") or "WorkBuddy"
+    access_token = _decrypt_token((_g(acc, "access_token") or "").strip())
+    refresh = _decrypt_token((_g(acc, "refresh_token") or "").strip())
     if not access_token and not refresh:
         return "fail", label + ": 缺少 access/refresh token"
-    host = _host(acc.get("domain") or "")
+    host = _host(_g(acc, "domain") or "")
     try:
-        # accessToken 缺失：先刷新再签到
+        # access 缺失：先刷新再签到
         if not access_token:
             if _apply_refresh(acc) is None:
                 return "fail", label + ": 刷新 token 失败，需重新登录"
-            access_token = (acc.get("accessToken") or "").strip()
+            access_token = (_g(acc, "access_token") or "").strip()
 
         # 账号名优化：label 还是默认"WorkBuddy/WorkBuddyX"时，用凭证里的真实昵称替换
         # （原版 La2/b.t() 从登录响应解析 name/nickname/nickName，App 登录时已存入 nickname；
         #   更新会随 push_accounts 回写本地与 GitHub，下次运行起日志直接显示昵称）
-        nick = (acc.get("nickname") or "").strip()
+        nick = (_g(acc, "nickname") or "").strip()
         if nick and nick != label and (label.startswith("WorkBuddy") or label == "WorkBuddy"):
             acc["label"] = nick
             label = nick
@@ -411,9 +435,9 @@ def sign_one(acc):
         elif _is_success(obj):
             status, desc = "success", label + ": 签到成功"
         else:
-            # 首签失败且还有 refreshToken：很可能 accessToken 已过期，刷新后重试一次
+            # 首签失败且还有 refreshToken：很可能 access 已过期，刷新后重试一次
             if refresh and _apply_refresh(acc) is not None:
-                access_token = (acc.get("accessToken") or "").strip()
+                access_token = (_g(acc, "access_token") or "").strip()
                 code, obj, raw = _do_checkin(acc, access_token, host)
                 if _is_checked_in(obj):
                     status, desc = "already", label + ": 今日已签到"
@@ -638,7 +662,7 @@ def main():
     for acc in accounts:
         status, desc, earned = sign_one(acc)
         print("[日志] " + desc)
-        label = acc.get("label", "WorkBuddy")
+        label = _g(acc, "label") or "WorkBuddy"
         if status == "success":
             result = "成功"
             ok += 1
@@ -649,7 +673,7 @@ def main():
             result = "失败"
             fail += 1
         source = "手动" if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch" else "自动"
-        entries.append({"time": now, "account": label, "uid": acc.get("uid", ""),
+        entries.append({"time": now, "account": label, "uid": _g(acc, "user_id") or "",
                         "result": result, "detail": desc, "platform": "WorkBuddy",
                         "source": source, "earned": earned})
 

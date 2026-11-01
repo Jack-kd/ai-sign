@@ -67,18 +67,31 @@ object CredentialParser {
     fun parseWorkBuddyCredentials(text: String): WorkBuddyCredentials? {
         val map = parseFields(text)
         if (map.isEmpty()) return null
-        val accessToken = get(map, "accessToken", "access_token")
-        val refreshToken = get(map, "refreshToken", "refresh_token")
-        val uid = get(map, "uid", "UID", "userId", "userID", "UserID")
-        if (accessToken.isBlank() || refreshToken.isBlank() || uid.isBlank()) return null
+        // 对外统一为插件导出的 snake_case（access_token/refresh_token/user_id/expires_at/...），
+        // 同时兼容历史 camelCase / 服务端原始 camelCase。取值键顺序：snake 优先。
+        val accessToken = get(map, "access_token", "accessToken")
+        val refreshToken = get(map, "refresh_token", "refreshToken")
+        val uid = get(map, "user_id", "uid", "UID", "userId", "userID", "UserID")
+        if (accessToken.isBlank() || refreshToken.isBlank()) return null
+        val expiresAt = parseExpiry(map["expires_at"] ?: map["expiresAt"] ?: map["expires_in"])
         return WorkBuddyCredentials(
             accessToken = accessToken,
             refreshToken = refreshToken,
-            expiresAt = map["expiresAt"]?.toLongOrNull() ?: 0L,
+            expiresAt = expiresAt,
             domain = get(map, "domain"),
             uid = uid,
-            enterpriseId = get(map, "enterpriseId", "enterprise_id"),
+            enterpriseId = get(map, "enterprise_id", "enterpriseId"),
             nickname = get(map, "nickname", "nickName", "name")
         )
+    }
+
+    /**
+     * 解析过期时间（毫秒时间戳）。兼容三种形态：
+     * - 纯数字字符串毫秒；- 秒级时间戳（乘以 1000）；- 无法解析返回 0。
+     */
+    private fun parseExpiry(raw: String?): Long {
+        if (raw.isNullOrBlank()) return 0L
+        val v = raw.trim().toLongOrNull() ?: return 0L
+        return if (v > 0 && v < 10_000_000_000L) v * 1000L else v
     }
 }

@@ -42,7 +42,7 @@ data class UploadAccount(
         // 账号名优先云端 label（含手动重命名），其次用户名，最后 uid 后缀
         val name = (label ?: "").ifBlank { (nickname ?: "").ifBlank { "账号" + uid.takeLast(4) } }
         return TraeAccount(
-            id = "cloud_" + (uid.ifBlank { label }),
+            id = "cloud_" + (uid ?: "").ifBlank { label ?: "" },
             label = name,
             credentials = creds
         )

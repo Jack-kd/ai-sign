@@ -1010,12 +1010,7 @@ private fun showGithubDialog() {
                 runCatching { api.readRepoFile(config.repoOwner, config.repoName, config.credentialsPath) }.getOrNull()
             }
             if (raw != null) {
-                val list: List<UploadAccount> = try {
-                    val type = object : TypeToken<List<UploadAccount>>() {}.type
-                    Gson().fromJson<List<UploadAccount>>(raw, type) ?: emptyList()
-                } catch (e: Exception) {
-                    emptyList()
-                }
+                val list: List<UploadAccount> = parseCloudTrae(raw)
                 for (ua in list) {
                     val acc = ua.toTraeAccount()
                     // 云端 token 是密文：解密后存本地；解密失败（密钥不匹配）则跳过保留本地
@@ -1131,12 +1126,7 @@ private fun showGithubDialog() {
                 return@launch
             }
 
-            val cloudList: List<UploadAccount> = try {
-                val type = object : TypeToken<List<UploadAccount>>() {}.type
-                Gson().fromJson<List<UploadAccount>>(raw, type) ?: emptyList()
-            } catch (e: Exception) {
-                emptyList()
-            }
+            val cloudList: List<UploadAccount> = parseCloudTrae(raw)
 
             val remaining = cloudList.filterNot { it.uid == acc.credentials.uid }
             if (remaining.size == cloudList.size) {
@@ -1207,6 +1197,38 @@ private fun showGithubDialog() {
                         domain = field(arr, i, "domain", "domain"),
                         enterpriseId = field(arr, i, "enterprise_id", "enterpriseId"),
                         nickname = field(arr, i, "nickname", "nickname")
+                    )
+                )
+            }
+            out
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** 解析云端 TRAE 账号 JSON，null 安全（缺失字段返回空串，避免 Gson 给非空字段注入 null）。 */
+    private fun parseCloudTrae(raw: String): List<UploadAccount> {
+        fun field(arr: com.google.gson.JsonArray, i: Int, key: String): String {
+            return try {
+                val el = arr[i]
+                if (el is com.google.gson.JsonObject) {
+                    val v = el.get(key)
+                    if (v != null && !v.isJsonNull) v.asString else ""
+                } else ""
+            } catch (_: Exception) { "" }
+        }
+        return try {
+            val arr = com.google.gson.JsonParser.parseString(raw).asJsonArray
+            val out = ArrayList<UploadAccount>()
+            for (i in 0 until arr.size()) {
+                out.add(
+                    UploadAccount(
+                        label = field(arr, i, "label"),
+                        accessToken = field(arr, i, "accessToken"),
+                        refreshToken = field(arr, i, "refreshToken"),
+                        uid = field(arr, i, "uid"),
+                        deviceId = field(arr, i, "deviceId"),
+                        nickname = field(arr, i, "nickname")
                     )
                 )
             }
@@ -1597,8 +1619,7 @@ private fun showGithubDialog() {
             runOnUiThread {
                 // 1) 账号列表（解密云端凭证，解密失败跳过）
                 try {
-                    val type = object : TypeToken<List<UploadAccount>>() {}.type
-                    val list: List<UploadAccount> = Gson().fromJson(traeAccounts, type) ?: emptyList()
+                    val list: List<UploadAccount> = parseCloudTrae(traeAccounts ?: "")
                     for (ua in list) {
                         val acc = ua.toTraeAccount()
                         val at = CredentialCrypto.decrypt(acc.credentials.accessToken)

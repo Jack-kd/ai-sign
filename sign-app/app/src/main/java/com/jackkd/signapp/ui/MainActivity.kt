@@ -471,11 +471,9 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         refresh()
         if (config.verified && config.token.isNotBlank()) {
-            // fetchCloudAccounts 内部已拉取 TRAE/WorkBuddy 的账号与签到时间（静默刷新，不显示加载动画）
+            // fetchCloudAccounts 完成账号入库后，会串行触发积分/失效横幅/今日积分的刷新；
+            // 由 fetch 内部 finally 统一调用，确保失效判定用「最新云端解密密文」，避免并发读到旧 token 误报。
             fetchCloudAccounts()
-            checkLoginIssues()
-            refreshTodayCredits()
-            refreshAccountCredits()
         }
     }
 
@@ -1072,13 +1070,12 @@ private fun showGithubDialog() {
             showWbScheduleText()
             } finally {
                 hideLoading()
-                // 首次登录/切换账号（showLoading=true）：账号拉取入库后立即刷新积分与失效横幅，
-                // 换设备登录后无需再等 onResume 节流，直接显示各账号当前积分
-                if (showLoading) {
-                    refreshTodayCredits(true)
-                    refreshAccountCredits(true)
-                    checkLoginIssues()
-                }
+                // 账号拉取入库后串行刷新积分与失效横幅，保证用「最新云端解密密文」判失效，
+                // 避免 onResume 并发调用 refreshAccountCredits 时读到旧 token 造成失效误报。
+                // showLoading=true（首次登录/切账号）强制刷新；否则走 60s 节流避免频繁查询。
+                refreshTodayCredits(showLoading)
+                refreshAccountCredits(showLoading)
+                checkLoginIssues()
             }
         }
     }

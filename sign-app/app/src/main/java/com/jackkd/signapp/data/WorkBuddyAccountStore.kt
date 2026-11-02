@@ -25,7 +25,8 @@ class WorkBuddyAccountStore(context: Context) {
 
     @Synchronized
     fun save(accounts: List<WorkBuddyAccount>) {
-        sp.edit().putString("accounts", gson.toJson(accounts)).apply()
+        // commit() 同步落盘，避免 apply() 异步导致刚入库的账号/新 token 读不到
+        sp.edit().putString("accounts", gson.toJson(accounts)).commit()
     }
 
     /** 按 uid 查重（不存在返回 null） */

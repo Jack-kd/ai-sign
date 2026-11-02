@@ -22,7 +22,9 @@ class AccountStore(context: Context) {
 
     @Synchronized
     fun save(accounts: List<TraeAccount>) {
-        sp.edit().putString("accounts", gson.toJson(accounts)).apply()
+        // 用 commit() 同步落盘：addOrUpdate 后立即可被其它协程 load() 读到，
+        // 避免 apply() 异步写盘导致「刚 fetch 的云账号/新 token 读不到、失效误报」。
+        sp.edit().putString("accounts", gson.toJson(accounts)).commit()
     }
 
     /** 按 uid 查重（不存在返回 null） */

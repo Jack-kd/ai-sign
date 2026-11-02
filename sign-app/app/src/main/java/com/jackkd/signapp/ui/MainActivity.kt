@@ -55,6 +55,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
+/** TRAE 积分并发查询结果：账号 + 最终 Query + 是否经 refresh_token 续期 + 续期后的新凭证 */
+data class TraeQueryResult(
+    val id: String,
+    val label: String,
+    val acc: TraeAccount,
+    val r: CreditsQuery,
+    val newAccessToken: String,
+    val newRefreshToken: String,
+    val refreshed: Boolean
+)
+
 /** 按配色返回主题样式 */
 fun themeFor(theme: String): Int = when (theme) {
     "green" -> R.style.Theme_SignAppGreen
@@ -1459,20 +1470,42 @@ private fun showGithubDialog() {
             lifecycleScope.launch {
                 val jobs = traeList.map { acc ->
                     async(Dispatchers.IO) {
-                        Triple(acc.id, acc.label, TraeApi().queryCredits(
+                        val api = TraeApi()
+                        var r = api.queryCredits(
                             acc.credentials.accessToken, acc.credentials.uid, acc.credentials.deviceId
-                        ))
+                        )
+                        var newAccess = acc.credentials.accessToken
+                        var newRefresh = acc.credentials.refreshToken
+                        var refreshed = false
+                        // access_token 过期（AuthFailed）：用 refresh_token 续期换新后重查一次。
+                        // 换新成功且查分 Ok → 账号仍有效，不报失效（旧的本地 token 过期属正常，刷新续期即可）。
+                        if (r is CreditsQuery.AuthFailed && acc.credentials.refreshToken.isNotBlank()) {
+                            val ex = api.exchangeToken(acc.credentials.refreshToken)
+                            if (ex != null) {
+                                newAccess = ex.first
+                                newRefresh = ex.second
+                                refreshed = true
+                                r = api.queryCredits(newAccess, acc.credentials.uid, acc.credentials.deviceId)
+                            }
+                        }
+                        TraeQueryResult(acc.id, acc.label, acc, r, newAccess, newRefresh, refreshed)
                     }
                 }
                 jobs.forEach { job ->
-                    val (id, label, r) = job.await()
+                    val (id, label, acc, r, newAccess, newRefresh, refreshed) = job.await()
                     when (r) {
                         is CreditsQuery.Ok -> {
+                            // 若是靠续期才查分成功，写回新 token，后续判失效用新 token，避免再次误报
+                            if (refreshed) {
+                                accountStore.update(acc.copy(credentials = acc.credentials.copy(
+                                    accessToken = newAccess, refreshToken = newRefresh
+                                )))
+                            }
                             accountAdapter.setCredits(id, "当前积分 ${r.credits}")
                             removeLoginIssue("TRAE", label)
                         }
                         CreditsQuery.AuthFailed -> {
-                            // 凭证失效：卡片红色提示 + 加入失效集合（多个账号聚合显示，不互相顶掉）
+                            // 续期后仍认证失败：凭证确已失效
                             accountAdapter.setCredits(id, "当前积分 -- 凭证已失效", R.color.error_red, true)
                             addLoginIssue("TRAE", label)
                         }
@@ -1577,9 +1610,25 @@ private fun showGithubDialog() {
             val wbList = wbAccountStore.load()
             val traeJobs = traeList.map { acc ->
                 async(Dispatchers.IO) {
-                    Triple(acc.id, acc.label, TraeApi().queryCredits(
+                    val api = TraeApi()
+                    var r = api.queryCredits(
                         acc.credentials.accessToken, acc.credentials.uid, acc.credentials.deviceId
-                    ))
+                    )
+                    var newAccess = acc.credentials.accessToken
+                    var newRefresh = acc.credentials.refreshToken
+                    var refreshed = false
+                    // access_token 过期（AuthFailed）：用 refresh_token 续期换新后重查一次，
+                    // 换新成功则视为账号仍有效（避免把实际有效账号误报失效）
+                    if (r is CreditsQuery.AuthFailed && acc.credentials.refreshToken.isNotBlank()) {
+                        val ex = api.exchangeToken(acc.credentials.refreshToken)
+                        if (ex != null) {
+                            newAccess = ex.first
+                            newRefresh = ex.second
+                            refreshed = true
+                            r = api.queryCredits(newAccess, acc.credentials.uid, acc.credentials.deviceId)
+                        }
+                    }
+                    TraeQueryResult(acc.id, acc.label, acc, r, newAccess, newRefresh, refreshed)
                 }
             }
             val wbJobs = wbList.map { acc ->
@@ -1603,7 +1652,7 @@ private fun showGithubDialog() {
             // 成功判定：核心文件必须全部存在；积分查询不允许 Failed/null
             val filesOk = traeAccounts != null && wbAccounts != null && schedule != null && wbSchedule != null && logsRaw2 != null
             // wxpusher_config.json 可能从未配置（文件不存在=正常），不算失败
-            val creditsOk = traeCredits.all { it.third !is CreditsQuery.Failed } && wbCredits.all { it.third != null }
+            val creditsOk = traeCredits.all { it.r !is CreditsQuery.Failed } && wbCredits.all { it.third != null }
             if (!filesOk || !creditsOk) {
                 runOnUiThread {
                     Toast.makeText(this@MainActivity, "刷新失败：部分数据获取失败，页面未更新", Toast.LENGTH_LONG).show()
@@ -1696,9 +1745,14 @@ private fun showGithubDialog() {
                 } catch (e: Exception) { }
 
                 // 5) 账号积分回填（成功→移除失效标记；凭证失效→加入集合）
-                traeCredits.forEach { (id, label, r) ->
+                traeCredits.forEach { (id, label, acc, r, newAccess, newRefresh, refreshed) ->
                     when (r) {
                         is CreditsQuery.Ok -> {
+                            if (refreshed) {
+                                accountStore.update(acc.copy(credentials = acc.credentials.copy(
+                                    accessToken = newAccess, refreshToken = newRefresh
+                                )))
+                            }
                             accountAdapter.setCredits(id, "当前积分 ${r.credits}")
                             removeLoginIssue("TRAE", label)
                         }

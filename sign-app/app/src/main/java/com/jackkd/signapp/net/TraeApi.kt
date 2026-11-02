@@ -31,6 +31,39 @@ class TraeApi {
 
     private val json: MediaType = "application/json; charset=utf-8".toMediaType()
 
+    /**
+     * 用 refreshToken 换取新的 accessToken（对齐签到脚本 exchange_token）。
+     * 返回 (新 accessToken, 新 refreshToken)；refreshToken 失效/响应异常返回 null。
+     */
+    fun exchangeToken(refreshToken: String): Pair<String, String>? {
+        if (refreshToken.isBlank()) return null
+        return try {
+            val req = Request.Builder()
+                .url("https://api.trae.com.cn/cloudide/api/v3/trae/oauth/ExchangeToken")
+                .headers(Headers.Builder()
+                    .add("Content-Type", "application/json")
+                    .add("Accept", "application/json")
+                    .add("User-Agent", "Trae/0.1.52")
+                    .build())
+                .post("{\"ClientID\":\"en1oxy7wnw8j9n\",\"RefreshToken\":${
+                    com.google.gson.JsonPrimitive(refreshToken).toString()
+                },\"ClientSecret\":\"-\",\"UserID\":\"\"}".toRequestBody(json))
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (resp.code !in 200..299) return null
+                val raw = resp.body?.string() ?: return null
+                val obj = try { JsonParser.parseString(raw).asJsonObject } catch (e: Exception) { null } ?: return null
+                val result = obj.getAsJsonObject("Result") ?: obj.getAsJsonObject("result") ?: obj
+                val token = result.get("Token")?.asString?.trim() ?: ""
+                if (token.isEmpty()) return null
+                val newRefresh = result.get("RefreshToken")?.asString?.trim()?.ifEmpty { refreshToken } ?: refreshToken
+                token to newRefresh
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     fun queryCredits(accessToken: String, uid: String, deviceId: String): CreditsQuery {
         if (accessToken.isBlank()) return CreditsQuery.Failed
         return try {

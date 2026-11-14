@@ -46,6 +46,7 @@ class LoginActivity : AppCompatActivity() {
     private val serverRunning = AtomicBoolean(false)
     private var boundPort: Int = 0
     private var pendingDeviceId: String = ""
+    private var pendingMachineId: String = ""
 
     companion object {
         private const val CLIENT_ID = "en1oxy7wnw8j9n"
@@ -89,7 +90,7 @@ class LoginActivity : AppCompatActivity() {
         }
 
         val deviceId = generateDeviceId().also { pendingDeviceId = it }
-        val machineId = generateMachineId()
+        val machineId = generateMachineId().also { pendingMachineId = it }
         val loginTraceId = buildLoginTraceId(machineId, deviceId)
         val cbUrl = "http://127.0.0.1:$port/authorize"
 
@@ -178,7 +179,8 @@ class LoginActivity : AppCompatActivity() {
 
             val creds = TraeCredentialExtractor.extract(
                 rawData,
-                pendingDeviceId.ifBlank { TraeCredentialExtractor.generateDeviceId() }
+                pendingDeviceId.ifBlank { TraeCredentialExtractor.generateDeviceId() },
+                pendingMachineId
             )
             if (creds.isComplete()) {
                 saveAccount(creds)
@@ -272,11 +274,22 @@ class LoginActivity : AppCompatActivity() {
             Toast.makeText(this, "剪贴板为空，请先复制 TRAE 账号凭证", Toast.LENGTH_SHORT).show()
             return
         }
-        // 先识别 JSON / 多行 key:value 格式（详情页复制的两种格式），识别不出再走 URL/query 解析
-        val parsed = CredentialParser.parseTraeCredentials(text, TraeCredentialExtractor.generateDeviceId())
-        val creds = if (parsed != null && parsed.isComplete()) parsed else TraeCredentialExtractor.extract(text)
+        /**
+         * 先识别 JSON / 多行 key:value（详情页复制、模型中转复制的格式），
+         * 识别不出再回退到 URL/query 解析（浏览器回调地址那种）。
+         *
+         * 兜底的 deviceId 只在这份凭证自己没带 device_id 时才会用到；
+         * 从模型中转复制来的凭证带 machine_id，会原样保留下来。
+         */
+        val fallbackDeviceId = pendingDeviceId.ifBlank { TraeCredentialExtractor.generateDeviceId() }
+        val parsed = CredentialParser.parseTraeCredentials(text, fallbackDeviceId)
+        val creds = if (parsed != null && parsed.isComplete()) {
+            parsed
+        } else {
+            TraeCredentialExtractor.extract(text, fallbackDeviceId, pendingMachineId)
+        }
         if (!creds.isComplete()) {
-            tvStatus.text = "未能从剪贴板识别完整凭证。\n支持 JSON（{...}）或文本（accessToken: xxx ...）格式。\n请确认包含 accessToken / refreshToken / uid / deviceId。"
+            tvStatus.text = "未能从剪贴板识别完整凭证。\n支持 JSON（{...}）或文本（key: value）格式，\n字段名可用 access_token/refresh_token/uid/machine_id/device_id（模型中转格式）\n或 accessToken/refreshToken/uid/deviceId（旧格式）。"
             btnCopyStatus.visibility = View.VISIBLE
             return
         }
@@ -336,7 +349,8 @@ class LoginActivity : AppCompatActivity() {
                 refreshToken = it.credentials.refreshToken,
                 uid = it.credentials.uid,
                 deviceId = it.credentials.deviceId,
-                nickname = it.credentials.nickname
+                nickname = it.credentials.nickname,
+                machineId = it.credentials.machineId
             )
         }
         lifecycleScope.launch {

@@ -6,8 +6,12 @@ import org.json.JSONObject
 
 /**
  * 凭证文本解析器：同时兼容两种格式——
- * 1) JSON 对象：{"accessToken":"...","refreshToken":"...","uid":"...","deviceId":"..."}
+ * 1) JSON 对象：{"access_token":"...","refresh_token":"...","uid":"...","device_id":"..."}
  * 2) 多行 key: value：`accessToken: ...\nrefreshToken: ...`（详情页"复制文本凭证"的格式）
+ *
+ * 字段名的权威写法是「模型中转」插件的 snake_case（access_token / refresh_token /
+ * uid / machine_id / device_id）—— 那边是凭证的唯一来源，本应用负责接收。
+ * 历史驼峰写法继续接受，保证旧剪贴板内容、旧 trae_accounts.json 不失效。
  */
 object CredentialParser {
 
@@ -44,14 +48,23 @@ object CredentialParser {
     /**
      * 解析 TRAE 凭证；无法识别（不是 JSON 也不是 key:value）返回 null，
      * 调用方可回退到 TraeCredentialExtractor 的 URL/query 解析。
+     *
+     * 取值键顺序一律 **snake 优先**（模型中转的写法），再退回驼峰，
+     * 这样从模型中转复制出来的凭证可以原样粘进来。
      */
     fun parseTraeCredentials(text: String, fallbackDeviceId: String = ""): TraeCredentials? {
         val map = parseFields(text)
         if (map.isEmpty()) return null
-        val accessToken = get(map, "accessToken", "token", "access_token")
-        val refreshToken = get(map, "refreshToken", "refresh_token")
-        val uid = get(map, "uid", "UID", "userId", "userID", "UserID")
-        val deviceId = get(map, "deviceId", "deviceID", "device_id", "DeviceId").ifBlank { fallbackDeviceId }
+        val accessToken = get(map, "access_token", "accessToken", "token", "Token")
+        val refreshToken = get(map, "refresh_token", "refreshToken", "RefreshToken")
+        val uid = get(map, "uid", "UID", "user_id", "userId", "userID", "UserID")
+        // machine_id 只有模型中转有；本应用自己登录时也存，但老数据可能缺，允许为空。
+        val machineId = get(map, "machine_id", "machineId", "x_machine_id", "MachineId")
+        // device_id 缺失时才用调用方给的兜底值（登录流程里是本次生成的那个）。
+        // 注意：不校验格式 —— 上游实测接受任意 device_id（含 32 位 hex 与空值），
+        // 本地强行要求 14~20 位纯数字会把模型中转的凭证改坏。
+        val deviceId = get(map, "device_id", "deviceId", "deviceID", "DeviceId", "x_device_id")
+            .ifBlank { fallbackDeviceId }
         val nickname = get(map, "nickname", "nickName", "ScreenName", "screenName", "name")
         if (accessToken.isBlank() && refreshToken.isBlank()) return null
         return TraeCredentials(
@@ -59,7 +72,8 @@ object CredentialParser {
             refreshToken = refreshToken,
             uid = uid,
             deviceId = deviceId,
-            nickname = nickname
+            nickname = nickname,
+            machineId = machineId
         )
     }
 

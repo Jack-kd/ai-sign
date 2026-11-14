@@ -55,7 +55,8 @@ class UploadService(
                 UploadAccount(
                     label = it.label, accessToken = it.credentials.accessToken,
                     refreshToken = it.credentials.refreshToken, uid = it.credentials.uid,
-                    deviceId = it.credentials.deviceId, nickname = it.credentials.nickname
+                    deviceId = it.credentials.deviceId, nickname = it.credentials.nickname,
+                    machineId = it.credentials.machineId
                 )
             }
             files[ACCOUNTS_FILE] = gson.toJson(uploadList.map { enc(it) })

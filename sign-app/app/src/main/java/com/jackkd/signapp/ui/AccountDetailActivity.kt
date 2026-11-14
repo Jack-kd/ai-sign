@@ -90,24 +90,31 @@ class AccountDetailActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.btnRenameIcon).setOnClickListener { renameAccount(account) }
 
         findViewById<TextView>(R.id.btnCopyJson).setOnClickListener {
-            // JSON 格式：与云端 trae_accounts.json / 粘贴导入 兼容
+            /**
+             * JSON 凭证 —— 输出「模型中转」的标准格式。
+             *
+             * 那边是凭证的权威来源，剪贴板里的这段 JSON 可以直接被它的
+             * 账号凭证框接受：五个字段、snake_case、不带 label/nickname 包装。
+             * 本应用自己的「粘贴凭证」也认这一份（取值时 snake 优先），
+             * 所以复制一次两边都能用，这就是互通。
+             */
             val json = com.google.gson.JsonObject().apply {
-                addProperty("label", account.label)
-                addProperty("accessToken", c.accessToken)
-                addProperty("refreshToken", c.refreshToken)
+                addProperty("access_token", c.accessToken)
+                addProperty("refresh_token", c.refreshToken)
                 addProperty("uid", c.uid)
-                addProperty("deviceId", c.deviceId)
-                addProperty("nickname", c.nickname)
+                addProperty("machine_id", c.machineId)
+                addProperty("device_id", c.deviceId)
             }.toString()
-            copyToClipboard("凭证JSON", json, "已复制 JSON 凭证，可在登录页「粘贴凭证」导入")
+            copyToClipboard("凭证JSON", json, "已复制 JSON 凭证（模型中转标准格式），两边都能直接粘贴")
         }
         findViewById<TextView>(R.id.btnCopyText).setOnClickListener {
+            // 文本格式：同样用 snake_case 键名，逐行 key: value，便于人工核对
             val all = """
-账号: ${account.label}
-accessToken: ${c.accessToken}
-refreshToken: ${c.refreshToken}
+access_token: ${c.accessToken}
+refresh_token: ${c.refreshToken}
 uid: ${c.uid}
-deviceId: ${c.deviceId}
+machine_id: ${c.machineId}
+device_id: ${c.deviceId}
 """.trimIndent()
             copyToClipboard("凭证", all, "已复制文本凭证，可在登录页「粘贴凭证」导入")
         }

@@ -171,18 +171,39 @@ def _is_success(obj):
     return False
 
 
+def _pick(acc, *keys):
+    """
+    取账号字段，多个候选键名按顺序取第一个非空。
+
+    trae_accounts.json 历史上是驼峰（accessToken/refreshToken/deviceId），
+    现在对外统一成模型中转的 snake_case（access_token/refresh_token/
+    machine_id/device_id）。两种都要能读，否则改完字段名当天签到就会全挂。
+    """
+    for k in keys:
+        v = acc.get(k)
+        if v is not None:
+            v = str(v).strip()
+            if v:
+                return v
+    return ""
+
+
 def _generate_device_id():
     # 对齐原软件 d2/x.e()：15 位随机纯数字，范围 100000000000000 ~ 999999999999999
     return str(100000000000000 + random.randrange(0, 900000000000000))
 
 
 def _is_valid_device_id(value):
-    # 对齐原软件 d2/x.a()：14~20 位纯数字
-    if not value:
-        return False
-    if not (14 <= len(value) <= 20):
-        return False
-    return value.isdigit()
+    """
+    device_id 是否可用。
+
+    只要求非空。原来照抄原软件的「14~20 位纯数字」规则，但实测
+    /trae/api/v2/ug/checkin_credits/status 对 32 位 hex、15 位数字、
+    甚至空字符串都返回 200 —— 上游根本不校验格式。本地这条规则唯一
+    的效果，是把模型中转（machine_id + device_id 均为 32 位 hex）的
+    凭证判成非法、重新生成并回写覆盖掉，导致两边的设备指纹对不上。
+    """
+    return bool(value)
 
 
 def exchange_token(refresh_token):
@@ -322,26 +343,29 @@ def _attempt_checkin(access_token, uid, device_id):
 def sign_one(acc):
     # 返回 (状态, 描述)：status 为 success / already / fail
     # 描述会附带积分变化（签到前/后 status 响应里的 credits 字段）
-    label = acc.get("label", "账号")
-    access_token = _decrypt_token((acc.get("accessToken") or "").strip())
-    refresh_token = _decrypt_token((acc.get("refreshToken") or "").strip())
-    uid = (acc.get("uid") or "").strip()
-    device_id = (acc.get("deviceId") or "").strip()
+    label = _pick(acc, "label", "nickname") or "账号"
+    access_token = _decrypt_token(_pick(acc, "access_token", "accessToken"))
+    refresh_token = _decrypt_token(_pick(acc, "refresh_token", "refreshToken"))
+    uid = _pick(acc, "uid", "user_id")
+    device_id = _pick(acc, "device_id", "deviceId", "machine_id")
 
     if not access_token and not refresh_token:
         return "fail", label + ": 缺少 access/refresh token"
 
-    # 对齐原软件 d2/C0482C.g()：deviceId 需 14~20 位纯数字，否则重新生成 15 位并回写
+    # device_id 完全缺失时才生成一个（上游不校验格式，有值就原样用，绝不覆盖）
     if not _is_valid_device_id(device_id):
         device_id = _generate_device_id()
         acc["deviceId"] = device_id
+        acc["device_id"] = device_id
 
     try:
         # accessToken 缺失：先换新 token 再签到
         if not access_token:
             access_token, refresh_token = exchange_token(refresh_token)
             acc["accessToken"] = access_token
+            acc["access_token"] = access_token
             acc["refreshToken"] = refresh_token
+            acc["refresh_token"] = refresh_token
 
         # 账号名优化：label 还是自动生成的"账号X"时，用 GetUserInfo 的真实用户名替换
         # （更新会随 push_accounts 回写本地与 GitHub，下次运行起日志直接显示用户名）
@@ -364,7 +388,9 @@ def sign_one(acc):
             try:
                 access_token, refresh_token = exchange_token(refresh_token)
                 acc["accessToken"] = access_token
+                acc["access_token"] = access_token
                 acc["refreshToken"] = refresh_token
+                acc["refresh_token"] = refresh_token
                 status, desc, checkin_credits = _attempt_checkin(access_token, uid, device_id)
             except SystemExit:
                 pass  # 换 token 失败，保留首次结果
@@ -462,8 +488,21 @@ def push_accounts(accounts):
         out = []
         for a in accounts:
             b = dict(a)
-            b["accessToken"] = _encrypt_token(b.get("accessToken") or "")
-            b["refreshToken"] = _encrypt_token(b.get("refreshToken") or "")
+            # 双写：snake_case 是新的标准字段名（与模型中转一致），
+            # 驼峰保留一份，让还没更新的旧版 App 仍能正常读取。
+            at = _pick(b, "access_token", "accessToken")
+            rt = _pick(b, "refresh_token", "refreshToken")
+            b["access_token"] = _encrypt_token(at)
+            b["refresh_token"] = _encrypt_token(rt)
+            b["accessToken"] = b["access_token"]
+            b["refreshToken"] = b["refresh_token"]
+            dev = _pick(b, "device_id", "deviceId")
+            if dev:
+                b["device_id"] = dev
+                b["deviceId"] = dev
+            mid = _pick(b, "machine_id", "machineId")
+            if mid:
+                b["machine_id"] = mid
             out.append(b)
         content = json.dumps(out, ensure_ascii=False, indent=2)
         b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")

@@ -19,7 +19,11 @@ object TraeCredentialExtractor {
      * 解析完整回调 URL/文本。
      * @param fallbackDeviceId 当回调中无 deviceId 时使用的本地生成值
      */
-    fun extract(text: String, fallbackDeviceId: String = generateDeviceId()): TraeCredentials {
+    fun extract(
+        text: String,
+        fallbackDeviceId: String = generateDeviceId(),
+        fallbackMachineId: String = ""
+    ): TraeCredentials {
         val query = text.substringAfter("?", text).substringBefore("#")
         val params = mutableMapOf<String, String>()
         for (pair in query.split("&")) {
@@ -65,14 +69,18 @@ object TraeCredentialExtractor {
         if (nickname.isBlank()) nickname = params["nickname"] ?: params["screen_name"] ?: ""
 
         // deviceId：回调中一般没有，用本地生成的设备指纹
-        deviceId = params["deviceId"] ?: params["device_id"] ?: fallbackDeviceId
+        deviceId = params["device_id"] ?: params["deviceId"] ?: params["x_device_id"] ?: fallbackDeviceId
+        // machine_id：本次登录生成的那个（由调用方传入），回调里也可能带
+        val machineId =
+            params["machine_id"] ?: params["machineId"] ?: params["x_machine_id"] ?: fallbackMachineId
 
         return TraeCredentials(
             accessToken = accessToken,
             refreshToken = refreshToken,
             uid = uid,
             deviceId = deviceId,
-            nickname = nickname
+            nickname = nickname,
+            machineId = machineId
         )
     }
 

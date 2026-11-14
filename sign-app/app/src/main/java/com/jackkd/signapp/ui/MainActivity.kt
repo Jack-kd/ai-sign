@@ -1216,12 +1216,25 @@ private fun showGithubDialog() {
 
     /** 解析云端 TRAE 账号 JSON，null 安全（缺失字段返回空串，避免 Gson 给非空字段注入 null）。 */
     private fun parseCloudTrae(raw: String): List<UploadAccount> {
-        fun field(arr: com.google.gson.JsonArray, i: Int, key: String): String {
+        /**
+         * 取字段值，支持多个候选键名（按顺序取第一个非空）。
+         *
+         * 云端 trae_accounts.json 历史上是驼峰（accessToken…），
+         * 现在对外统一成模型中转的 snake_case（access_token…），
+         * 两种都要能读，否则同步回来的账号会变成空凭证。
+         */
+        fun field(arr: com.google.gson.JsonArray, i: Int, vararg keys: String): String {
             return try {
                 val el = arr[i]
                 if (el is com.google.gson.JsonObject) {
-                    val v = el.get(key)
-                    if (v != null && !v.isJsonNull) v.asString else ""
+                    for (key in keys) {
+                        val v = el.get(key)
+                        if (v != null && !v.isJsonNull) {
+                            val str = v.asString
+                            if (str.isNotBlank()) return str
+                        }
+                    }
+                    ""
                 } else ""
             } catch (_: Exception) { "" }
         }
@@ -1232,11 +1245,12 @@ private fun showGithubDialog() {
                 out.add(
                     UploadAccount(
                         label = field(arr, i, "label"),
-                        accessToken = field(arr, i, "accessToken"),
-                        refreshToken = field(arr, i, "refreshToken"),
-                        uid = field(arr, i, "uid"),
-                        deviceId = field(arr, i, "deviceId"),
-                        nickname = field(arr, i, "nickname")
+                        accessToken = field(arr, i, "access_token", "accessToken"),
+                        refreshToken = field(arr, i, "refresh_token", "refreshToken"),
+                        uid = field(arr, i, "uid", "user_id"),
+                        deviceId = field(arr, i, "device_id", "deviceId"),
+                        nickname = field(arr, i, "nickname"),
+                        machineId = field(arr, i, "machine_id", "machineId")
                     )
                 )
             }

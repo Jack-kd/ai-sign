@@ -41,11 +41,16 @@ import com.jackkd.signapp.data.TraeAccount
 import com.jackkd.signapp.data.UploadAccount
 import com.jackkd.signapp.data.UploadWorkBuddyAccount
 import com.jackkd.signapp.data.WorkBuddyAccount
+import com.jackkd.signapp.data.QoderCnAccount
+import com.jackkd.signapp.data.QoderCnAccountStore
+import com.jackkd.signapp.data.QoderCnCredentials
+import com.jackkd.signapp.data.UploadQoderCnAccount
 import com.jackkd.signapp.data.WorkBuddyAccountStore
 import com.jackkd.signapp.data.WorkBuddyCredentials
 import com.jackkd.signapp.net.CredentialCrypto
 import com.jackkd.signapp.net.CreditsQuery
 import com.jackkd.signapp.net.GithubApi
+import com.jackkd.signapp.net.QoderCnApi
 import com.jackkd.signapp.net.TraeApi
 import com.jackkd.signapp.net.UploadService
 import com.jackkd.signapp.net.WorkBuddyApi
@@ -119,13 +124,17 @@ fun animateMainTheme(activity: android.app.Activity) {
     val dark = (activity.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
             android.content.res.Configuration.UI_MODE_NIGHT_YES
     val (s, e) = themeGrad(main.config.getColorTheme(), dark)
-    listOf(R.id.mainTopBar, R.id.btnLoginTrae, R.id.btnTriggerTrae, R.id.btnLoginWorkBuddy, R.id.btnTriggerWb).forEach { id ->
+    listOf(R.id.mainTopBar, R.id.btnLoginTrae, R.id.btnTriggerTrae, R.id.btnLoginWorkBuddy, R.id.btnTriggerWb, R.id.btnLoginQoderCn, R.id.btnTriggerQc).forEach { id ->
         activity.findViewById<android.view.View>(id)?.let {
             animateGradient(it, s, e, if (id == R.id.mainTopBar) 0f else 8f)
         }
     }
     // 平台切换按钮：只动画当前选中的那个（未选中的保持 tab_unselected 白色，避免"变绿又变白"）
-    val tabId = if (main.currentTab == "TRAE") R.id.tabTrae else R.id.tabWorkBuddy
+    val tabId = when (main.currentTab) {
+        "TRAE" -> R.id.tabTrae
+        "WorkBuddy" -> R.id.tabWorkBuddy
+        else -> R.id.tabQoderCn
+    }
     activity.findViewById<android.view.View>(tabId)?.let { animateGradient(it, s, e, 8f) }
 }
 
@@ -164,21 +173,28 @@ class MainActivity : AppCompatActivity() {
     lateinit var config: GithubConfig
     private lateinit var accountStore: AccountStore
     private lateinit var wbAccountStore: WorkBuddyAccountStore
+    private lateinit var qcAccountStore: QoderCnAccountStore
     private lateinit var logStore: LogStore
     private lateinit var accountAdapter: AccountAdapter
     private lateinit var wbAccountAdapter: WorkBuddyAccountAdapter
+    private lateinit var qcAccountAdapter: QoderCnAccountAdapter
 
     private lateinit var tvUser: TextView
     private lateinit var tvSchedule: TextView
     private lateinit var tvScheduleWb: TextView
+    private lateinit var tvScheduleQc: TextView
     private lateinit var tvAccountTitleTrae: TextView
     private lateinit var tvAccountTitleWb: TextView
+    private lateinit var tvAccountTitleQc: TextView
     private lateinit var rvAccounts: RecyclerView
     private lateinit var rvWbAccounts: RecyclerView
+    private lateinit var rvQcAccounts: RecyclerView
     private lateinit var pageTrae: View
     private lateinit var pageWb: View
+    private lateinit var pageQc: View
     private lateinit var tabTrae: TextView
     private lateinit var tabWb: TextView
+    private lateinit var tabQc: TextView
 
     private var githubDialog: AlertDialog? = null
     var currentTab: String = "TRAE"
@@ -198,23 +214,30 @@ class MainActivity : AppCompatActivity() {
 
         accountStore = AccountStore(this)
         wbAccountStore = WorkBuddyAccountStore(this)
+        qcAccountStore = QoderCnAccountStore(this)
         logStore = LogStore(this)
 
         tvUser = findViewById(R.id.tvUser)
         tvSchedule = findViewById(R.id.tvSchedule)
         tvScheduleWb = findViewById(R.id.tvScheduleWorkBuddy)
+        tvScheduleQc = findViewById(R.id.tvScheduleQoderCn)
         tvAccountTitleTrae = findViewById(R.id.tvAccountTitleTrae)
         tvAccountTitleWb = findViewById(R.id.tvAccountTitleWb)
+        tvAccountTitleQc = findViewById(R.id.tvAccountTitleQc)
         rvAccounts = findViewById(R.id.rvAccounts)
         rvWbAccounts = findViewById(R.id.rvWorkBuddyAccounts)
+        rvQcAccounts = findViewById(R.id.rvQoderCnAccounts)
         pageTrae = findViewById(R.id.pageTrae)
         pageWb = findViewById(R.id.pageWorkBuddy)
+        pageQc = findViewById(R.id.pageQoderCn)
         tabTrae = findViewById(R.id.tabTrae)
         tabWb = findViewById(R.id.tabWorkBuddy)
+        tabQc = findViewById(R.id.tabQoderCn)
 
         // 下拉刷新：两页共用"全成功才提交"的刷新逻辑
         setupPullRefresh(findViewById(R.id.swipeTrae))
         setupPullRefresh(findViewById(R.id.swipeWb))
+        setupPullRefresh(findViewById(R.id.swipeQc))
 
         accountAdapter = AccountAdapter(
             onDetail = { acc -> openDetail(acc) },
@@ -230,22 +253,35 @@ class MainActivity : AppCompatActivity() {
         rvWbAccounts.layoutManager = LinearLayoutManager(this)
         rvWbAccounts.adapter = wbAccountAdapter
 
+        qcAccountAdapter = QoderCnAccountAdapter(
+            onDetail = { acc -> openQcDetail(acc) },
+            onDelete = { acc -> confirmDeleteQoderCn(acc) }
+        )
+        rvQcAccounts.layoutManager = LinearLayoutManager(this)
+        rvQcAccounts.adapter = qcAccountAdapter
+
         findViewById<TextView>(R.id.btnLoginTrae).setOnClickListener {
             startActivity(Intent(this, LoginActivity::class.java))
         }
         findViewById<TextView>(R.id.btnLoginWorkBuddy).setOnClickListener {
             startActivity(Intent(this, WorkBuddyLoginActivity::class.java))
         }
+        findViewById<TextView>(R.id.btnLoginQoderCn).setOnClickListener {
+            startActivity(Intent(this, QoderCnLoginActivity::class.java))
+        }
         findViewById<TextView>(R.id.btnTriggerTrae).setOnClickListener { showCheckinConfirmDialog("TRAE") }
         findViewById<TextView>(R.id.btnTriggerWb).setOnClickListener { showCheckinConfirmDialog("WorkBuddy") }
+        findViewById<TextView>(R.id.btnTriggerQc).setOnClickListener { showCheckinConfirmDialog("QoderCn") }
 
         // 各平台时间行旁的"设置"：单独设置该平台签到时间
         findViewById<TextView>(R.id.btnSetTraeSchedule).setOnClickListener { showSingleScheduleDialog("TRAE") }
         findViewById<TextView>(R.id.btnSetWbSchedule).setOnClickListener { showSingleScheduleDialog("WorkBuddy") }
+        findViewById<TextView>(R.id.btnSetQcSchedule).setOnClickListener { showSingleScheduleDialog("QoderCn") }
 
         // 标签页切换
         tabTrae.setOnClickListener { switchTab("TRAE") }
         tabWb.setOnClickListener { switchTab("WorkBuddy") }
+        tabQc.setOnClickListener { switchTab("QoderCn") }
 
         // ⚙️ 设置菜单（仿微信"+"弹出）
         findViewById<TextView>(R.id.btnSettings).setOnClickListener { showSettingsMenu() }
@@ -285,27 +321,23 @@ class MainActivity : AppCompatActivity() {
         showGithubDialog()
     }
 
-    /** 切换 TRAE / WorkBuddy 标签页 */
+    /** 切换 TRAE / WorkBuddy / Qoder 中国版 标签页 */
     private fun switchTab(tab: String) {
         currentTab = tab
-        val isTrae = tab == "TRAE"
-        pageTrae.visibility = if (isTrae) View.VISIBLE else View.GONE
-        pageWb.visibility = if (isTrae) View.GONE else View.VISIBLE
+        pageTrae.visibility = if (tab == "TRAE") View.VISIBLE else View.GONE
+        pageWb.visibility = if (tab == "WorkBuddy") View.VISIBLE else View.GONE
+        pageQc.visibility = if (tab == "QoderCn") View.VISIBLE else View.GONE
 
-        if (isTrae) {
-            tabTrae.setBackgroundResource(R.drawable.tab_selected)
-            tabTrae.setTextColor(resources.getColor(R.color.white, null))
-            tabTrae.setTypeface(tabTrae.typeface, android.graphics.Typeface.BOLD)
-            tabWb.setBackgroundResource(R.drawable.tab_unselected)
-            tabWb.setTextColor(resources.getColor(R.color.gray, null))
-            tabWb.setTypeface(tabWb.typeface, android.graphics.Typeface.NORMAL)
-        } else {
-            tabWb.setBackgroundResource(R.drawable.tab_selected)
-            tabWb.setTextColor(resources.getColor(R.color.white, null))
-            tabWb.setTypeface(tabWb.typeface, android.graphics.Typeface.BOLD)
-            tabTrae.setBackgroundResource(R.drawable.tab_unselected)
-            tabTrae.setTextColor(resources.getColor(R.color.gray, null))
-            tabTrae.setTypeface(tabTrae.typeface, android.graphics.Typeface.NORMAL)
+        val tabs = listOf(
+            Triple("TRAE", tabTrae, R.id.tabTrae),
+            Triple("WorkBuddy", tabWb, R.id.tabWorkBuddy),
+            Triple("QoderCn", tabQc, R.id.tabQoderCn)
+        )
+        for ((name, view, _) in tabs) {
+            val active = name == tab
+            view.setBackgroundResource(if (active) R.drawable.tab_selected else R.drawable.tab_unselected)
+            view.setTextColor(resources.getColor(if (active) R.color.white else R.color.gray, null))
+            view.setTypeface(view.typeface, if (active) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
         }
     }
 
@@ -345,16 +377,17 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * 签到确认弹窗（美化：浅渐变 + 图标标题 + 双按钮）。
-     * @param platform null = 一键签到（双平台）；"TRAE"/"WorkBuddy" = 单平台立即签到
+     * @param platform null = 一键签到（三平台）；"TRAE"/"WorkBuddy"/"QoderCn" = 单平台立即签到
      */
     private fun showCheckinConfirmDialog(platform: String? = null) {
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_confirm_checkin, null)
         val both = platform == null
-        view.findViewById<TextView>(R.id.tvConfirmTitle).text = if (both) "一键签到" else "立即签到$platform"
+        val displayName = if (platform == "QoderCn") "Qoder 中国版" else platform
+        view.findViewById<TextView>(R.id.tvConfirmTitle).text = if (both) "一键签到" else "立即签到$displayName"
         view.findViewById<TextView>(R.id.tvConfirmDesc).text = if (both)
-            "将立即触发 TRAE 与 WorkBuddy\n全部账号的云端签到，并等待执行完成。\n\n确定现在签到吗？"
+            "将立即触发 TRAE、WorkBuddy 与 Qoder 中国版\n全部账号的云端签到，并等待执行完成。\n\n确定现在签到吗？"
         else
-            "将立即触发 $platform 全部账号的云端签到\n并等待执行完成。\n\n确定现在签到吗？"
+            "将立即触发 $displayName 全部账号的云端签到\n并等待执行完成。\n\n确定现在签到吗？"
         val dlg = MaterialAlertDialogBuilder(this)
             .setView(view)
             .create()
@@ -367,37 +400,47 @@ class MainActivity : AppCompatActivity() {
         dlg.show()
     }
 
-    /** 单独设置某个平台的签到时间（后操作优先：只覆盖该平台，不影响另一平台） */
+    /** 单独设置某个平台的签到时间（后操作优先：只覆盖该平台，不影响其他平台） */
     private fun showSingleScheduleDialog(platform: String) {
-        val isTrae = platform == "TRAE"
-        val curHour = if (isTrae) config.spForScheduleHour() else config.spForWbScheduleHour()
-        val curMinute = if (isTrae) config.spForScheduleMinute() else config.spForWbScheduleMinute()
-        val h = curHour.let { if (it in 0..23) it else 0 }
+        val curHour = when (platform) {
+            "TRAE" -> config.spForScheduleHour()
+            "WorkBuddy" -> config.spForWbScheduleHour()
+            else -> config.spForQcScheduleHour()
+        }
+        val curMinute = when (platform) {
+            "TRAE" -> config.spForScheduleMinute()
+            "WorkBuddy" -> config.spForWbScheduleMinute()
+            else -> config.spForQcScheduleMinute()
+        }
+        // Qoder 中国版每日 10:00（UTC+8）刷新活动，默认给 11:00，避免抢在刷新前
+        val defHour = if (platform == "QoderCn") 11 else 0
+        val h = curHour.let { if (it in 0..23) it else defHour }
         val m = curMinute.let { if (it in 0..59) it else 30 }
         showSchedulePicker(h, m) { hh, mm -> saveSingleSchedule(platform, hh, mm) }
     }
 
     /** 保存单个平台的签到时间到云端与本地 */
     private fun saveSingleSchedule(platform: String, hour: Int, minute: Int) {
-        val isTrae = platform == "TRAE"
         lifecycleScope.launch {
             val api = GithubApi(config.username, config.token)
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
                     val svc = UploadService(api, config.repoOwner, config.repoName, config.workflowBranch)
-                    if (isTrae) svc.updateSchedule(ScheduleTime(hour, minute))
-                    else svc.updateWorkBuddySchedule(ScheduleTime(hour, minute))
+                    when (platform) {
+                        "TRAE" -> svc.updateSchedule(ScheduleTime(hour, minute))
+                        "WorkBuddy" -> svc.updateWorkBuddySchedule(ScheduleTime(hour, minute))
+                        else -> svc.updateQoderCnSchedule(ScheduleTime(hour, minute))
+                    }
                 }.getOrDefault(false)
             }
             if (ok) {
-                if (isTrae) {
-                    config.saveSchedule(hour, minute)
-                    showScheduleText()
-                } else {
-                    config.saveWbSchedule(hour, minute)
-                    showWbScheduleText()
+                when (platform) {
+                    "TRAE" -> { config.saveSchedule(hour, minute); showScheduleText() }
+                    "WorkBuddy" -> { config.saveWbSchedule(hour, minute); showWbScheduleText() }
+                    else -> { config.saveQcSchedule(hour, minute); showQcScheduleText() }
                 }
-                Toast.makeText(this@MainActivity, "$platform 签到时间已设置为 %02d:%02d".format(hour, minute), Toast.LENGTH_SHORT).show()
+                val name = if (platform == "QoderCn") "Qoder 中国版" else platform
+                Toast.makeText(this@MainActivity, "$name 签到时间已设置为 %02d:%02d".format(hour, minute), Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(this@MainActivity, "$platform 时间同步失败，请检查 GitHub 授权", Toast.LENGTH_LONG).show()
             }
@@ -444,7 +487,7 @@ class MainActivity : AppCompatActivity() {
         dlg.show()
     }
 
-    /** 同时保存 TRAE + WorkBuddy 的签到时间 */
+    /** 同时保存 TRAE + WorkBuddy + Qoder 中国版 的签到时间 */
     private fun saveBothSchedule(hour: Int, minute: Int) {
         lifecycleScope.launch {
             val api = GithubApi(config.username, config.token)
@@ -460,22 +503,35 @@ class MainActivity : AppCompatActivity() {
                         .updateWorkBuddySchedule(ScheduleTime(hour, minute))
                 }.getOrDefault(false)
             }
-            if (traeOk && wbOk) {
+            val qcOk = withContext(Dispatchers.IO) {
+                runCatching {
+                    UploadService(api, config.repoOwner, config.repoName, config.workflowBranch)
+                        .updateQoderCnSchedule(ScheduleTime(hour, minute))
+                }.getOrDefault(false)
+            }
+            if (traeOk && wbOk && qcOk) {
                 config.saveSchedule(hour, minute)
                 config.saveWbSchedule(hour, minute)
+                config.saveQcSchedule(hour, minute)
                 showScheduleText()
                 showWbScheduleText()
-                Toast.makeText(this@MainActivity, "签到时间已同步到 GitHub（两平台）", Toast.LENGTH_SHORT).show()
+                showQcScheduleText()
+                Toast.makeText(this@MainActivity, "签到时间已同步到 GitHub（三平台）", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(this@MainActivity, "同步失败：TRAE=${if (traeOk) "成功" else "失败"}，WorkBuddy=${if (wbOk) "成功" else "失败"}", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    this@MainActivity,
+                    "同步失败：TRAE=${if (traeOk) "成功" else "失败"}，WorkBuddy=${if (wbOk) "成功" else "失败"}，Qoder=${if (qcOk) "成功" else "失败"}",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
     }
 
-    /** 一键签到：同时触发 TRAE + WorkBuddy */
+    /** 一键签到：同时触发 TRAE + WorkBuddy + Qoder 中国版 */
     private fun triggerBothNow() {
         triggerNow("TRAE")
         triggerNow("WorkBuddy")
+        triggerNow("QoderCn")
     }
 
     override fun onResume() {
@@ -497,8 +553,10 @@ class MainActivity : AppCompatActivity() {
         }
         accountAdapter.submit(accountStore.load())
         wbAccountAdapter.submit(wbAccountStore.load())
+        qcAccountAdapter.submit(qcAccountStore.load())
         showScheduleText()
         showWbScheduleText()
+        showQcScheduleText()
     }
 
     private fun showScheduleText() {
@@ -518,6 +576,16 @@ class MainActivity : AppCompatActivity() {
             "WorkBuddy 签到时间: %02d:%02d".format(h, m)
         } else {
             "WorkBuddy 签到时间: 未设置"
+        }
+    }
+
+    private fun showQcScheduleText() {
+        val h = config.spForQcScheduleHour()
+        val m = config.spForQcScheduleMinute()
+        tvScheduleQc.text = if (h in 0..23 && m in 0..59) {
+            "Qoder 中国版签到时间: %02d:%02d".format(h, m)
+        } else {
+            "Qoder 中国版签到时间: 未设置"
         }
     }
 
@@ -836,8 +904,11 @@ private fun showGithubDialog() {
 
         for ((index, pair) in entries.withIndex()) {
             val (platform, label) = pair
-            val isTrae = platform != "WorkBuddy"
-            val platformColor = if (isTrae) 0xFF3B8BFF.toInt() else 0xFF4CD889.toInt()
+            val platformColor = when (platform) {
+                "WorkBuddy" -> 0xFF4CD889.toInt()
+                "QoderCn" -> 0xFFFF8A3D.toInt()
+                else -> 0xFF3B8BFF.toInt()
+            }
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = android.view.Gravity.CENTER_VERTICAL
@@ -846,7 +917,7 @@ private fun showGithubDialog() {
             }
             // 平台徽章：TRAE 蓝 / WorkBuddy 绿
             val badge = TextView(this).apply {
-                text = platform
+                text = if (platform == "QoderCn") "Qoder" else platform
                 setTextColor(android.graphics.Color.WHITE)
                 textSize = 11f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -874,8 +945,11 @@ private fun showGithubDialog() {
             row.addView(tip, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { leftMargin = dp(8) })
             row.setOnClickListener {
                 dlg.dismiss()
-                startActivity(Intent(this,
-                    if (isTrae) LoginActivity::class.java else WorkBuddyLoginActivity::class.java))
+                startActivity(Intent(this, when (platform) {
+                    "WorkBuddy" -> WorkBuddyLoginActivity::class.java
+                    "QoderCn" -> QoderCnLoginActivity::class.java
+                    else -> LoginActivity::class.java
+                }))
             }
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             if (index < entries.size - 1) lp.bottomMargin = dp(8)
@@ -917,7 +991,11 @@ private fun showGithubDialog() {
                 .distinctBy { "${it.platform}:${it.account}" }
             if (issues.isNotEmpty()) {
                 issues.forEach { log ->
-                    val platform = if (log.platform == "WorkBuddy") "WorkBuddy" else "TRAE"
+                    val platform = when {
+                        log.platform == "WorkBuddy" -> "WorkBuddy"
+                        log.platform == "QoderCn" -> "QoderCn"
+                        else -> "TRAE"
+                    }
                     addLoginIssue(platform, log.account)
                 }
             }
@@ -948,6 +1026,7 @@ private fun showGithubDialog() {
                 runOnUiThread {
                     tvAccountTitleTrae.text = "TRAE 账号"
                     tvAccountTitleWb.text = "WorkBuddy 账号"
+                    tvAccountTitleQc.text = "Qoder 中国版 账号"
                 }
                 return@launch
             }
@@ -964,15 +1043,17 @@ private fun showGithubDialog() {
                     val p = log.platform
                     val match = if (platform == "TRAE")
                         p.isNullOrBlank() || p.equals("TRAE", true)
-                    else p != null && p.equals("WorkBuddy", true)
+                    else p != null && p.equals(platform, true)
                     match && fmt.format(java.util.Date(log.time)) == today
                 }.sumOf { it.earned }
             }
             val trae = todayEarned("TRAE")
             val wb = todayEarned("WorkBuddy")
+            val qc = todayEarned("QoderCn")
             runOnUiThread {
                 tvAccountTitleTrae.text = "TRAE 账号 · 今日已领 $trae 分"
                 tvAccountTitleWb.text = "WorkBuddy 账号 · 今日已领 $wb 额度"
+                tvAccountTitleQc.text = "Qoder 中国版 账号 · 今日已领 $qc 积分"
             }
         }
     }
@@ -1013,6 +1094,15 @@ private fun showGithubDialog() {
             }
             if (wbSchedule != null) {
                 config.saveWbSchedule(wbSchedule.hour, wbSchedule.minute)
+            }
+
+            val qcSchedule = withContext(Dispatchers.IO) {
+                runCatching {
+                    UploadService(api, config.repoOwner, config.repoName, config.workflowBranch).fetchQoderCnSchedule()
+                }.getOrNull()
+            }
+            if (qcSchedule != null) {
+                config.saveQcSchedule(qcSchedule.hour, qcSchedule.minute)
             }
 
             val raw = withContext(Dispatchers.IO) {
@@ -1058,6 +1148,34 @@ private fun showGithubDialog() {
                 wbAccountAdapter.submit(wbAccountStore.load())
             }
 
+            val qcRaw = withContext(Dispatchers.IO) {
+                runCatching { api.readRepoFile(config.repoOwner, config.repoName, config.qcCredentialsPath) }.getOrNull()
+            }
+            if (qcRaw != null) {
+                val qcList = parseCloudQoderCn(qcRaw)
+                for (ua in qcList) {
+                    val at = CredentialCrypto.decrypt(ua.accessToken)
+                    val st = CredentialCrypto.decrypt(ua.securityOauthToken)
+                    val rt = CredentialCrypto.decrypt(ua.refreshToken)
+                    if (at.startsWith("v1:") || rt.startsWith("v1:")) continue
+                    val acc = QoderCnAccount(
+                        id = "cloud_qc_" + (ua.uid.ifBlank { ua.label }),
+                        label = ua.label.ifBlank { (ua.nickname.ifBlank { "Qoder 中国版" }) },
+                        credentials = QoderCnCredentials(
+                            accessToken = at,
+                            securityOauthToken = st,
+                            refreshToken = rt,
+                            uid = ua.uid,
+                            machineId = ua.machineId,
+                            nickname = ua.nickname,
+                            expiresAt = ua.expiresAt
+                        )
+                    )
+                    qcAccountStore.addOrUpdate(acc)
+                }
+                qcAccountAdapter.submit(qcAccountStore.load())
+            }
+
             // 拉取微信 ClawBot 推送配置（开关 + SPT），换设备登录后自动回显
             val wxRaw = withContext(Dispatchers.IO) {
                 runCatching {
@@ -1079,6 +1197,7 @@ private fun showGithubDialog() {
             accountAdapter.submit(accountStore.load())
             showScheduleText()
             showWbScheduleText()
+            showQcScheduleText()
             } finally {
                 hideLoading()
                 // 账号拉取入库后串行刷新积分与失效横幅，保证用「最新云端解密密文」判失效，
@@ -1102,6 +1221,10 @@ private fun showGithubDialog() {
 
     private fun openWbDetail(acc: WorkBuddyAccount) {
         startActivity(Intent(this, WorkBuddyAccountDetailActivity::class.java).putExtra("account_id", acc.id))
+    }
+
+    private fun openQcDetail(acc: QoderCnAccount) {
+        startActivity(Intent(this, QoderCnAccountDetailActivity::class.java).putExtra("account_id", acc.id))
     }
 
     private fun confirmDelete(acc: TraeAccount) {
@@ -1211,6 +1334,108 @@ private fun showGithubDialog() {
             out
         } catch (e: Exception) {
             emptyList()
+        }
+    }
+
+    private fun confirmDeleteQoderCn(acc: QoderCnAccount) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("删除 Qoder 中国版 账号")
+            .setMessage("确定删除 ${acc.label} 吗？\n\n将从本地和云端(GitHub)同时删除。")
+            .setPositiveButton("删除", { _, _ ->
+                if (!config.verified) {
+                    Toast.makeText(this, "请先完成 GitHub 授权", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                deleteQcAccountSync(acc)
+            })
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /**
+     * 解析云端 qodercn_accounts.json，兼容 snake_case 与历史 camelCase 字段名。
+     * 手动解析：避免缺失字段被 Gson 注入 null 触发 .isBlank() NPE。
+     */
+    private fun parseCloudQoderCn(raw: String): List<UploadQoderCnAccount> {
+        fun field(arr: com.google.gson.JsonArray, i: Int, vararg keys: String): String {
+            return try {
+                val el = arr[i]
+                if (el is com.google.gson.JsonObject) {
+                    for (key in keys) {
+                        val v = el.get(key)
+                        if (v != null && !v.isJsonNull) {
+                            val str = v.asString
+                            if (str.isNotBlank()) return str
+                        }
+                    }
+                    ""
+                } else ""
+            } catch (_: Exception) { "" }
+        }
+        return try {
+            val arr = com.google.gson.JsonParser.parseString(raw).asJsonArray
+            val out = ArrayList<UploadQoderCnAccount>()
+            for (i in 0 until arr.size()) {
+                val expRaw = field(arr, i, "expires_at", "expiresAt")
+                out.add(
+                    UploadQoderCnAccount(
+                        label = field(arr, i, "label"),
+                        accessToken = field(arr, i, "access_token", "accessToken"),
+                        securityOauthToken = field(arr, i, "security_oauth_token", "securityOauthToken"),
+                        refreshToken = field(arr, i, "refresh_token", "refreshToken"),
+                        uid = field(arr, i, "uid", "UID", "user_id", "userId"),
+                        machineId = field(arr, i, "machine_id", "machineId"),
+                        nickname = field(arr, i, "nickname", "nickName"),
+                        expiresAt = expRaw.toLongOrNull() ?: 0L
+                    )
+                )
+            }
+            out
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun deleteQcAccountSync(acc: QoderCnAccount) {
+        Toast.makeText(this, "正在从云端删除 ${acc.label}...", Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            val api = GithubApi(config.username, config.token)
+
+            val raw = withContext(Dispatchers.IO) {
+                runCatching { api.readRepoFile(config.repoOwner, config.repoName, config.qcCredentialsPath) }.getOrNull()
+            }
+            if (raw == null) {
+                qcAccountStore.remove(acc.id)
+                refresh()
+                Toast.makeText(this@MainActivity, "${acc.label} 已删除（云端无账号文件）", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+
+            val cloudList: List<UploadQoderCnAccount> = parseCloudQoderCn(raw)
+            val remaining = cloudList.filterNot { it.uid == acc.credentials.uid }
+            if (remaining.size == cloudList.size) {
+                qcAccountStore.remove(acc.id)
+                refresh()
+                Toast.makeText(this@MainActivity, "${acc.label} 已删除（云端未找到该账号）", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+
+            val error = withContext(Dispatchers.IO) {
+                runCatching {
+                    UploadService(api, config.repoOwner, config.repoName, config.workflowBranch)
+                        .uploadQoderCnAccounts(remaining)
+                }.getOrNull()
+            }
+            if (error != null) {
+                Toast.makeText(this@MainActivity, "云端删除失败：$error\n本地账号未删除", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+
+            qcAccountStore.remove(acc.id)
+            refresh()
+            refreshAccountCredits(true)
+            logStore.add(SignLog(System.currentTimeMillis(), acc.label, "删除成功", "已从本地和云端删除 Qoder 中国版"))
+            Toast.makeText(this@MainActivity, "${acc.label} 已从本地和云端删除", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1479,6 +1704,7 @@ private fun showGithubDialog() {
         lastCreditsRefresh = now
         val traeList = accountStore.load()
         val wbList = wbAccountStore.load()
+        val qcList = qcAccountStore.load()
 
         if (traeList.isNotEmpty()) {
             lifecycleScope.launch {
@@ -1549,6 +1775,30 @@ private fun showGithubDialog() {
                 }
             }
         }
+        if (qcList.isNotEmpty()) {
+            lifecycleScope.launch {
+                val jobs = qcList.map { acc ->
+                    async(Dispatchers.IO) {
+                        Triple(acc.id, acc.label, QoderCnApi().fetchBalance(acc.credentials))
+                    }
+                }
+                jobs.forEach { job ->
+                    val (id, label, v) = job.await()
+                    if (v != null) {
+                        qcAccountAdapter.setCredits(id, "当前积分 ${formatQcNum(v)}")
+                        removeLoginIssue("QoderCn", label)
+                    } else {
+                        qcAccountAdapter.setCredits(id, "当前积分 获取失败", R.color.gray)
+                    }
+                }
+            }
+        }
+    }
+
+    /** 积分显示：整数不带小数点，小数保留两位（与云端脚本 round(x,2) 一致） */
+    private fun formatQcNum(v: Double): String {
+        return if (v == Math.floor(v) && !v.isInfinite()) v.toLong().toString()
+        else String.format(java.util.Locale.US, "%.2f", v)
     }
 
     /** 解析工作流 yml 里的 cron（UTC）→ 本地（北京）签到时间 */
@@ -1566,6 +1816,7 @@ private fun showGithubDialog() {
         runOnUiThread {
             findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeTrae)?.isRefreshing = false
             findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeWb)?.isRefreshing = false
+            findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeQc)?.isRefreshing = false
         }
     }
 
@@ -1616,6 +1867,8 @@ private fun showGithubDialog() {
             val wbRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, config.wbCredentialsPath) }.getOrNull() }
             val schRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, config.workflowPath) }.getOrNull() }
             val wbSchRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, config.wbWorkflowPath) }.getOrNull() }
+            val qcRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, config.qcCredentialsPath) }.getOrNull() }
+            val qcSchRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, config.qcWorkflowPath) }.getOrNull() }
             val logRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, config.logPath) }.getOrNull() }
             val wxRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, UploadService.WXPUSHER_CONFIG_FILE) }.getOrNull() }
 
@@ -1653,20 +1906,32 @@ private fun showGithubDialog() {
                     ))
                 }
             }
+            val qcList = qcAccountStore.load()
+            val qcJobs = qcList.map { acc ->
+                async(Dispatchers.IO) {
+                    Triple(acc.id, acc.label, QoderCnApi().fetchBalance(acc.credentials))
+                }
+            }
 
             val traeAccounts = traeRaw.await()
             val wbAccounts = wbRaw.await()
             val schedule = schRaw.await()
             val wbSchedule = wbSchRaw.await()
+            val qcAccounts = qcRaw.await()
+            val qcSchedule = qcSchRaw.await()
             val logsRaw2 = logRaw.await()
             val wxConfig = wxRaw.await()
             val traeCredits = traeJobs.map { it.await() }
             val wbCredits = wbJobs.map { it.await() }
+            val qcCredits = qcJobs.map { it.await() }
 
             // 成功判定：核心文件必须全部存在；积分查询不允许 Failed/null
+            // qodercn 相关文件可能尚未创建（首次使用），不算刷新失败
             val filesOk = traeAccounts != null && wbAccounts != null && schedule != null && wbSchedule != null && logsRaw2 != null
             // wxpusher_config.json 可能从未配置（文件不存在=正常），不算失败
-            val creditsOk = traeCredits.all { it.r !is CreditsQuery.Failed } && wbCredits.all { it.third != null }
+            val creditsOk = traeCredits.all { it.r !is CreditsQuery.Failed } &&
+                wbCredits.all { it.third != null } &&
+                qcCredits.all { it.third != null }
             if (!filesOk || !creditsOk) {
                 runOnUiThread {
                     Toast.makeText(this@MainActivity, "刷新失败：部分数据获取失败，页面未更新", Toast.LENGTH_LONG).show()
@@ -1705,8 +1970,28 @@ private fun showGithubDialog() {
                         wbAccountStore.addOrUpdate(acc)
                     }
                 } catch (e: Exception) { }
+                try {
+                    val list: List<UploadQoderCnAccount> = parseCloudQoderCn(qcAccounts ?: "")
+                    for (ua in list) {
+                        val at = CredentialCrypto.decrypt(ua.accessToken)
+                        val st = CredentialCrypto.decrypt(ua.securityOauthToken)
+                        val rt = CredentialCrypto.decrypt(ua.refreshToken)
+                        if (at.startsWith("v1:") || rt.startsWith("v1:")) continue
+                        val acc = QoderCnAccount(
+                            id = "cloud_qc_" + (ua.uid.ifBlank { ua.label }),
+                            label = ua.label.ifBlank { (ua.nickname.ifBlank { "Qoder 中国版" }) },
+                            credentials = QoderCnCredentials(
+                                accessToken = at, securityOauthToken = st, refreshToken = rt,
+                                uid = ua.uid, machineId = ua.machineId, nickname = ua.nickname,
+                                expiresAt = ua.expiresAt
+                            )
+                        )
+                        qcAccountStore.addOrUpdate(acc)
+                    }
+                } catch (e: Exception) { }
                 accountAdapter.submit(accountStore.load())
                 wbAccountAdapter.submit(wbAccountStore.load())
+                qcAccountAdapter.submit(qcAccountStore.load())
 
                 // 2) 签到时间（cron → 本地时间）
                 try {
@@ -1715,8 +2000,12 @@ private fun showGithubDialog() {
                 try {
                     parseCron(wbSchedule ?: "")?.let { config.saveWbSchedule(it.hour, it.minute) }
                 } catch (e: Exception) { }
+                try {
+                    parseCron(qcSchedule ?: "")?.let { config.saveQcSchedule(it.hour, it.minute) }
+                } catch (e: Exception) { }
                 showScheduleText()
                 showWbScheduleText()
+                showQcScheduleText()
 
                 // 3) 推送配置回显（文件缺失=未配置，保持本地）
                 try {
@@ -1736,12 +2025,13 @@ private fun showGithubDialog() {
                             val p = log.platform
                             val match = if (platform == "TRAE")
                                 p.isNullOrBlank() || p.equals("TRAE", true)
-                            else p != null && p.equals("WorkBuddy", true)
+                            else p != null && p.equals(platform, true)
                             match && fmt.format(java.util.Date(log.time)) == today
                         }.sumOf { it.earned }
                     }
                     tvAccountTitleTrae.text = "TRAE 账号 · 今日已领 ${todayEarned("TRAE")} 分"
                     tvAccountTitleWb.text = "WorkBuddy 账号 · 今日已领 ${todayEarned("WorkBuddy")} 额度"
+                    tvAccountTitleQc.text = "Qoder 中国版 账号 · 今日已领 ${todayEarned("QoderCn")} 积分"
                     // 4b) 登录态失效（收集日志中全部命中账号加入集合，多个账号聚合显示）
                     val issues = logs.take(20)
                         .filter { log ->
@@ -1753,7 +2043,11 @@ private fun showGithubDialog() {
                         .distinctBy { "${it.platform}:${it.account}" }
                     if (issues.isNotEmpty()) {
                         issues.forEach { log ->
-                            addLoginIssue(if (log.platform == "WorkBuddy") "WorkBuddy" else "TRAE", log.account)
+                            addLoginIssue(when {
+                                log.platform == "WorkBuddy" -> "WorkBuddy"
+                                log.platform == "QoderCn" -> "QoderCn"
+                                else -> "TRAE"
+                            }, log.account)
                         }
                     }
                 } catch (e: Exception) { }
@@ -1781,6 +2075,12 @@ private fun showGithubDialog() {
                     if (v != null) {
                         wbAccountAdapter.setCredits(id, "当前积分 $v")
                         removeLoginIssue("WorkBuddy", label)
+                    } else { }
+                }
+                qcCredits.forEach { (id, label, v) ->
+                    if (v != null) {
+                        qcAccountAdapter.setCredits(id, "当前积分 ${formatQcNum(v)}")
+                        removeLoginIssue("QoderCn", label)
                     } else { }
                 }
 
@@ -2025,21 +2325,29 @@ private fun showGithubDialog() {
             Toast.makeText(this, "请先完成 GitHub 授权", Toast.LENGTH_SHORT).show()
             return
         }
-        val button = if (platform == "TRAE") R.id.btnTriggerTrae else R.id.btnTriggerWb
+        val button = when (platform) {
+            "TRAE" -> R.id.btnTriggerTrae
+            "WorkBuddy" -> R.id.btnTriggerWb
+            else -> R.id.btnTriggerQc
+        }
+        val displayName = if (platform == "QoderCn") "Qoder 中国版" else platform
         val tv = findViewById<TextView>(button)
         val original = tv.text.toString()
         val triggerTime = System.currentTimeMillis()
         tv.isEnabled = false
         startCheckinAnimation(tv)
-        Toast.makeText(this, "正在触发 $platform 立即签到...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "正在触发 $displayName 立即签到...", Toast.LENGTH_SHORT).show()
 
         lifecycleScope.launch {
             val err = withContext(Dispatchers.IO) {
                 try {
                     val api = GithubApi(config.username, config.token)
                     val service = UploadService(api, config.repoOwner, config.repoName, config.workflowBranch)
-                    if (platform == "TRAE") service.triggerTraeNow()
-                    else service.triggerWorkBuddyNow()
+                    when (platform) {
+                        "TRAE" -> service.triggerTraeNow()
+                        "WorkBuddy" -> service.triggerWorkBuddyNow()
+                        else -> service.triggerQoderCnNow()
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                     e.message ?: "触发异常"
@@ -2050,7 +2358,7 @@ private fun showGithubDialog() {
                     stopCheckinAnimation(tv)
                     tv.text = original
                     tv.isEnabled = true
-                    Toast.makeText(this@MainActivity, "$platform 触发失败：$err", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "$displayName 触发失败：$err", Toast.LENGTH_LONG).show()
                 }
                 return@launch
             }
@@ -2065,7 +2373,7 @@ private fun showGithubDialog() {
                 tv.text = original
                 tv.isEnabled = true
                 if (done) {
-                    Toast.makeText(this@MainActivity, "$platform 云端签到完成，可在「日志-拉取云端」查看结果", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "$displayName 云端签到完成，可在「日志-拉取云端」查看结果", Toast.LENGTH_LONG).show()
                     logStore.add(SignLog(System.currentTimeMillis(), platform, "云端完成", "云端签到已执行完成"))
                     // 延迟刷新今日积分与账号当前积分：云端脚本回写日志有几秒延迟，等写完再拉才准
                     window.decorView.postDelayed({
@@ -2073,7 +2381,7 @@ private fun showGithubDialog() {
                         refreshAccountCredits(true)
                     }, 3000)
                 } else {
-                    Toast.makeText(this@MainActivity, "$platform 云端签到仍在运行，请稍后在「日志-拉取云端」查看", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "$displayName 云端签到仍在运行，请稍后在「日志-拉取云端」查看", Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -2082,8 +2390,11 @@ private fun showGithubDialog() {
     /** 轮询 GitHub Actions 工作流 run，直到本次触发的签到完成（最多 5 分钟） */
     private fun waitCloudCheckinDone(platform: String, triggerTime: Long): Boolean {
         val api = GithubApi(config.username, config.token)
-        val file = if (platform == "TRAE") ".github/workflows/trae-checkin.yml"
-        else ".github/workflows/workbuddy-checkin.yml"
+        val file = when (platform) {
+            "TRAE" -> ".github/workflows/trae-checkin.yml"
+            "WorkBuddy" -> ".github/workflows/workbuddy-checkin.yml"
+            else -> ".github/workflows/qodercn-checkin.yml"
+        }
         val deadline = System.currentTimeMillis() + 300_000L
         while (System.currentTimeMillis() < deadline) {
             // 2 秒轮询：token 配额 5000 次/小时，5 分钟窗口内 150 次请求远低于限流；
@@ -2262,6 +2573,63 @@ class WorkBuddyAccountAdapter(
         tvCredits.setTextColor(if (clr != null && clr != 0) ContextCompat.getColor(holder.root.context, clr) else themePrimary(holder.root.context))
         if (expired[acc.id] == true) {
             // 凭证已失效（服务端拒绝）：优先显示"已过期"，覆盖 JWT exp 判断
+            tvExpiry.visibility = View.VISIBLE
+            tvExpiry.setTextColor(ContextCompat.getColor(holder.root.context, R.color.error_red))
+            tvExpiry.text = "凭证已过期"
+        } else {
+            renderTokenExpiry(tvExpiry, acc.credentials.accessToken)
+        }
+        holder.root.setOnClickListener { onDetail(acc) }
+        btnDel.setOnClickListener { onDelete(acc) }
+    }
+}
+
+/** Qoder 中国版账号列表适配器（结构与 WorkBuddyAccountAdapter 一致，凭证字段不同） */
+class QoderCnAccountAdapter(
+    private val onDetail: (QoderCnAccount) -> Unit,
+    private val onDelete: (QoderCnAccount) -> Unit
+) : RecyclerView.Adapter<QoderCnAccountAdapter.VH>() {
+
+    private var items: List<QoderCnAccount> = emptyList()
+    private val credits = HashMap<String, String>()
+    private val colors = HashMap<String, Int>()
+    private val expired = HashMap<String, Boolean>()
+
+    fun submit(list: List<QoderCnAccount>) {
+        items = list
+        notifyDataSetChanged()
+    }
+
+    fun setCredits(accountId: String, text: String, colorRes: Int = 0, tokenExpired: Boolean = false) {
+        credits[accountId] = text
+        colors[accountId] = colorRes
+        expired[accountId] = tokenExpired
+        val idx = items.indexOfFirst { it.id == accountId }
+        if (idx >= 0) notifyItemChanged(idx)
+    }
+
+    class VH(val root: android.view.View) : RecyclerView.ViewHolder(root)
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_account, parent, false)
+        return VH(view)
+    }
+
+    override fun getItemCount(): Int = items.size
+
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        val acc = items[position]
+        val tvLabel = holder.root.findViewById<TextView>(R.id.tvAccountLabel)
+        val tvSub = holder.root.findViewById<TextView>(R.id.tvAccountSub)
+        val tvCredits = holder.root.findViewById<TextView>(R.id.tvAccountCredits)
+        val tvExpiry = holder.root.findViewById<TextView>(R.id.tvTokenExpiry)
+        val btnDel = holder.root.findViewById<TextView>(R.id.btnDelete)
+        tvLabel.text = acc.label
+        tvSub.text = "UID: " + acc.credentials.uid.ifBlank { "未获取" }
+        tvCredits.text = credits[acc.id] ?: "当前积分 --"
+        val clr = colors[acc.id]
+        tvCredits.setTextColor(if (clr != null && clr != 0) ContextCompat.getColor(holder.root.context, clr) else themePrimary(holder.root.context))
+        if (expired[acc.id] == true) {
             tvExpiry.visibility = View.VISIBLE
             tvExpiry.setTextColor(ContextCompat.getColor(holder.root.context, R.color.error_red))
             tvExpiry.text = "凭证已过期"

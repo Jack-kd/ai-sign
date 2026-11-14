@@ -1,6 +1,7 @@
 package com.jackkd.signapp.net
 
 import com.jackkd.signapp.data.TraeCredentials
+import com.jackkd.signapp.data.QoderCnCredentials
 import com.jackkd.signapp.data.WorkBuddyCredentials
 import org.json.JSONObject
 
@@ -96,6 +97,42 @@ object CredentialParser {
             uid = uid,
             enterpriseId = get(map, "enterprise_id", "enterpriseId"),
             nickname = get(map, "nickname", "nickName", "name")
+        )
+    }
+
+    /**
+     * 解析 Qoder 中国版凭证。
+     *
+     * 字段与「模型中转」插件导出的完全一致，所以从插件复制出来的凭证可以原样粘进来：
+     * `access_token / security_oauth_token / refresh_token / uid / machine_id / nickname / expires_at`
+     *
+     * 两个要点：
+     * - `security_oauth_token` 与 `access_token` 同值，任一有值即可；这里双写补齐，
+     *   避免插件只写了其中一个时下游取不到。
+     * - `uid` 是必需项（加密推理缺它会报 missing field uid），没有 uid 直接判失败，
+     *   让用户看到明确原因，而不是存进去之后发消息才炸。
+     */
+    fun parseQoderCnCredentials(text: String): QoderCnCredentials? {
+        val map = parseFields(text)
+        if (map.isEmpty()) return null
+        val accessToken = get(map, "access_token", "accessToken", "token")
+        val securityToken = get(map, "security_oauth_token", "securityOauthToken")
+        // 两个字段同值，互相兜底
+        val token = accessToken.ifBlank { securityToken }
+        if (token.isBlank()) return null
+        val uid = get(map, "uid", "UID", "user_id", "userId", "userID", "UserID")
+        val refreshToken = get(map, "refresh_token", "refreshToken")
+        val machineId = get(map, "machine_id", "machineId", "x_machine_id", "MachineId")
+        val nickname = get(map, "nickname", "nickName", "name", "user_name", "userName")
+        val expiresAt = parseExpiry(map["expires_at"] ?: map["expiresAt"] ?: map["expires_in"])
+        return QoderCnCredentials(
+            accessToken = token,
+            securityOauthToken = token,
+            refreshToken = refreshToken,
+            uid = uid,
+            machineId = machineId,
+            nickname = nickname,
+            expiresAt = expiresAt
         )
     }
 

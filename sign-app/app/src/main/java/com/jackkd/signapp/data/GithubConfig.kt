@@ -104,9 +104,21 @@ class GithubConfig(context: Context) {
         sp.edit().putInt("wb_schedule_hour", hour).putInt("wb_schedule_minute", minute).apply()
     }
 
+    // ===== Qoder 中国版 签到时间存储（独立）=====
+    fun spForQcScheduleHour(): Int = sp.getInt("qc_schedule_hour", -1)
+    fun spForQcScheduleMinute(): Int = sp.getInt("qc_schedule_minute", -1)
+
+    fun saveQcSchedule(hour: Int, minute: Int) {
+        sp.edit().putInt("qc_schedule_hour", hour).putInt("qc_schedule_minute", minute).apply()
+    }
+
     // ===== WorkBuddy 云端文件路径 =====
     val wbCredentialsPath: String = "scripts/workbuddy_accounts.json"
     val wbWorkflowPath: String = ".github/workflows/workbuddy-checkin.yml"
+
+    // ===== Qoder 中国版 云端文件路径 =====
+    val qcCredentialsPath: String = "scripts/qodercn_accounts.json"
+    val qcWorkflowPath: String = ".github/workflows/qodercn-checkin.yml"
 
     // ===== 已登录 GitHub 账号列表（支持多账号快速切换） =====
     fun savedAccounts(): List<GithubSavedAccount> {

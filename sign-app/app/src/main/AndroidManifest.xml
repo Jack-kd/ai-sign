@@ -28,6 +28,9 @@
         <activity
             android:name=".ui.WorkBuddyAccountDetailActivity"
             android:exported="false" />
+        <activity
+            android:name=".ui.QoderCnAccountDetailActivity"
+            android:exported="false" />
 
         <activity
             android:name=".ui.LoginActivity"
@@ -36,6 +39,11 @@
 
         <activity
             android:name=".ui.WorkBuddyLoginActivity"
+            android:exported="false"
+            android:launchMode="singleTask" />
+
+        <activity
+            android:name=".ui.QoderCnLoginActivity"
             android:exported="false"
             android:launchMode="singleTask" />
 

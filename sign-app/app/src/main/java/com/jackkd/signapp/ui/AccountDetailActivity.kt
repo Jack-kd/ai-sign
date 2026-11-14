@@ -89,14 +89,17 @@ class AccountDetailActivity : AppCompatActivity() {
 
         findViewById<TextView>(R.id.btnRenameIcon).setOnClickListener { renameAccount(account) }
 
+        // 账号名要跟着凭证一起走：剪贴板里不带名字，粘到另一边就只能拿 uid 凑，
+        // 用户看到的是一串数字，认不出是哪个号。
+        val carriedName = nameForClipboard(account)
         findViewById<TextView>(R.id.btnCopyJson).setOnClickListener {
             /**
-             * JSON 凭证 —— 输出「模型中转」的标准格式。
+             * JSON 凭证 —— 输出「模型中转」的标准格式，外加 nickname。
              *
-             * 那边是凭证的权威来源，剪贴板里的这段 JSON 可以直接被它的
-             * 账号凭证框接受：五个字段、snake_case、不带 label/nickname 包装。
-             * 本应用自己的「粘贴凭证」也认这一份（取值时 snake 优先），
-             * 所以复制一次两边都能用，这就是互通。
+             * 前五个字段是凭证本体（snake_case，模型中转的权威写法），
+             * 第六个 nickname 只是「账号叫什么」这一条附带信息，不参与鉴权。
+             * 两边解析器都把它当可选字段：认得出就用，认不出就按原逻辑凑名字，
+             * 所以多带这一个字段不会让任何一侧拒收。
              */
             val json = com.google.gson.JsonObject().apply {
                 addProperty("access_token", c.accessToken)
@@ -104,22 +107,41 @@ class AccountDetailActivity : AppCompatActivity() {
                 addProperty("uid", c.uid)
                 addProperty("machine_id", c.machineId)
                 addProperty("device_id", c.deviceId)
+                if (carriedName.isNotBlank()) addProperty("nickname", carriedName)
             }.toString()
-            copyToClipboard("凭证JSON", json, "已复制 JSON 凭证（模型中转标准格式），两边都能直接粘贴")
+            copyToClipboard("凭证JSON", json, "已复制 JSON 凭证（含账号名），两边都能直接粘贴")
         }
         findViewById<TextView>(R.id.btnCopyText).setOnClickListener {
             // 文本格式：同样用 snake_case 键名，逐行 key: value，便于人工核对
-            val all = """
-access_token: ${c.accessToken}
-refresh_token: ${c.refreshToken}
-uid: ${c.uid}
-machine_id: ${c.machineId}
-device_id: ${c.deviceId}
-""".trimIndent()
-            copyToClipboard("凭证", all, "已复制文本凭证，可在登录页「粘贴凭证」导入")
+            val lines = mutableListOf(
+                "access_token: ${c.accessToken}",
+                "refresh_token: ${c.refreshToken}",
+                "uid: ${c.uid}",
+                "machine_id: ${c.machineId}",
+                "device_id: ${c.deviceId}",
+            )
+            if (carriedName.isNotBlank()) lines.add("nickname: $carriedName")
+            copyToClipboard("凭证", lines.joinToString("\n"), "已复制文本凭证（含账号名），可在登录页「粘贴凭证」导入")
         }
         // 拉取云端日志并过滤该账号
         loadAccountLogs(tvLogs, account)
+    }
+
+    /**
+     * 决定复制凭证时带走哪个名字。
+     *
+     * 优先用户手动起的 label（「我的小号」这种最有辨识度），
+     * 但「账号A/账号B」是 [AccountStore.nextLabel] 自动占位生成的，
+     * 它不是名字、只是序号 —— 带过去会把对面本来正确的名字覆盖掉，
+     * 所以这类占位名一律跳过，改用 TRAE 平台真名 nickname。
+     * 两个都没有就不带，让对方按自己的规则凑。
+     */
+    private fun nameForClipboard(account: TraeAccount): String {
+        val label = account.label.trim()
+        val nickname = account.credentials.nickname.trim()
+        val isPlaceholder = label.matches(Regex("账号[A-Z]"))
+        if (label.isNotBlank() && !isPlaceholder && label != account.credentials.uid) return label
+        return nickname
     }
 
     private fun copyToClipboard(label: String, text: String, toast: String) {
@@ -274,7 +296,8 @@ device_id: ${c.deviceId}
                         UploadAccount(
                             label = it.label, accessToken = it.credentials.accessToken,
                             refreshToken = it.credentials.refreshToken, uid = it.credentials.uid,
-                            deviceId = it.credentials.deviceId, nickname = it.credentials.nickname
+                            deviceId = it.credentials.deviceId, nickname = it.credentials.nickname,
+                            machineId = it.credentials.machineId
                         )
                     }
                     val err = withContext(Dispatchers.IO) {

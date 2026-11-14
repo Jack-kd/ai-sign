@@ -312,9 +312,17 @@ class LoginActivity : AppCompatActivity() {
         lifecycleScope.launch {
             // 用 addOrUpdate：同 uid 账号重复登录时只更新凭证，不重复添加
             val existing = accountStore.findByUid(creds.uid)
+            /**
+             * 名字取谁：已有的 label 优先（用户可能手动改过，不能被粘贴覆盖），
+             * 但「账号A/账号B」是自动占位名，不是用户起的 —— 那种情况下
+             * 剪贴板带过来的真名明显更好，用它顶掉占位名。
+             */
+            val oldLabel = existing?.label?.trim().orEmpty()
+            val placeholder = oldLabel.matches(Regex("账号[A-Z]"))
+            val keepOld = oldLabel.isNotBlank() && !placeholder && oldLabel != existing?.credentials?.uid
             val acc = TraeAccount(
                 id = existing?.id ?: (System.currentTimeMillis().toString() + (Math.random() * 1000).toInt()),
-                label = existing?.label ?: creds.nickname,
+                label = if (keepOld) oldLabel else creds.nickname,
                 credentials = creds
             )
             val saved = accountStore.addOrUpdate(acc)

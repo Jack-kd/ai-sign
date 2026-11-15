@@ -18,9 +18,9 @@ object AccountName {
 
     /** 这串看着像不像「真名字」：非空、≤40 字符、含文字、不是 UUID/占位串。 */
     private fun looksLikeRealName(value: String?): Boolean {
-        val text = String(value ?: "").trim()
+        val text = (value ?: "").trim()
         if (text.isEmpty() || text.length > 40) return false
-        if (text.none { it.isLetterOrDigit() }) return false
+        if (text.all { !it.isLetterOrDigit() }) return false
         if (!text.any { it.isLetter() }) return false
         if (Regex("^(id:|device|unknown|user|guest|null|undefined|n/a)", RegexOption.IGNORE_CASE)
                 .containsMatchIn(text)) return false
@@ -51,7 +51,7 @@ object AccountName {
 
     /** 脱敏手机号：前 3 位 + 星号 + 末 visibleTail 位（默认 2）。已是脱敏形态原样返回。 */
     private fun maskPhone(value: String?, visibleTail: Int = 2): String {
-        val text = String(value ?: "").trim()
+        val text = (value ?: "").trim()
         if (text.isEmpty()) return ""
         if (Regex("^\\d{3}\\*+\\d+$").containsMatchIn(text)) return text
         val digits = text.replace(Regex("\\D"), "")
@@ -64,7 +64,7 @@ object AccountName {
 
     /** 解析 JWT 的 payload（middle segment），base64url → JSON。解不开返回 null。 */
     private fun jwtPayload(token: String?): JSONObject? {
-        val text = String(token ?: "").trim()
+        val text = (token ?: "").trim()
         if (text.isBlank()) return null
         val parts = text.split('.')
         if (parts.size != 3) return null
@@ -90,7 +90,7 @@ object AccountName {
         if (fromJwt.isNotBlank()) return fromJwt
         val masked = maskPhone(phoneFromJwt(accessToken))
         if (masked.isNotBlank()) return masked
-        val tail = String(uid ?: "").trim()
+        val tail = (uid ?: "").trim()
         if (tail.isNotEmpty()) {
             return if (tail.length > 8) tail.takeLast(8) else tail
         }

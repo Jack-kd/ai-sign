@@ -1,6 +1,7 @@
 package com.jackkd.signapp.data
 
 import com.google.gson.annotations.SerializedName
+import com.jackkd.signapp.net.AccountName
 
 /**
  * TRAE 账号凭证 + 用户名。
@@ -82,8 +83,12 @@ data class UploadAccount(
             nickname = nickname ?: "",
             machineId = machineId ?: ""
         )
-        // 账号名优先云端 label（含手动重命名），其次用户名，最后 uid 后缀
-        val name = (label ?: "").ifBlank { (nickname ?: "").ifBlank { "账号" + uid.takeLast(4) } }
+        // 账号名优先云端 label（含手动重命名），其次用户名，再用插件同款规则从凭证推导，最后 uid 后缀
+        val name = (label ?: "").ifBlank {
+            (nickname ?: "").ifBlank {
+                AccountName.derive(accessToken, uid).ifBlank { "账号" + uid.takeLast(4) }
+            }
+        }
         return TraeAccount(
             id = "cloud_" + (uid ?: "").ifBlank { label ?: "" },
             label = name,

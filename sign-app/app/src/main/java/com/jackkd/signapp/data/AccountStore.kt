@@ -3,6 +3,7 @@ package com.jackkd.signapp.data
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.jackkd.signapp.net.AccountName
 
 /** 本地多账号存储（JSON 序列化到 SharedPreferences） */
 class AccountStore(context: Context) {
@@ -57,8 +58,12 @@ class AccountStore(context: Context) {
                 return updated
             }
         }
-        // 无 uid 或不存在，则新增：label 优先用户名，其次账号A/B/C
-        val label = account.label.ifBlank { account.credentials.nickname.ifBlank { nextLabel() } }
+        // 无 uid 或不存在，则新增：label 优先用户名，其次昵称，再用插件同款规则从凭证推导，最后账号A/B/C
+        val label = account.label.ifBlank {
+            account.credentials.nickname.ifBlank {
+                AccountName.derive(account.credentials.accessToken, account.credentials.uid).ifBlank { nextLabel() }
+            }
+        }
         val acc = account.copy(label = label)
         list.add(acc)
         save(list)

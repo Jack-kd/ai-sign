@@ -656,7 +656,6 @@ private fun showGithubDialog() {
         if (githubDialog?.isShowing == true) return
         val inflater = LayoutInflater.from(this)
         val view = inflater.inflate(R.layout.dialog_github, null)
-        val etUser = view.findViewById<TextInputEditText>(R.id.etUser)
         val etToken = view.findViewById<TextInputEditText>(R.id.etToken)
         val etRepo = view.findViewById<TextInputEditText>(R.id.etRepo)
         val tilToken = view.findViewById<TextInputLayout>(R.id.tilToken)
@@ -711,14 +710,13 @@ private fun showGithubDialog() {
                 row.layoutParams = lp
                 row.setOnClickListener {
                     // 点击已登录账号：直接填入并登录，无需再输入
-                    etUser.setText(acc.username)
                     etToken.setText(acc.token)
                     etRepo.setText("")
                     tilToken.error = null
                     containerSaved.visibility = View.GONE
                     iconSaved.text = "▽"
                     expandedSaved = false
-                    verifyGithub(acc.username, acc.token, "")
+                    verifyGithub(acc.token, "")
                 }
                 containerSaved.addView(row)
             }
@@ -732,15 +730,14 @@ private fun showGithubDialog() {
 
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val user = etUser.text?.toString()?.trim() ?: ""
                 val token = etToken.text?.toString()?.trim() ?: ""
                 val repoInput = etRepo.text?.toString()?.trim() ?: ""
-                if (user.isBlank() || token.isBlank()) {
-                    tilToken.error = "用户名和 Token 不能为空"
+                if (token.isBlank()) {
+                    tilToken.error = "Token 不能为空"
                     return@setOnClickListener
                 }
                 tilToken.error = null
-                verifyGithub(user, token, repoInput)
+                verifyGithub(token, repoInput)
             }
         }
         view.findViewById<View>(R.id.btnTokenHelp)?.setOnClickListener {
@@ -767,20 +764,20 @@ private fun showGithubDialog() {
         dlg.show()
     }
 
-    private fun verifyGithub(user: String, token: String, repoInput: String) {
+    private fun verifyGithub(token: String, repoInput: String) {
         val dlg = githubDialog ?: return
         dlg.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
         lifecycleScope.launch {
             try {
-                val api = GithubApi(user, token)
+                val api = GithubApi("", token)
                 val result = withContext(Dispatchers.IO) { api.verifyAndGetLogin() }
                 if (result == null) {
                     dlg.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
-                    tilError(dlg, "验证失败：用户名或 Token 无效")
+                    tilError(dlg, "验证失败：Token 无效")
                     return@launch
                 }
 
-                val prepared = withContext(Dispatchers.IO) { resolveAndPrepareRepo(api, user, repoInput) }
+                val prepared = withContext(Dispatchers.IO) { resolveAndPrepareRepo(api, result, repoInput) }
                 if (prepared == null) {
                     dlg.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
                     tilError(dlg, "仓库准备失败，请检查网络后重试")
@@ -789,7 +786,7 @@ private fun showGithubDialog() {
 
                 // 检测该 token 对仓库的关键权限
                 val perms = withContext(Dispatchers.IO) {
-                    api.checkPermissions(user, prepared.repoName)
+                    api.checkPermissions(result, prepared.repoName)
                 }
                 val allOk = perms.isNotEmpty() && perms.values.all { it.first }
 
@@ -800,23 +797,23 @@ private fun showGithubDialog() {
                         dlg.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
                         tilError(dlg, "token 权限不足，请重新获取（classic 需勾选 repo + workflow）")
                         Toast.makeText(this@MainActivity, "token 权限不足，登录失败，请重新获取", Toast.LENGTH_LONG).show()
-                        showPermissionReport(user, prepared.repoName, perms, false)
+                        showPermissionReport(result, prepared.repoName, perms, false)
                     }
                     return@launch
                 }
 
-                config.username = user
+                config.username = result
                 config.token = token
-                config.repoOwner = user
+                config.repoOwner = result
                 config.repoName = prepared.repoName
                 config.workflowBranch = prepared.defaultBranch
                 config.verified = true
                 // 保存到已登录账号列表，供下次 ▽ 快速切换
-                config.saveAccount(user, token)
+                config.saveAccount(result, token)
 
                 runOnUiThread {
                     dismissGithubDialog()
-                    Toast.makeText(this@MainActivity, "GitHub 验证成功，仓库: $user/${prepared.repoName}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "GitHub 验证成功，仓库: $result/${prepared.repoName}", Toast.LENGTH_LONG).show()
                     refresh()
                 }
                 // 首次连接云端：显示加载动画覆盖账号/时间拉取过程

@@ -2,7 +2,7 @@ name: Qoder 中国版 自动签到
 
 on:
   schedule:
-    - cron: '0 3 * * *'
+    - cron: '0 16 * * *'
   workflow_dispatch: {}
 
 permissions:

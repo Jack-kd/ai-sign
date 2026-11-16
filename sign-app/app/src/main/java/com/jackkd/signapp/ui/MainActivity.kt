@@ -1942,13 +1942,17 @@ private fun showGithubDialog() {
                 // 1) 账号列表（解密云端凭证，解密失败跳过）
                 try {
                     val list: List<UploadAccount> = parseCloudTrae(traeAccounts ?: "")
+                    val validUids = mutableSetOf<String>()
                     for (ua in list) {
                         val acc = ua.toTraeAccount()
                         val at = CredentialCrypto.decrypt(acc.credentials.accessToken)
                         val rt = CredentialCrypto.decrypt(acc.credentials.refreshToken)
                         if (at.startsWith("v1:") || rt.startsWith("v1:")) continue
+                        if (ua.uid.isNotBlank()) validUids.add(ua.uid)
                         accountStore.addOrUpdate(acc.copy(credentials = acc.credentials.copy(accessToken = at, refreshToken = rt)))
                     }
+                    // 删除同步：云端已经没有的 TRAE 账号，本地也一并清掉
+                    accountStore.retainUids(validUids)
                 } catch (e: Exception) { }
                 try {
                     val list: List<UploadWorkBuddyAccount> = parseCloudWorkBuddy(wbAccounts ?: "")

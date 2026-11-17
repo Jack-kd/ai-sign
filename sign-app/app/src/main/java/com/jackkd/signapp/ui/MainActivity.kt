@@ -2163,8 +2163,10 @@ private fun showGithubDialog() {
             // wxpusher_config.json 可能从未配置（文件不存在=正常），不算失败
             val creditsOk = traeCredits.all { it.r !is CreditsQuery.Failed } &&
                 wbCredits.all { it.third != null } &&
-                qcCredits.all { it.third != null } &&
-                loomyCredits.all { it.third != null }
+                qcCredits.all { it.third != null }
+            // 注：loomy 积分查询不加入 creditsOk 闸门。loomy 的 fetchCredits 依赖云端 access_token
+            // 是否对"积分接口"有效，查询失败只应在该账号的"当前积分"处显示失败，不应阻断整个刷新
+            // （否则 loomy 积分查不到会导致下拉刷新整页中止、账号列表也拉不下来）。
             if (!filesOk || !creditsOk) {
                 runOnUiThread {
                     Toast.makeText(this@MainActivity, "刷新失败：部分数据获取失败，页面未更新", Toast.LENGTH_LONG).show()

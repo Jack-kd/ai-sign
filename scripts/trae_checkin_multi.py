@@ -327,8 +327,15 @@ def _attempt_checkin(access_token, uid, device_id):
         return "already", "今日已签到", credits_before
 
     code, obj, raw = checkin_claim(access_token, uid, device_id)
-    if _first(obj, "code") == 9074:
-        time.sleep(8)
+    # 9074 = 服务端限流（"当前参与用户太多，请稍后再试"）。
+    # 多账号在同一台 runner 的出口 IP 上连续签到极易触发，属于临时性失败，
+    # 用指数退避多试几次通常能过。注意：这种情况换 token 没有意义，
+    # 换 token 本身也要打一次 ExchangeToken + 一次 claim，只会加重限流。
+    for i, wait in enumerate((8, 20, 45)):
+        if _first(obj, "code") != 9074:
+            break
+        print("[日志] 触发限流(code=9074)，等待 " + str(wait) + " 秒后重试（第 " + str(i + 1) + " 次）")
+        time.sleep(wait)
         code, obj, raw = checkin_claim(access_token, uid, device_id)
 
     if _is_success(obj):
@@ -337,6 +344,8 @@ def _attempt_checkin(access_token, uid, device_id):
         return "auth_fail", "凭证已失效", credits_before
     if _is_checked_in(obj):
         return "already", "今日已签到", credits_before
+    if _first(obj, "code") == 9074:
+        return "rate_limited", "服务端限流(code=9074)：当前参与用户太多，稍后再试", credits_before
     return "fail", "失败(HTTP " + str(code) + "): " + raw[:200], credits_before
 
 
@@ -384,6 +393,8 @@ def sign_one(acc):
         status, desc, checkin_credits = _attempt_checkin(access_token, uid, device_id)
 
         # 首签失败或凭证失效且还有 refreshToken：很可能 accessToken 已过期，换新后重试一次
+        # 注意：rate_limited（服务端限流 9074）不在这个分支里 —— 换 token 解决不了限流，
+        # 反而会多打 ExchangeToken + claim 两次请求，继续加重限流。限流交给主循环延后补签。
         if status in ("fail", "auth_fail") and refresh_token:
             try:
                 access_token, refresh_token = exchange_token(refresh_token)
@@ -608,28 +619,62 @@ def main():
 
     print("[信息] 共处理 " + str(len(accounts)) + " 个账号")
     original_content = json.dumps(accounts, ensure_ascii=False, sort_keys=True)
-    ok = 0
-    already = 0
-    fail = 0
     entries = []
-    now = int(time.time() * 1000)
-    for acc in accounts:
-        status, desc, earned = sign_one(acc)
-        print("[日志] " + desc)
+    entry_index = {}
+    rate_limited_keys = set()
+    source = "手动" if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch" else "自动"
+
+    def record(acc, status, desc, earned):
+        """写入（或覆盖）该账号的日志条目，返回 result 文案。补签时会覆盖第一轮的记录。"""
         label = acc.get("label", "账号")
         if status == "already":
             result = "已签到"
-            already += 1
         elif status == "success":
             result = "成功"
-            ok += 1
+        elif status == "rate_limited":
+            result = "限流"
         else:
             result = "失败"
-            fail += 1
-        source = "手动" if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch" else "自动"
-        entries.append({"time": now, "account": label, "uid": acc.get("uid", ""),
-                        "result": result, "detail": desc, "platform": "TRAE",
-                        "source": source, "earned": earned})
+        key = (label, str(acc.get("uid", "")))
+        entry = {"time": int(time.time() * 1000), "account": label, "uid": acc.get("uid", ""),
+                 "result": result, "detail": desc, "platform": "TRAE",
+                 "source": source, "earned": earned}
+        if key in entry_index:
+            entries[entry_index[key]] = entry
+        else:
+            entry_index[key] = len(entries)
+            entries.append(entry)
+        return result
+
+    for i, acc in enumerate(accounts):
+        # 账号之间拉开间隔：多个账号在同一出口 IP 上连续请求，是触发 9074 限流的主因
+        if i > 0:
+            gap = random.uniform(12, 20)
+            print("[日志] 等待 %.0f 秒后处理下一个账号（避免连续请求触发限流）" % gap)
+            time.sleep(gap)
+        status, desc, earned = sign_one(acc)
+        print("[日志] " + desc)
+        if record(acc, status, desc, earned) == "限流":
+            rate_limited_keys.add((acc.get("label", "账号"), str(acc.get("uid", ""))))
+
+    # 被限流的账号：等限流窗口过去后再补签一轮（9074 是临时性限流，值得再试）
+    if rate_limited_keys:
+        wait = 75
+        print("[日志] " + str(len(rate_limited_keys)) + " 个账号被服务端限流，等待 "
+              + str(wait) + " 秒后补签一轮")
+        time.sleep(wait)
+        for acc in accounts:
+            key = (acc.get("label", "账号"), str(acc.get("uid", "")))
+            if key not in rate_limited_keys:
+                continue
+            status, desc, earned = sign_one(acc)
+            print("[日志][补签] " + desc)
+            record(acc, status, desc, earned)
+
+    # 统一统计（补签结果已覆盖第一轮的限流记录）
+    ok = sum(1 for e in entries if e.get("result") == "成功")
+    already = sum(1 for e in entries if e.get("result") == "已签到")
+    fail = len(entries) - ok - already
 
     # 若纠正了 deviceId 或刷新了 token，把最新账号写回本地与 GitHub，供下次运行使用
     if json.dumps(accounts, ensure_ascii=False, sort_keys=True) != original_content:

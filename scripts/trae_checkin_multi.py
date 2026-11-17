@@ -406,7 +406,40 @@ def sign_one(acc):
             except SystemExit:
                 pass  # 换 token 失败，保留首次结果
 
-        # 凭证失效（换 token 后仍认证失败）：明确提示重新登录，App 会显示登录态失效横幅。
+        # 换 token 后仍认证失败：可能是内存凭证已过期（App 可能已经用新凭证更新过仓库）。
+        # 从仓库重读一份该账号的最新凭证（token + device_id）再判定一次，避免旧凭证误报失效。
+        if status == "auth_fail":
+            try:
+                latest = fetch_latest_accounts()
+                if latest:
+                    for la in latest:
+                        if str(_pick(la, "uid", "user_id")) != str(uid):
+                            continue
+                        l_at = _decrypt_token(_pick(la, "access_token", "accessToken"))
+                        l_rt = _decrypt_token(_pick(la, "refresh_token", "refreshToken"))
+                        l_dev = _pick(la, "device_id", "deviceId") or _pick(la, "machine_id")
+                        if l_at and l_at != access_token:
+                            print("[日志] 检测到内存凭证可能过期，改用仓库最新凭证复核 "
+                                  + str(label) + "（device_id 变化: "
+                                  + str(l_dev)[:10] + "...）")
+                            status, desc, checkin_credits = _attempt_checkin(
+                                l_at, uid, l_dev or device_id)
+                            # 最新凭证有效：同步回内存对象，随 push_accounts 写回保持一致
+                            if status in ("success", "already"):
+                                access_token = l_at
+                                acc["accessToken"] = l_at
+                                acc["access_token"] = l_at
+                                if l_rt:
+                                    acc["refreshToken"] = l_rt
+                                    acc["refresh_token"] = l_rt
+                                if l_dev:
+                                    acc["deviceId"] = l_dev
+                                    acc["device_id"] = l_dev
+                        break
+            except Exception as e:
+                print("[日志] 重读最新凭证复核失败: " + str(e))
+
+        # 凭证失效（换 token + 重读最新凭证后仍认证失败）：明确提示重新登录，App 会显示登录态失效横幅。
         # 注意：sign_one 末尾会统一拼接 label，这里不要再加 label，避免"M: M:"重复
         if status == "auth_fail":
             status = "fail"
@@ -434,6 +467,33 @@ def sign_one(acc):
         return "fail", label + ": " + str(e)
     except Exception as e:
         return "fail", label + ": 异常 " + str(e)
+
+
+def fetch_latest_accounts():
+    """从仓库重新拉取 trae_accounts.json 的最新凭证（用 GITHUB_TOKEN）。
+
+    场景：脚本在某个签到时刻用的是内存里的账号对象，若此前 App 已在仓库里更新过
+    该账号的凭证（换新 token / 改 device_id），内存里这份可能是过期的。认证失败时
+    先重读一份最新凭证再判定，能避免把「旧凭证已失效」误判成「账号凭证失效」。
+    返回 (accounts_list, 是否成功)；失败返回 None。
+    """
+    try:
+        repo = os.environ.get("GITHUB_REPOSITORY", "")
+        token = os.environ.get("GITHUB_TOKEN", "")
+        if not repo or "/" not in repo or not token:
+            return None
+        owner, reponame = repo.split("/", 1)
+        url = "https://api.github.com/repos/" + owner + "/" + reponame + "/contents/" + REMOTE_ACCOUNTS_FILE
+        req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token,
+                                                    "Accept": "application/vnd.github+json"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            obj = json.loads(resp.read().decode("utf-8", "replace"))
+        content = base64.b64decode(obj["content"]).decode("utf-8", "replace")
+        accs = json.loads(content)
+        return accs if isinstance(accs, list) else None
+    except Exception as e:
+        print("[日志] 重读云端最新账号失败: " + str(e))
+        return None
 
 
 def push_logs(entries):

@@ -112,6 +112,14 @@ class GithubConfig(context: Context) {
         sp.edit().putInt("qc_schedule_hour", hour).putInt("qc_schedule_minute", minute).apply()
     }
 
+    // ===== Loomy 签到时间存储（独立）=====
+    fun spForLoomyScheduleHour(): Int = sp.getInt("loomy_schedule_hour", -1)
+    fun spForLoomyScheduleMinute(): Int = sp.getInt("loomy_schedule_minute", -1)
+
+    fun saveLoomySchedule(hour: Int, minute: Int) {
+        sp.edit().putInt("loomy_schedule_hour", hour).putInt("loomy_schedule_minute", minute).apply()
+    }
+
     // ===== WorkBuddy 云端文件路径 =====
     val wbCredentialsPath: String = "scripts/workbuddy_accounts.json"
     val wbWorkflowPath: String = ".github/workflows/workbuddy-checkin.yml"
@@ -119,6 +127,10 @@ class GithubConfig(context: Context) {
     // ===== Qoder 中国版 云端文件路径 =====
     val qcCredentialsPath: String = "scripts/qodercn_accounts.json"
     val qcWorkflowPath: String = ".github/workflows/qodercn-checkin.yml"
+
+    // ===== Loomy 云端文件路径 =====
+    val loomyCredentialsPath: String = "scripts/loomy_accounts.json"
+    val loomyWorkflowPath: String = ".github/workflows/loomy-checkin.yml"
 
     // ===== 已登录 GitHub 账号列表（支持多账号快速切换） =====
     fun savedAccounts(): List<GithubSavedAccount> {

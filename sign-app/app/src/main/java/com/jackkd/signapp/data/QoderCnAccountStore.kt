@@ -3,6 +3,7 @@ package com.jackkd.signapp.data
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.jackkd.signapp.net.AccountName
 
 /**
  * Qoder 中国版本地多账号存储（独立 SharedPreferences）。
@@ -56,7 +57,11 @@ class QoderCnAccountStore(context: Context) {
                 return updated
             }
         }
-        val label = account.label.ifBlank { account.credentials.nickname.ifBlank { nextLabel() } }
+        val label = account.label.ifBlank {
+            account.credentials.nickname.ifBlank {
+                AccountName.derive(account.credentials.accessToken, account.credentials.uid).ifBlank { nextLabel() }
+            }
+        }
         val acc = account.copy(label = label)
         list.add(acc)
         save(list)

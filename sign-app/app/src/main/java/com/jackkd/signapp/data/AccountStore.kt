@@ -3,6 +3,7 @@ package com.jackkd.signapp.data
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.jackkd.signapp.net.AccountName
 
 /** 本地多账号存储（JSON 序列化到 SharedPreferences） */
 class AccountStore(context: Context) {
@@ -57,8 +58,12 @@ class AccountStore(context: Context) {
                 return updated
             }
         }
-        // 无 uid 或不存在，则新增：label 优先用户名，其次账号A/B/C
-        val label = account.label.ifBlank { account.credentials.nickname.ifBlank { nextLabel() } }
+        // 无 uid 或不存在，则新增：label 优先用户名，其次昵称，再用插件同款规则从凭证推导，最后账号A/B/C
+        val label = account.label.ifBlank {
+            account.credentials.nickname.ifBlank {
+                AccountName.derive(account.credentials.accessToken, account.credentials.uid).ifBlank { nextLabel() }
+            }
+        }
         val acc = account.copy(label = label)
         list.add(acc)
         save(list)
@@ -75,6 +80,19 @@ class AccountStore(context: Context) {
         val list = load()
         list.removeAll { it.id == id }
         save(list)
+    }
+
+    /**
+     * 删除同步：只保留 uid 在 validUids 里的本地云账号。
+     * 云端已删、本地却残留的账号（如插件/其它端删掉并同步了云端，软件在这里拉取）在这里被清掉。
+     * uid 为空或本地独有的账号：若 validUids 非空则视为云端没有，一并删除（软件账号以云端为准）。
+     */
+    @Synchronized
+    fun retainUids(validUids: Set<String>) {
+        if (validUids.isEmpty()) return  // 云端为空时不清理，避免误删全部
+        val list = load()
+        val kept = list.filter { it.credentials.uid in validUids }
+        if (kept.size != list.size) save(kept)
     }
 
     @Synchronized

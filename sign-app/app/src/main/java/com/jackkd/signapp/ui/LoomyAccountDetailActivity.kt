@@ -1,0 +1,282 @@
+package com.jackkd.signapp.ui
+
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.os.Bundle
+import android.text.SpannableString
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.textfield.TextInputEditText
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import com.jackkd.signapp.R
+import com.jackkd.signapp.data.CloudSignLog
+import com.jackkd.signapp.data.GithubConfig
+import com.jackkd.signapp.data.LoomyAccount
+import com.jackkd.signapp.data.LoomyAccountStore
+import com.jackkd.signapp.data.UploadLoomyAccount
+import com.jackkd.signapp.net.GithubApi
+import com.jackkd.signapp.net.UploadService
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+/** Loomy 账号详情：展示凭证 + 该账号的云端签到日志 */
+class LoomyAccountDetailActivity : AppCompatActivity() {
+
+    private val expanded = HashMap<String, Boolean>()
+    private var terminalColorWhite = 0
+    private var terminalColorYellow = 0
+    private var terminalColorOrange = 0
+    private var terminalColorGreen = 0
+    private var terminalColorRed = 0
+    private var terminalColorGray = 0
+    private var terminalColorCyan = 0
+    private var terminalColorPurple = 0
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        val cfg = GithubConfig(this)
+        setTheme(themeFor(cfg.getColorTheme()))
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_loomy_account_detail)
+        terminalColorWhite = ContextCompat.getColor(this, R.color.terminal_white)
+        terminalColorYellow = ContextCompat.getColor(this, R.color.terminal_yellow)
+        terminalColorOrange = ContextCompat.getColor(this, R.color.terminal_orange)
+        terminalColorGreen = ContextCompat.getColor(this, R.color.terminal_green)
+        terminalColorRed = ContextCompat.getColor(this, R.color.error_red)
+        terminalColorGray = ContextCompat.getColor(this, R.color.terminal_gray)
+        terminalColorCyan = ContextCompat.getColor(this, R.color.terminal_cyan)
+        terminalColorPurple = ContextCompat.getColor(this, R.color.terminal_purple)
+
+        val accountId = intent.getStringExtra("account_id") ?: ""
+        val account = LoomyAccountStore(this).load().find { it.id == accountId }
+        val tvLabel = findViewById<TextView>(R.id.tvLoomyDetailLabel)
+        val tvToken = findViewById<TextView>(R.id.tvLoomyAccessToken)
+        val tvUid = findViewById<TextView>(R.id.tvLoomyUserId)
+        val tvPhone = findViewById<TextView>(R.id.tvLoomyPhone)
+        val tvNickname = findViewById<TextView>(R.id.tvLoomyNickname)
+        val tvLogs = findViewById<TextView>(R.id.tvLoomyLogs)
+        if (account == null) {
+            tvLabel.text = "账号不存在"
+            return
+        }
+        val c = account.credentials
+        tvLabel.text = account.label
+        tvToken.text = c.accessToken.ifBlank { "（空）" }
+        tvUid.text = c.userId.ifBlank { "（空）" }
+        tvPhone.text = c.phone.ifBlank { "（空）" }
+        tvNickname.text = c.nickname.ifBlank { "（空）" }
+
+        expanded["access"] = false
+        setupCollapse("access", R.id.headerLoomyAccess, R.id.tvLoomyAccessToken, R.id.iconLoomyAccess)
+        setupCollapse("uid", R.id.headerLoomyUserId, R.id.tvLoomyUserId, R.id.iconLoomyUserId)
+        setupCollapse("phone", R.id.headerLoomyPhone, R.id.tvLoomyPhone, R.id.iconLoomyPhone)
+        setupCollapse("nickname", R.id.headerLoomyNickname, R.id.tvLoomyNickname, R.id.iconLoomyNickname)
+
+        findViewById<TextView>(R.id.btnLoomyRenameIcon).setOnClickListener { renameAccount(account) }
+
+        findViewById<TextView>(R.id.btnLoomyCopyJson).setOnClickListener {
+            val json = com.google.gson.JsonObject().apply {
+                addProperty("label", account.label)
+                addProperty("access_token", c.accessToken)
+                addProperty("user_id", c.userId)
+                addProperty("phone", c.phone)
+                addProperty("uid", c.userId)
+                addProperty("nickname", c.nickname)
+            }.toString()
+            copyToClipboard("Loomy凭证JSON", json, "已复制 JSON 凭证，可粘贴到插件导入")
+        }
+        findViewById<TextView>(R.id.btnLoomyCopyText).setOnClickListener {
+            val all = """
+账号: ${account.label}
+access_token: ${c.accessToken}
+user_id: ${c.userId}
+phone: ${c.phone}
+nickname: ${c.nickname}
+""".trimIndent()
+            copyToClipboard("Loomy凭证", all, "已复制文本凭证")
+        }
+        loadAccountLogs(tvLogs, account, tvNickname)
+    }
+
+    private fun copyToClipboard(label: String, text: String, toast: String) {
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText(label, text))
+        Toast.makeText(this, toast, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun setupCollapse(key: String, headerId: Int, contentId: Int, iconId: Int) {
+        val header = findViewById<View>(headerId)
+        val content = findViewById<View>(contentId)
+        val icon = findViewById<TextView>(iconId)
+        header.setOnClickListener {
+            val isExpanded = expanded[key] == true
+            expanded[key] = !isExpanded
+            content.visibility = if (isExpanded) View.GONE else View.VISIBLE
+            icon.text = if (isExpanded) "▸" else "▾"
+        }
+    }
+
+    /** 从云端 sign_logs.json 拉取日志，过滤出属于该账号的 Loomy 记录（uid 优先，旧日志无 uid 时匹配账号名/手机号/昵称） */
+    private fun loadAccountLogs(tvLogs: TextView, account: LoomyAccount, tvNickname: TextView) {
+        val tvMode = findViewById<TextView>(R.id.tvLoomyLogsMode)
+        val config = GithubConfig(this)
+        if (!config.verified || config.token.isBlank()) {
+            tvMode.text = "offline"
+            tvLogs.text = terminalLine("! 未授权 GitHub，无法获取云端日志", terminalColorYellow)
+            return
+        }
+        val label = account.label
+        val uid = account.credentials.userId
+        val phone = account.credentials.phone
+        val nickname = account.credentials.nickname
+        tvMode.text = "loading"
+        lifecycleScope.launch {
+            val raw = withContext(Dispatchers.IO) {
+                try {
+                    val api = GithubApi(config.username, config.token)
+                    api.readRepoFile(config.repoOwner, config.repoName, config.logPath)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            if (raw == null) {
+                tvMode.text = "error"
+                tvLogs.text = terminalLine("$ sign_logs.json 不存在或未运行过签到", terminalColorOrange)
+                return@launch
+            }
+            val list: List<CloudSignLog> = try {
+                val type = object : TypeToken<List<CloudSignLog>>() {}.type
+                Gson().fromJson<List<CloudSignLog>>(raw, type) ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+            val loomyLogs = list.filter { it.platform != null && it.platform.equals("Loomy", true) }
+            val related = loomyLogs.filter { log ->
+                if (uid.isNotBlank() && !log.uid.isNullOrBlank()) {
+                    log.uid.equals(uid, true)
+                } else {
+                    log.account.equals(label, true) ||
+                        (phone.isNotBlank() && log.account.equals(phone, true)) ||
+                        (nickname.isNotBlank() && log.account.equals(nickname, true))
+                }
+            }
+            val shown = related
+            if (shown.isEmpty()) {
+                tvMode.text = "empty"
+                tvLogs.text = terminalLine("$ 暂无该账号的签到记录", terminalColorOrange)
+                return@launch
+            }
+            tvMode.text = label
+            val sb = SpannableStringBuilder()
+            val total = shown.size
+            val manual = shown.count { it.source == "手动" }
+            val auto = total - manual
+            val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            val earnedToday = shown.filter {
+                SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(it.time)) == todayStr
+            }.sumOf { it.earned }
+            sb.append(terminalLine("$ 记录数：" + total + " 条", terminalColorGray)).append("\n")
+            sb.append(terminalLine("手动签到：" + manual + " 条", terminalColorYellow)).append("\n")
+            sb.append(terminalLine("自动签到：" + auto + " 条", terminalColorCyan)).append("\n")
+            sb.append(terminalLine("今日领取：" + earnedToday + " 分", terminalColorGray)).append("\n\n")
+            for (log in shown.take(30)) {
+                sb.append(logLine(log)).append("\n")
+            }
+            tvLogs.text = sb
+        }
+    }
+
+    private fun logLine(log: CloudSignLog): CharSequence {
+        val time = formatTime(log.time)
+        val dotColor = if (log.source == "手动") terminalColorYellow else terminalColorCyan
+        val bodyColor = when {
+            log.result == "失败" -> terminalColorRed
+            log.earned > 0 -> terminalColorGreen
+            else -> terminalColorPurple
+        }
+        val text = if (!log.detail.isNullOrBlank()) log.detail else log.account
+        val sp = SpannableString("● [$time] $text")
+        sp.setSpan(ForegroundColorSpan(dotColor), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        sp.setSpan(ForegroundColorSpan(terminalColorGray), 3, 3 + time.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        sp.setSpan(ForegroundColorSpan(bodyColor), 3 + time.length + 2, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        return sp
+    }
+
+    private fun terminalLine(text: String, color: Int): CharSequence {
+        val sp = SpannableString(text)
+        sp.setSpan(ForegroundColorSpan(color), 0, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        return sp
+    }
+
+    private fun formatTime(millis: Long): String {
+        return SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(millis))
+    }
+
+    /** 手动重命名账号：更新本地并同步云端（若已授权 GitHub） */
+    private fun renameAccount(account: LoomyAccount) {
+        val store = LoomyAccountStore(this)
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_rename, null)
+        val input = view.findViewById<TextInputEditText>(R.id.etRenameName)
+        input.setText(account.label)
+        input.setSelection(account.label.length)
+        MaterialAlertDialogBuilder(this)
+            .setView(view)
+            .setPositiveButton("保存", { _, _ ->
+                val name = input.text?.toString()?.trim() ?: ""
+                if (name.isBlank()) {
+                    Toast.makeText(this, "名称不能为空", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                val updated = account.copy(label = name)
+                store.update(updated)
+                findViewById<TextView>(R.id.tvLoomyDetailLabel).text = name
+                Toast.makeText(this, "已重命名为 $name", Toast.LENGTH_SHORT).show()
+
+                val config = GithubConfig(this)
+                if (!config.verified || config.token.isBlank()) {
+                    Toast.makeText(this, "未授权 GitHub，已保存到本地", Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                lifecycleScope.launch {
+                    val api = GithubApi(config.username, config.token)
+                    val uploadList = store.load().map {
+                        UploadLoomyAccount(
+                            label = it.label,
+                            accessToken = it.credentials.accessToken,
+                            userId = it.credentials.userId,
+                            phone = it.credentials.phone,
+                            uid = it.credentials.userId,
+                            nickname = it.credentials.nickname
+                        )
+                    }
+                    val err = withContext(Dispatchers.IO) {
+                        runCatching {
+                            UploadService(api, config.repoOwner, config.repoName, config.workflowBranch)
+                                .uploadLoomyAccounts(uploadList)
+                        }.getOrNull()
+                    }
+                    if (err == null) {
+                        Toast.makeText(this@LoomyAccountDetailActivity, "已同步到云端", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@LoomyAccountDetailActivity, "云端同步失败：$err", Toast.LENGTH_LONG).show()
+                    }
+                }
+            })
+            .setNegativeButton("取消", null)
+            .show()
+    }
+}

@@ -31,6 +31,9 @@
         <activity
             android:name=".ui.QoderCnAccountDetailActivity"
             android:exported="false" />
+        <activity
+            android:name=".ui.LoomyAccountDetailActivity"
+            android:exported="false" />
 
         <activity
             android:name=".ui.LoginActivity"
@@ -44,6 +47,11 @@
 
         <activity
             android:name=".ui.QoderCnLoginActivity"
+            android:exported="false"
+            android:launchMode="singleTask" />
+
+        <activity
+            android:name=".ui.LoomyLoginActivity"
             android:exported="false"
             android:launchMode="singleTask" />
 

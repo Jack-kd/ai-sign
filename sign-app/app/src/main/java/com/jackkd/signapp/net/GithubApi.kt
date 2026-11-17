@@ -25,7 +25,7 @@ class GithubApi(private val username: String, private val token: String) {
     /** 认证头：GitHub 使用 Bearer token */
     private fun auth(): String = "token $token"
 
-    /** 验证 token 是否有效并返回登录用户名（null 表示无效） */
+    /** 验证 token 是否有效并返回登录用户名（null 表示无效）。用户名以 `/user` 的 login 为准。 */
     fun verifyAndGetLogin(): String? {
         val req = Request.Builder()
             .url("https://api.github.com/user")
@@ -35,9 +35,7 @@ class GithubApi(private val username: String, private val token: String) {
         client.newCall(req).execute().use { resp ->
             if (resp.code != 200) return null
             val obj = JsonParser.parseString(resp.body?.string() ?: "{}").asJsonObject
-            val login = obj.get("login")?.asString ?: return null
-            if (login != username) return null
-            return login
+            return obj.get("login")?.asString
         }
     }
 

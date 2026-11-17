@@ -445,6 +445,8 @@
                 android:id="@+id/rvQoderCnAccounts"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+    </LinearLayout>
 
     <!-- Loomy 页面 -->
     <LinearLayout
@@ -539,8 +541,6 @@
                 android:id="@+id/rvLoomyAccounts"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
-        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-    </LinearLayout>
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
     </LinearLayout>
     </LinearLayout>

@@ -35,6 +35,7 @@ import com.jackkd.signapp.data.CloudSignLog
 import com.jackkd.signapp.data.GithubConfig
 import com.jackkd.signapp.data.GithubSavedAccount
 import com.jackkd.signapp.data.LogStore
+import com.jackkd.signapp.data.Probe
 import com.jackkd.signapp.data.ScheduleTime
 import com.jackkd.signapp.data.SignLog
 import com.jackkd.signapp.data.TraeAccount
@@ -213,8 +214,62 @@ class MainActivity : AppCompatActivity() {
     var currentTab: String = "TRAE"
     private var pendingLoginPlatform: String = "TRAE"   // 登录态失效横幅点击跳转的平台
     private var pullRefreshStarted = false              // 本次松手是否已触发下拉刷新（用于修复圈圈残留）
+    private var probeToastShown = false                 // 诊断探针：路径提示只弹一次
+
+    // ===================== 诊断探针 =====================
+    // 用途：设备读屏不可用，只能靠把运行时状态写进 Download/sign-app-probe.txt 来定位问题。
+
+    /** 记录配置 + 各渠道数据量 */
+    private fun probeRun(reason: String) {
+        try {
+            Probe.log("RUN", "== $reason ==")
+            Probe.log(
+                "CFG",
+                "verified=${config.verified} tokenLen=${config.token.length} user=${config.username} " +
+                    "owner=${config.repoOwner} repo=${config.repoName} branch=${config.workflowBranch} " +
+                    "loomyPath=${config.loomyCredentialsPath}"
+            )
+            Probe.log(
+                "STORE",
+                "trae=${accountStore.load().size} wb=${wbAccountStore.load().size} " +
+                    "qc=${qcAccountStore.load().size} loomy=${loomyAccountStore.load().size}"
+            )
+        } catch (t: Throwable) {
+            Probe.log("ERR", "probeRun ${t.javaClass.simpleName}: ${t.message}")
+        }
+        Probe.flush(this) { showProbeToastOnce(it) }
+    }
+
+    /** 记录 Loomy 页的真实 UI 结构（父容器 / 可见性 / 高度 / adapter） */
+    private fun probeUi(tag: String) {
+        try {
+            val parent = pageLoomy.parent as? View
+            val parentId = runCatching { parent?.id?.let { resources.getResourceEntryName(it) } }.getOrNull()
+            val swipe = findViewById<View>(R.id.swipeLoomy)
+            Probe.log(
+                tag,
+                "tab=$currentTab pageLoomy(vis=${pageLoomy.visibility},w=${pageLoomy.width},h=${pageLoomy.height}," +
+                    "parent=${parent?.javaClass?.simpleName}#$parentId) " +
+                    "swipeLoomy(h=${swipe.height},vis=${swipe.visibility}) " +
+                    "rvLoomy(h=${rvLoomyAccounts.height},vis=${rvLoomyAccounts.visibility}," +
+                    "items=${loomyAccountAdapter.itemCount},adapter=${rvLoomyAccounts.adapter != null}," +
+                    "lm=${rvLoomyAccounts.layoutManager?.javaClass?.simpleName}) " +
+                    "title='${tvAccountTitleLoomy.text}' sched='${tvScheduleLoomy.text}'"
+            )
+        } catch (t: Throwable) {
+            Probe.log("ERR", "probeUi ${t.javaClass.simpleName}: ${t.message}")
+        }
+    }
+
+    private fun showProbeToastOnce(path: String) {
+        if (!probeToastShown) {
+            probeToastShown = true
+            Toast.makeText(this, "诊断日志已写入：$path", Toast.LENGTH_LONG).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        Probe.clear()
         config = GithubConfig(this)
         setTheme(themeFor(config.getColorTheme()))
         // 深色模式：用户强制深色 或 跟随系统（系统深色自动深色）
@@ -329,6 +384,7 @@ class MainActivity : AppCompatActivity() {
 
         switchTab("TRAE")
         refresh()
+        probeRun("onCreate")
     }
 
     /** 切换 GitHub 账号菜单（仿账号名后的▽下拉） */
@@ -373,6 +429,12 @@ class MainActivity : AppCompatActivity() {
             view.setBackgroundResource(if (active) R.drawable.tab_selected else R.drawable.tab_unselected)
             view.setTextColor(resources.getColor(if (active) R.color.white else R.color.gray, null))
             view.setTypeface(view.typeface, if (active) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+        }
+
+        // 诊断探针：等这一帧布局完成后再记录 Loomy 页真实状态并落盘
+        tabLoomy.post {
+            probeUi("TAB-$tab")
+            Probe.flush(this) { showProbeToastOnce(it) }
         }
     }
 
@@ -1255,11 +1317,20 @@ private fun showGithubDialog() {
                 qcAccountAdapter.submit(qcAccountStore.load())
             }
 
-            val loomyRaw = withContext(Dispatchers.IO) {
-                runCatching { api.readRepoFile(config.repoOwner, config.repoName, config.loomyCredentialsPath) }.getOrNull()
+            val loomyResult = withContext(Dispatchers.IO) {
+                runCatching { api.readRepoFile(config.repoOwner, config.repoName, config.loomyCredentialsPath) }
             }
+            val loomyRaw = loomyResult.getOrNull()
+            Probe.log(
+                "FETCH",
+                "loomyRaw=" + (loomyRaw?.let { "len=${it.length} head=${it.take(160).replace('\n', ' ')}" }
+                    ?: "null err=${loomyResult.exceptionOrNull()?.javaClass?.simpleName}:${loomyResult.exceptionOrNull()?.message}")
+            )
             if (loomyRaw != null) {
                 val loomyList = parseCloudLoomy(loomyRaw)
+                Probe.log("FETCH", "parsed=${loomyList.size} -> " + loomyList.joinToString(", ") { ua ->
+                    ua.label.ifBlank { ua.phone.ifBlank { ua.userId.ifBlank { ua.uid } } }
+                })
                 for (ua in loomyList) {
                     // Loomy 凭证明文存储，无 AES 加密
                     val acc = LoomyAccount(
@@ -1275,6 +1346,7 @@ private fun showGithubDialog() {
                     loomyAccountStore.addOrUpdate(acc)
                 }
                 loomyAccountAdapter.submit(loomyAccountStore.load())
+                Probe.log("FETCH", "afterSubmit store=${loomyAccountStore.load().size} adapter=${loomyAccountAdapter.itemCount}")
             }
 
             // 拉取微信 ClawBot 推送配置（开关 + SPT），换设备登录后自动回显
@@ -2168,6 +2240,15 @@ private fun showGithubDialog() {
             // 是否对"积分接口"有效，查询失败只应在该账号的"当前积分"处显示失败，不应阻断整个刷新
             // （否则 loomy 积分查不到会导致下拉刷新整页中止、账号列表也拉不下来）。
             if (!filesOk || !creditsOk) {
+                Probe.log(
+                    "REFRESH",
+                    "中止 filesOk=$filesOk creditsOk=$creditsOk trae=${traeAccounts != null} " +
+                        "wb=${wbAccounts != null} sch=${schedule != null} wbSch=${wbSchedule != null} " +
+                        "logs=${logsRaw2 != null} traeFailed=${traeCredits.count { it.r is CreditsQuery.Failed }} " +
+                        "wbNull=${wbCredits.count { it.third == null }} qcNull=${qcCredits.count { it.third == null }} " +
+                        "loomyNull=${loomyCredits.count { it.third == null }}"
+                )
+                Probe.flush(this@MainActivity) { showProbeToastOnce(it) }
                 runOnUiThread {
                     Toast.makeText(this@MainActivity, "刷新失败：部分数据获取失败，页面未更新", Toast.LENGTH_LONG).show()
                     stopPullRefresh()
@@ -2230,6 +2311,7 @@ private fun showGithubDialog() {
                 } catch (e: Exception) { }
                 try {
                     val list: List<UploadLoomyAccount> = parseCloudLoomy(loomyAccounts ?: "")
+                    Probe.log("REFRESH", "loomyRaw=" + (loomyAccounts?.let { "len=${it.length}" } ?: "null") + " parsed=${list.size}")
                     for (ua in list) {
                         // Loomy 凭证明文存储，无 AES 加密
                         val acc = LoomyAccount(
@@ -2244,11 +2326,15 @@ private fun showGithubDialog() {
                         )
                         loomyAccountStore.addOrUpdate(acc)
                     }
-                } catch (e: Exception) { }
+                } catch (e: Exception) {
+                    Probe.log("REFRESH", "loomy 解析异常 ${e.javaClass.simpleName}: ${e.message}")
+                }
                 accountAdapter.submit(accountStore.load())
                 wbAccountAdapter.submit(wbAccountStore.load())
                 qcAccountAdapter.submit(qcAccountStore.load())
                 loomyAccountAdapter.submit(loomyAccountStore.load())
+                Probe.log("REFRESH", "afterSubmit loomy store=${loomyAccountStore.load().size} adapter=${loomyAccountAdapter.itemCount}")
+                probeUi("REFRESH-UI")
 
                 // 2) 签到时间（cron → 本地时间）
                 try {
@@ -2355,6 +2441,7 @@ private fun showGithubDialog() {
 
                 Toast.makeText(this@MainActivity, "刷新成功", Toast.LENGTH_SHORT).show()
                 stopPullRefresh()
+                Probe.flush(this@MainActivity) { showProbeToastOnce(it) }
             }
         }
     }

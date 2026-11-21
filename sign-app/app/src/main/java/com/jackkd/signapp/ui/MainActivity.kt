@@ -939,7 +939,7 @@ private fun showGithubDialog() {
 
     private fun verifyGithub(token: String, repoInput: String) {
         val dlg = githubDialog ?: return
-        val btnConfirm = dlg.findViewById<TextView>(R.id.btnGithubConfirm)
+        val btnConfirm = dlg.findViewById<TextView>(R.id.btnGithubConfirm) ?: return
         btnConfirm.isEnabled = false
         btnConfirm.alpha = 0.5f
         lifecycleScope.launch {

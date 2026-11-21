@@ -2441,7 +2441,8 @@ private fun showGithubDialog() {
 
                 // 4) 今日总积分标题
                 try {
-                    val logs: List<CloudSignLog> = parseSignLogs(logsRaw2)
+                    // logsRaw2 在 2326 行 filesOk 中已判空，此处仅需编译期兜底
+                    val logs: List<CloudSignLog> = parseSignLogs(logsRaw2 ?: "[]")
                     val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                     val today = fmt.format(java.util.Date())
                     fun todayEarned(platform: String): Long {

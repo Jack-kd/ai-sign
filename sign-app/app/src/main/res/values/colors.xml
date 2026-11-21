@@ -1,16 +1,48 @@
 <resources>
-    <color name="primary">#1677FF</color>
-    <color name="primary_dark">#0E5FCC</color>
+    <!-- ===== 主色（电蓝）===== -->
+    <color name="primary">#4C6FFF</color>
+    <color name="primary_dark">#3B56E4</color>
+
+    <!-- ===== 中性色 ===== -->
     <color name="white">#FFFFFF</color>
     <color name="black">#000000</color>
-    <color name="text_primary">#1A1A1A</color>
+    <color name="text_primary">#0F1730</color>
+    <color name="gray">#64748B</color>
+    <color name="light_gray">#F4F6FB</color>
+    <color name="bg_page">#F4F6FB</color>
+    <color name="divider">#E2E8F0</color>
+
+    <!-- ===== 卡片/表面 ===== -->
+    <color name="card_bg">#FFFFFF</color>
     <color name="surface_start">#FFFFFF</color>
     <color name="surface_end">#EAF3FF</color>
-    <color name="gray">#888888</color>
-    <color name="light_gray">#F5F5F5</color>
-    <color name="success_green">#52C41A</color>
-    <color name="error_red">#FF4D4F</color>
-    <!-- 终端/日志样式 -->
+
+    <!-- ===== 状态色 ===== -->
+    <color name="success_green">#10B981</color>
+    <color name="error_red">#EF4444</color>
+    <color name="warn_bg">#FFF7E6</color>
+    <color name="warn_text">#B45309</color>
+
+    <!-- ===== 渐变（顶栏/按钮）===== -->
+    <color name="gradient_start">#4C6FFF</color>
+    <color name="gradient_end">#3B56E4</color>
+
+    <!-- ===== 顶栏深色（详情页头部）===== -->
+    <color name="topbar_start">#1E293B</color>
+    <color name="topbar_end">#0F172A</color>
+
+    <!-- ===== 渠道品牌色 ===== -->
+    <color name="channel_trae">#00B3A4</color>
+    <color name="channel_workbuddy">#4C6FFF</color>
+    <color name="channel_qodercn">#8B5CF6</color>
+    <color name="channel_loomy">#06B6D4</color>
+
+    <!-- ===== 辅助 ===== -->
+    <color name="btn_info_bg">#E8EFFF</color>
+    <color name="btn_info_text">#3B56E4</color>
+    <color name="icon_circle_bg">#EEF2FF</color>
+
+    <!-- ===== 终端/日志样式（专用，不动）===== -->
     <color name="terminal_bg">#1E1E1E</color>
     <color name="terminal_green">#4EC9B0</color>
     <color name="terminal_cyan">#569CD6</color>
@@ -20,13 +52,4 @@
     <color name="terminal_dim">#6A9955</color>
     <color name="terminal_gray">#9E9E9E</color>
     <color name="terminal_purple">#C586C0</color>
-    <color name="card_bg">#FAFAFA</color>
-    <color name="divider">#E0E0E0</color>
-    <color name="btn_info_bg">#E3F2FD</color>
-    <color name="btn_info_text">#1565C0</color>
-    <color name="gradient_start">#3B8BFF</color>
-    <color name="gradient_end">#0E5FCC</color>
-    <color name="icon_circle_bg">#E8F1FF</color>
-    <color name="warn_bg">#FFF7E6</color>
-    <color name="warn_text">#B25E00</color>
 </resources>

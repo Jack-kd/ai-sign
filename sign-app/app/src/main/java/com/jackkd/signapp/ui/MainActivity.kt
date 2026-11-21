@@ -94,7 +94,7 @@ fun themePrimary(context: Context): Int {
 fun themeGrad(theme: String, dark: Boolean): Pair<Int, Int> = when {
     theme == "green" -> if (dark) 0xFF1F6B45.toInt() to 0xFF164830.toInt() else 0xFF4CD889.toInt() to 0xFF2FA666.toInt()
     theme == "orange" -> if (dark) 0xFFA5560F.toInt() to 0xFF7A3E0A.toInt() else 0xFFFFB84D.toInt() to 0xFFE88A1F.toInt()
-    else -> if (dark) 0xFF264B82.toInt() to 0xFF19375C.toInt() else 0xFF5A9EFF.toInt() to 0xFF3B7BD9.toInt()
+    else -> if (dark) 0xFF2B3A66.toInt() to 0xFF1E2A4E.toInt() else 0xFF4C6FFF.toInt() to 0xFF3B56E4.toInt()
 }
 
 /** ARGB 线性插值 */
@@ -129,19 +129,23 @@ fun animateMainTheme(activity: android.app.Activity) {
     val dark = (activity.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
             android.content.res.Configuration.UI_MODE_NIGHT_YES
     val (s, e) = themeGrad(main.config.getColorTheme(), dark)
-    listOf(R.id.mainTopBar, R.id.btnLoginTrae, R.id.btnTriggerTrae, R.id.btnLoginWorkBuddy, R.id.btnTriggerWb, R.id.btnLoginQoderCn, R.id.btnTriggerQc, R.id.btnLoginLoomy, R.id.btnTriggerLoomy).forEach { id ->
+    listOf(R.id.btnLoginTrae, R.id.btnTriggerTrae, R.id.btnLoginWorkBuddy, R.id.btnTriggerWb, R.id.btnLoginQoderCn, R.id.btnTriggerQc, R.id.btnLoginLoomy, R.id.btnTriggerLoomy).forEach { id ->
         activity.findViewById<android.view.View>(id)?.let {
-            animateGradient(it, s, e, if (id == R.id.mainTopBar) 0f else 8f)
+            animateGradient(it, s, e, 8f)
         }
     }
-    // 平台切换按钮：只动画当前选中的那个（未选中的保持 tab_unselected 白色，避免"变绿又变白"）
-    val tabId = when (main.currentTab) {
-        "TRAE" -> R.id.tabTrae
-        "WorkBuddy" -> R.id.tabWorkBuddy
-        "QoderCn" -> R.id.tabQoderCn
-        else -> R.id.tabLoomy
+    // 顶栏固定深色（不随主题动画）：保持视觉一致
+    listOf(R.id.mainTopBar, R.id.detailHeader).forEach { id ->
+        activity.findViewById<android.view.View>(id)?.let {
+            it.background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(
+                    it.resources.getColor(R.color.topbar_start, null),
+                    it.resources.getColor(R.color.topbar_end, null)
+                )
+            )
+        }
     }
-    activity.findViewById<android.view.View>(tabId)?.let { animateGradient(it, s, e, 8f) }
 }
 
 /** 解析 JWT accessToken 的过期时间（毫秒）；非 JWT/失败返回 null */
@@ -204,10 +208,24 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pageWb: View
     private lateinit var pageQc: View
     private lateinit var pageLoomy: View
-    private lateinit var tabTrae: TextView
-    private lateinit var tabWb: TextView
-    private lateinit var tabQc: TextView
-    private lateinit var tabLoomy: TextView
+    private lateinit var homePage: View
+    private lateinit var detailContainer: View
+    private lateinit var detailChannelName: TextView
+    private lateinit var homeOverviewValue: TextView
+
+    // 首页渠道卡片视图（4 张固定卡片）
+    private lateinit var subTrae: TextView
+    private lateinit var subWb: TextView
+    private lateinit var subQc: TextView
+    private lateinit var subLoomy: TextView
+    private lateinit var badgeTrae: TextView
+    private lateinit var badgeWb: TextView
+    private lateinit var badgeQc: TextView
+    private lateinit var badgeLoomy: TextView
+    private lateinit var iconTrae: TextView
+    private lateinit var iconWb: TextView
+    private lateinit var iconQc: TextView
+    private lateinit var iconLoomy: TextView
 
     private var githubDialog: AlertDialog? = null
     var currentTab: String = "TRAE"
@@ -245,13 +263,27 @@ class MainActivity : AppCompatActivity() {
         tvAccountTitleLoomy = findViewById(R.id.tvAccountTitleLoomy)
         rvLoomyAccounts = findViewById(R.id.rvLoomyAccounts)
         pageLoomy = findViewById(R.id.pageLoomy)
-        tabLoomy = findViewById(R.id.tabLoomy)
         pageTrae = findViewById(R.id.pageTrae)
         pageWb = findViewById(R.id.pageWorkBuddy)
         pageQc = findViewById(R.id.pageQoderCn)
-        tabTrae = findViewById(R.id.tabTrae)
-        tabWb = findViewById(R.id.tabWorkBuddy)
-        tabQc = findViewById(R.id.tabQoderCn)
+        homePage = findViewById(R.id.homePage)
+        detailContainer = findViewById(R.id.detailContainer)
+        detailChannelName = findViewById(R.id.detailChannelName)
+        homeOverviewValue = findViewById(R.id.homeOverviewValue)
+
+        // 首页 4 张渠道卡片
+        subTrae = findViewById(R.id.subTrae)
+        subWb = findViewById(R.id.subWorkBuddy)
+        subQc = findViewById(R.id.subQoderCn)
+        subLoomy = findViewById(R.id.subLoomy)
+        badgeTrae = findViewById(R.id.badgeTrae)
+        badgeWb = findViewById(R.id.badgeWorkBuddy)
+        badgeQc = findViewById(R.id.badgeQoderCn)
+        badgeLoomy = findViewById(R.id.badgeLoomy)
+        iconTrae = findViewById(R.id.iconTrae)
+        iconWb = findViewById(R.id.iconWorkBuddy)
+        iconQc = findViewById(R.id.iconQoderCn)
+        iconLoomy = findViewById(R.id.iconLoomy)
 
         // 下拉刷新：两页共用"全成功才提交"的刷新逻辑
         setupPullRefresh(findViewById(R.id.swipeTrae))
@@ -310,11 +342,28 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.btnSetQcSchedule).setOnClickListener { showSingleScheduleDialog("QoderCn") }
         findViewById<TextView>(R.id.btnSetLoomySchedule).setOnClickListener { showSingleScheduleDialog("Loomy") }
 
-        // 标签页切换
-        tabTrae.setOnClickListener { switchTab("TRAE") }
-        tabWb.setOnClickListener { switchTab("WorkBuddy") }
-        tabQc.setOnClickListener { switchTab("QoderCn") }
-        tabLoomy.setOnClickListener { switchTab("Loomy") }
+        // 卡片点击 → 进入渠道详情（方案 A：MainActivity 内视图切换）
+        findViewById<View>(R.id.cardTrae).setOnClickListener { showChannelDetail("TRAE") }
+        findViewById<View>(R.id.cardWorkBuddy).setOnClickListener { showChannelDetail("WorkBuddy") }
+        findViewById<View>(R.id.cardQoderCn).setOnClickListener { showChannelDetail("QoderCn") }
+        findViewById<View>(R.id.cardLoomy).setOnClickListener { showChannelDetail("Loomy") }
+
+        // 卡片右上角 ＋：快捷添加账号（方案 B：首页快捷入口）
+        findViewById<View>(R.id.addTrae).setOnClickListener {
+            startActivity(Intent(this, LoginActivity::class.java))
+        }
+        findViewById<View>(R.id.addWorkBuddy).setOnClickListener {
+            startActivity(Intent(this, WorkBuddyLoginActivity::class.java))
+        }
+        findViewById<View>(R.id.addQoderCn).setOnClickListener {
+            startActivity(Intent(this, QoderCnLoginActivity::class.java))
+        }
+        findViewById<View>(R.id.addLoomy).setOnClickListener {
+            startActivity(Intent(this, LoomyLoginActivity::class.java))
+        }
+
+        // 详情页返回 → 回大厅
+        findViewById<View>(R.id.btnBackHome).setOnClickListener { showHome() }
 
         // ⚙️ 设置菜单（仿微信"+"弹出）
         findViewById<TextView>(R.id.btnSettings).setOnClickListener { showSettingsMenu() }
@@ -327,7 +376,6 @@ class MainActivity : AppCompatActivity() {
         // 登录态失效横幅：点击弹出全部失效账号列表，选哪个跳对应平台登录页
         findViewById<View>(R.id.loginAlertBanner).setOnClickListener { showLoginIssuesDialog() }
 
-        switchTab("TRAE")
         refresh()
     }
 
@@ -354,25 +402,26 @@ class MainActivity : AppCompatActivity() {
         showGithubDialog()
     }
 
-    /** 切换 TRAE / WorkBuddy / Qoder 中国版 标签页 */
-    private fun switchTab(tab: String) {
+    /** 回到首页：卡片大厅 */
+    private fun showHome() {
+        detailContainer.visibility = View.GONE
+        homePage.visibility = View.VISIBLE
+    }
+
+    /** 进入某渠道详情（方案 A：MainActivity 内视图切换，云端逻辑原地不动） */
+    private fun showChannelDetail(tab: String) {
         currentTab = tab
+        homePage.visibility = View.GONE
+        detailContainer.visibility = View.VISIBLE
         pageTrae.visibility = if (tab == "TRAE") View.VISIBLE else View.GONE
         pageWb.visibility = if (tab == "WorkBuddy") View.VISIBLE else View.GONE
         pageQc.visibility = if (tab == "QoderCn") View.VISIBLE else View.GONE
         pageLoomy.visibility = if (tab == "Loomy") View.VISIBLE else View.GONE
-
-        val tabs = listOf(
-            Triple("TRAE", tabTrae, R.id.tabTrae),
-            Triple("WorkBuddy", tabWb, R.id.tabWorkBuddy),
-            Triple("QoderCn", tabQc, R.id.tabQoderCn),
-            Triple("Loomy", tabLoomy, R.id.tabLoomy)
-        )
-        for ((name, view, _) in tabs) {
-            val active = name == tab
-            view.setBackgroundResource(if (active) R.drawable.tab_selected else R.drawable.tab_unselected)
-            view.setTextColor(resources.getColor(if (active) R.color.white else R.color.gray, null))
-            view.setTypeface(view.typeface, if (active) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+        detailChannelName.text = when (tab) {
+            "TRAE" -> "TRAE"
+            "WorkBuddy" -> "WorkBuddy"
+            "QoderCn" -> "Qoder 中国版"
+            else -> "Loomy"
         }
     }
 
@@ -611,6 +660,60 @@ class MainActivity : AppCompatActivity() {
         showWbScheduleText()
         showQcScheduleText()
         showLoomyScheduleText()
+        updateChannelCards()
+    }
+
+    /** 首页 4 张渠道卡片汇总刷新（账号数/总积分/过期徽章），云端逻辑零改动 */
+    private fun updateChannelCards() {
+        setChannelIcon(iconTrae, R.color.channel_trae, "T")
+        setChannelIcon(iconWb, R.color.channel_workbuddy, "W")
+        setChannelIcon(iconQc, R.color.channel_qodercn, "Q")
+        setChannelIcon(iconLoomy, R.color.channel_loomy, "L")
+        updateChannelCard(
+            subTrae, badgeTrae,
+            accountAdapter.accountCount(), accountAdapter.sumCredits(), accountAdapter.expiredCount()
+        )
+        updateChannelCard(
+            subWb, badgeWb,
+            wbAccountAdapter.accountCount(), wbAccountAdapter.sumCredits(), wbAccountAdapter.expiredCount()
+        )
+        updateChannelCard(
+            subQc, badgeQc,
+            qcAccountAdapter.accountCount(), qcAccountAdapter.sumCredits(), qcAccountAdapter.expiredCount()
+        )
+        updateChannelCard(
+            subLoomy, badgeLoomy,
+            loomyAccountAdapter.accountCount(), loomyAccountAdapter.sumCredits(), 0
+        )
+    }
+
+    /**
+     * 单张渠道卡片汇总文案。
+     * 规则（用户已确认）：无账号显示 0；有账号但积分未拉到（查询中）显示 --；
+     * 过期数 >0 显示红色徽章 "N 过期"，否则隐藏。
+     */
+    private fun updateChannelCard(sub: TextView, badge: TextView, count: Int, total: Double?, expired: Int) {
+        val totalText = when {
+            count == 0 -> "0"
+            total == null -> "--"
+            else -> formatCreditsTotal(total)
+        }
+        sub.text = "$count 个账号 · 总积分 $totalText"
+        if (expired > 0) {
+            badge.text = "$expired 过期"
+            badge.visibility = View.VISIBLE
+        } else {
+            badge.visibility = View.GONE
+        }
+    }
+
+    /** 渠道卡片圆形图标：品牌色底 + 首字母 */
+    private fun setChannelIcon(icon: TextView, colorRes: Int, letter: String) {
+        icon.text = letter
+        icon.background = android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL
+            setColor(ContextCompat.getColor(this@MainActivity, colorRes))
+        }
     }
 
     private fun showScheduleText() {
@@ -1095,6 +1198,7 @@ private fun showGithubDialog() {
                     tvAccountTitleWb.text = "WorkBuddy 账号"
                     tvAccountTitleQc.text = "Qoder 中国版 账号"
                     tvAccountTitleLoomy.text = "Loomy 账号"
+                    homeOverviewValue.text = "-- / --"
                 }
                 return@launch
             }
@@ -1119,11 +1223,26 @@ private fun showGithubDialog() {
             val wb = todayEarned("WorkBuddy")
             val qc = todayEarned("QoderCn")
             val loomy = todayEarned("Loomy")
+            // 今日已签到 X/Y：X = 今日日志成功/已签到的去重账号数，Y = 4 渠道账号总数
+            val todayDoneAccounts = list
+                .filter { log ->
+                    val p = log.platform
+                    val match = p.isNullOrBlank() || p.equals("TRAE", true) ||
+                        p.equals("WorkBuddy", true) || p.equals("QoderCn", true) ||
+                        p.equals("Loomy", true)
+                    match && fmt.format(java.util.Date(log.time)) == today &&
+                        (log.result.equals("成功", true) || log.result.equals("已签到", true))
+                }
+                .distinctBy { "${it.platform}:${it.account}" }
+                .size
+            val totalAccounts = accountAdapter.accountCount() + wbAccountAdapter.accountCount() +
+                qcAccountAdapter.accountCount() + loomyAccountAdapter.accountCount()
             runOnUiThread {
                 tvAccountTitleTrae.text = "TRAE 账号 · 今日已领 $trae 分"
                 tvAccountTitleWb.text = "WorkBuddy 账号 · 今日已领 $wb 额度"
                 tvAccountTitleQc.text = "Qoder 中国版 账号 · 今日已领 $qc 积分"
                 tvAccountTitleLoomy.text = "Loomy 账号 · 今日已领 $loomy 积分"
+                homeOverviewValue.text = "$todayDoneAccounts / $totalAccounts"
             }
         }
     }
@@ -1955,6 +2074,7 @@ private fun showGithubDialog() {
                         CreditsQuery.Failed -> accountAdapter.setCredits(id, "当前积分 获取失败", R.color.gray)
                     }
                 }
+                updateChannelCards()
             }
         }
         if (wbList.isNotEmpty()) {
@@ -1976,6 +2096,7 @@ private fun showGithubDialog() {
                         wbAccountAdapter.setCredits(id, "当前积分 获取失败", R.color.gray)
                     }
                 }
+                updateChannelCards()
             }
         }
         if (qcList.isNotEmpty()) {
@@ -1994,6 +2115,7 @@ private fun showGithubDialog() {
                         qcAccountAdapter.setCredits(id, "当前积分 获取失败", R.color.gray)
                     }
                 }
+                updateChannelCards()
             }
         }
         if (loomyList.isNotEmpty()) {
@@ -2012,6 +2134,7 @@ private fun showGithubDialog() {
                         loomyAccountAdapter.setCredits(id, "当前积分 获取失败", R.color.gray)
                     }
                 }
+                updateChannelCards()
             }
         }
     }
@@ -2354,6 +2477,7 @@ private fun showGithubDialog() {
                     } else { }
                 }
 
+                updateChannelCards()
                 Toast.makeText(this@MainActivity, "刷新成功", Toast.LENGTH_SHORT).show()
                 stopPullRefresh()
             }
@@ -2743,9 +2867,29 @@ class AccountAdapter(
 ) : RecyclerView.Adapter<AccountAdapter.VH>() {
 
     private var items: List<TraeAccount> = emptyList()
+
+    /** 首页卡片汇总：账号数 */
+    fun accountCount(): Int = items.size
     private val credits = HashMap<String, String>()   // accountId -> 积分显示文本
     private val colors = HashMap<String, Int>()        // accountId -> 文本颜色资源（0=主题色）
     private val expired = HashMap<String, Boolean>()   // accountId -> 凭证已失效标记
+
+    /** 首页卡片汇总：总积分 = 解析积分文本数字求和；null = 尚无有效数据（显示 --） */
+    fun sumCredits(): Double? {
+        if (items.isEmpty()) return 0.0
+        var any = false
+        var total = 0.0
+        for ((id, text) in credits) {
+            if (items.any { it.id == id }) {
+                val num = parseCreditsNumber(text)
+                if (num != null) { any = true; total += num }
+            }
+        }
+        return if (!any) null else total
+    }
+
+    /** 首页卡片汇总：过期（凭证失效）账号数 */
+    fun expiredCount(): Int = expired.values.count { it }
 
     fun submit(list: List<TraeAccount>) {
         items = list
@@ -2805,9 +2949,29 @@ class WorkBuddyAccountAdapter(
 ) : RecyclerView.Adapter<WorkBuddyAccountAdapter.VH>() {
 
     private var items: List<WorkBuddyAccount> = emptyList()
+
+    /** 首页卡片汇总：账号数 */
+    fun accountCount(): Int = items.size
     private val credits = HashMap<String, String>()   // accountId -> 额度显示文本
     private val colors = HashMap<String, Int>()        // accountId -> 文本颜色资源（0=主题色）
     private val expired = HashMap<String, Boolean>()   // accountId -> 凭证已失效标记
+
+    /** 首页卡片汇总：总额度 = 解析额度文本数字求和；null = 尚无有效数据（显示 --） */
+    fun sumCredits(): Double? {
+        if (items.isEmpty()) return 0.0
+        var any = false
+        var total = 0.0
+        for ((id, text) in credits) {
+            if (items.any { it.id == id }) {
+                val num = parseCreditsNumber(text)
+                if (num != null) { any = true; total += num }
+            }
+        }
+        return if (!any) null else total
+    }
+
+    /** 首页卡片汇总：过期（凭证失效）账号数 */
+    fun expiredCount(): Int = expired.values.count { it }
 
     fun submit(list: List<WorkBuddyAccount>) {
         items = list
@@ -2868,9 +3032,29 @@ class QoderCnAccountAdapter(
 ) : RecyclerView.Adapter<QoderCnAccountAdapter.VH>() {
 
     private var items: List<QoderCnAccount> = emptyList()
+
+    /** 首页卡片汇总：账号数 */
+    fun accountCount(): Int = items.size
     private val credits = HashMap<String, String>()
     private val colors = HashMap<String, Int>()
     private val expired = HashMap<String, Boolean>()
+
+    /** 首页卡片汇总：总余额 = 解析积分文本数字求和；null = 尚无有效数据（显示 --） */
+    fun sumCredits(): Double? {
+        if (items.isEmpty()) return 0.0
+        var any = false
+        var total = 0.0
+        for ((id, text) in credits) {
+            if (items.any { it.id == id }) {
+                val num = parseCreditsNumber(text)
+                if (num != null) { any = true; total += num }
+            }
+        }
+        return if (!any) null else total
+    }
+
+    /** 首页卡片汇总：过期（凭证失效）账号数 */
+    fun expiredCount(): Int = expired.values.count { it }
 
     fun submit(list: List<QoderCnAccount>) {
         items = list
@@ -2925,8 +3109,25 @@ class LoomyAccountAdapter(
 ) : RecyclerView.Adapter<LoomyAccountAdapter.VH>() {
 
     private var items: List<LoomyAccount> = emptyList()
+
+    /** 首页卡片汇总：账号数 */
+    fun accountCount(): Int = items.size
     private val credits = HashMap<String, String>()
     private val colors = HashMap<String, Int>()
+
+    /** 首页卡片汇总：总积分 = 解析积分文本数字求和；null = 尚无有效数据（显示 --） */
+    fun sumCredits(): Double? {
+        if (items.isEmpty()) return 0.0
+        var any = false
+        var total = 0.0
+        for ((id, text) in credits) {
+            if (items.any { it.id == id }) {
+                val num = parseCreditsNumber(text)
+                if (num != null) { any = true; total += num }
+            }
+        }
+        return if (!any) null else total
+    }
 
     fun submit(list: List<LoomyAccount>) {
         items = list
@@ -2967,3 +3168,14 @@ class LoomyAccountAdapter(
         btnDel.setOnClickListener { onDelete(acc) }
     }
 }
+
+/** 从 "当前积分 X" 文本提取数字；"--"/"获取失败"/非数字返回 null */
+private fun parseCreditsNumber(text: String): Double? {
+    val m = Regex("当前积分\\s+([+-]?[0-9]+(?:\\.[0-9]+)?)").find(text) ?: return null
+    return m.groupValues[1].toDoubleOrNull()
+}
+
+/** 卡片汇总显示：整数去小数，小数保留至多两位（与 formatQcNum 一致） */
+private fun formatCreditsTotal(v: Double): String =
+    if (v == Math.floor(v) && !v.isInfinite()) v.toLong().toString()
+    else String.format(java.util.Locale.US, "%.2f", v)

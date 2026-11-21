@@ -1,24 +1,24 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- 深色：蓝色主题（夜间中等亮渐变） -->
+    <!-- 深色：蓝色主题（电蓝主色 + 深色卡片） -->
     <style name="Theme.SignApp" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">#5A9EFF</item>
-        <item name="colorPrimaryVariant">#3B7BD9</item>
+        <item name="colorPrimary">#5B7FFF</item>
+        <item name="colorPrimaryVariant">#4C6FFF</item>
         <item name="colorOnPrimary">@color/white</item>
-        <item name="android:statusBarColor">@color/gradient_start</item>
+        <item name="android:statusBarColor">@color/topbar_start</item>
         <item name="android:windowBackground">@color/black</item>
-        <item name="signPrimary">#5A9EFF</item>
-        <item name="signGradientStart">#264B82</item>
-        <item name="signGradientEnd">#19375C</item>
-        <item name="signIconCircle">#1B3A5C</item>
-        <item name="signCardStart">#182C44</item>
-        <item name="signCardEnd">#1B3A5C</item>
+        <item name="signPrimary">#5B7FFF</item>
+        <item name="signGradientStart">#2B3A66</item>
+        <item name="signGradientEnd">#1E2A4E</item>
+        <item name="signIconCircle">#2B3A66</item>
+        <item name="signCardStart">#1A2740</item>
+        <item name="signCardEnd">#152036</item>
     </style>
 
     <!-- 深色：绿色主题 -->
     <style name="Theme.SignAppGreen" parent="Theme.SignApp">
-        <item name="colorPrimary">#4CD889</item>
-        <item name="colorPrimaryVariant">#2FA666</item>
-        <item name="signPrimary">#4CD889</item>
+        <item name="colorPrimary">#34D399</item>
+        <item name="colorPrimaryVariant">#10B981</item>
+        <item name="signPrimary">#34D399</item>
         <item name="signGradientStart">#1F6B45</item>
         <item name="signGradientEnd">#164830</item>
         <item name="signIconCircle">#1B2E25</item>
@@ -28,9 +28,9 @@
 
     <!-- 深色：橙色主题 -->
     <style name="Theme.SignAppOrange" parent="Theme.SignApp">
-        <item name="colorPrimary">#FFB84D</item>
-        <item name="colorPrimaryVariant">#E88A1F</item>
-        <item name="signPrimary">#FFB84D</item>
+        <item name="colorPrimary">#FBBF24</item>
+        <item name="colorPrimaryVariant">#F59E0B</item>
+        <item name="signPrimary">#FBBF24</item>
         <item name="signGradientStart">#A5560F</item>
         <item name="signGradientEnd">#7A3E0A</item>
         <item name="signIconCircle">#33230E</item>

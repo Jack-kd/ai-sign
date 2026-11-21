@@ -71,7 +71,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="TRAE / WorkBuddy / Qoder中国版 / Loomy 设为同一时间"
+                    android:text="所有渠道设置同一时间签到"
                     android:textColor="@color/gray"
                     android:textSize="12sp" />
             </LinearLayout>

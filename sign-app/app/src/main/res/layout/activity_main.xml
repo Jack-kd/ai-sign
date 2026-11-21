@@ -4,18 +4,12 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- 背景装饰层：品牌渐变+光斑，独立层便于 RenderEffect 高斯模糊（API 31+），模糊后玻璃卡透出毛玻璃感 -->
-    <View
-        android:id="@+id/backdropBlur"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@drawable/bg_page_background" />
-
-    <!-- 内容层：不加背景，透出下层被模糊的背景层 -->
+    <!-- 内容层：整块对角渐变衬底（右上深→左下浅），玻璃卡浮于其上 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:background="@drawable/bg_page_gradient">
 
     <!-- 顶部栏：GitHub 账号(可点击切换) + 设置图标 -->
     <LinearLayout

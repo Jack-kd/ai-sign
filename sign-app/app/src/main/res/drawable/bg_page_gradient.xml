@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 页面衬底：整体对角渐变 —— 右上角色最深，沿对角线平滑过渡到左下角近白（无光斑/光带） -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <gradient
-        android:angle="270"
+        android:angle="225"
         android:startColor="@color/page_gradient_start"
         android:endColor="@color/page_gradient_end" />
 </shape>

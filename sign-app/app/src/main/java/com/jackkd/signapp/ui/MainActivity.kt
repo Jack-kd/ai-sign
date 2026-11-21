@@ -210,7 +210,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var homeOverviewValue: TextView
     private lateinit var mainTopBar: View
     private lateinit var loginAlertBanner: View
-    private lateinit var backdropBlur: View   // 背景装饰层（光斑），API 31+ 高斯模糊，低版本仅显示不模糊
     private var onResumeCalledForThemeRestart = false   // 本次 onResume 是主题切换重建触发，跳过云端重拉
 
     // 首页渠道卡片视图（4 张固定卡片）
@@ -272,8 +271,6 @@ class MainActivity : AppCompatActivity() {
         homeOverviewValue = findViewById(R.id.homeOverviewValue)
         mainTopBar = findViewById(R.id.mainTopBar)
         loginAlertBanner = findViewById(R.id.loginAlertBanner)
-        backdropBlur = findViewById(R.id.backdropBlur)
-        applyBackdropBlur()
 
         // 首页 4 张渠道卡片
         subTrae = findViewById(R.id.subTrae)
@@ -644,21 +641,6 @@ class MainActivity : AppCompatActivity() {
                     Toast.LENGTH_LONG
                 ).show()
             }
-        }
-    }
-
-    /** 背景光斑层高斯模糊（毛玻璃灵魂）：API 31+ 用 RenderEffect 真模糊，低版本静默降级为不模糊 */
-    private fun applyBackdropBlur() {
-        try {
-            // RenderEffect 是 API 31 (Android 12) 引入；minSdk 26，低版本走 else 分支（Android Studio 识别 API 门槛需要条件判断）
-            if (android.os.Build.VERSION.SDK_INT >= 31) {
-                val blur = android.graphics.RenderEffect.createBlurEffect(
-                    24f, 24f, android.graphics.Shader.TileMode.CLAMP
-                )
-                backdropBlur.setRenderEffect(blur)
-            }
-        } catch (e: Exception) {
-            // 个别厂商 ROM 可能不支持 blur render effect：降级为不模糊，不影响功能
         }
     }
 

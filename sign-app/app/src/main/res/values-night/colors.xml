@@ -31,9 +31,9 @@
     <color name="gradient_start">#1B4F8A</color>
     <color name="gradient_end">#0E3A66</color>
     <color name="icon_circle_bg">#1B3A5C</color>
-    <!-- 页面渐变衬底 + 玻璃色（深色）：深蓝紫衬底，玻璃提亮一档透出层次 -->
-    <color name="page_gradient_start">#16213A</color>
-    <color name="page_gradient_end">#0D1626</color>
+    <!-- 页面渐变衬底（深色）：右上更深蓝紫 → 左下略浅，保持整体对角方向感 -->
+    <color name="page_gradient_start">#24345A</color>
+    <color name="page_gradient_end">#101828</color>
     <color name="glass_highlight">#38FFFFFF</color>
     <color name="glass_fill">#22FFFFFF</color>
     <color name="glass_stroke">#33FFFFFF</color>

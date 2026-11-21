@@ -31,10 +31,10 @@
     <color name="topbar_start">#1E293B</color>
     <color name="topbar_end">#0F172A</color>
 
-    <!-- ===== 页面渐变衬底（液态玻璃透底）===== -->
-    <!-- 加深顶部蓝：玻璃卡透出淡蓝层次；底部接近白，版面不脏 -->
-    <color name="page_gradient_start">#D6E4FF</color>
-    <color name="page_gradient_end">#F4F8FE</color>
+    <!-- ===== 页面渐变衬底（整体对角：右上深 → 左下浅）===== -->
+    <!-- 右上角起色最深的蓝调，沿对角线平滑过渡到左下角近白（一整块渐变，无光斑/光带） -->
+    <color name="page_gradient_start">#93AEE8</color>
+    <color name="page_gradient_end">#FBFDFF</color>
     <!-- 玻璃：顶部高光渐变 → 底部更透；描边用亮白高光 -->
     <color name="glass_highlight">#E8FFFFFF</color>
     <color name="glass_fill">#96FFFFFF</color>

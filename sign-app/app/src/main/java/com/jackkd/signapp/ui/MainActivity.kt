@@ -449,7 +449,7 @@ class MainActivity : AppCompatActivity() {
             .setView(view)
             .create()
         // 弹窗整体浅色渐变 + 大圆角（与其他美化弹窗一致）
-        dialog.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
 
         view.findViewById<View>(R.id.btnSyncSchedule).setOnClickListener {
             dialog.dismiss(); showGlobalScheduleDialog()
@@ -496,7 +496,7 @@ class MainActivity : AppCompatActivity() {
         val dlg = MaterialAlertDialogBuilder(this)
             .setView(view)
             .create()
-        dlg.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
+        dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
         view.findViewById<View>(R.id.btnConfirmCheckin).setOnClickListener {
             dlg.dismiss()
             if (both) triggerBothNow() else triggerNow(platform!!)
@@ -592,7 +592,7 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton("取消", null)
             .create()
         // 弹窗整体浅色渐变（含底部按钮区，圆角）
-        dlg.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
+        dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
         dlg.show()
     }
 
@@ -864,7 +864,7 @@ private fun showGithubDialog() {
             })
             .create()
         // 弹窗整体浅色渐变（含底部按钮区，圆角）
-        dialog.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
         dialog.setCancelable(!hasSaved)
         dialog.setOnCancelListener { githubDialog = null }
         dialog.setOnDismissListener { githubDialog = null }
@@ -941,7 +941,7 @@ private fun showGithubDialog() {
         val dlg = MaterialAlertDialogBuilder(this)
             .setView(view)
             .create()
-        dlg.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
+        dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
         view.findViewById<View>(R.id.btnOpenTokens).setOnClickListener {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/settings/tokens")))
@@ -1085,7 +1085,7 @@ private fun showGithubDialog() {
         val entries = loginIssues.values.toList()
 
         val dlg = MaterialAlertDialogBuilder(this).setView(view).create()
-        dlg.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
+        dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
         view.findViewById<View>(R.id.btnIssuesClose).setOnClickListener { dlg.dismiss() }
 
         for ((index, pair) in entries.withIndex()) {
@@ -1935,7 +1935,7 @@ private fun showGithubDialog() {
         val dlg = MaterialAlertDialogBuilder(this)
             .setView(view)
             .create()
-        dlg.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
+        dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
 
         fun pick(t: String) {
             UiSnapshot.capture(this@MainActivity)
@@ -1976,7 +1976,7 @@ private fun showGithubDialog() {
         val dlg = MaterialAlertDialogBuilder(this)
             .setView(view)
             .create()
-        dlg.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
+        dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
 
         view.findViewById<View>(R.id.btnOpenSptGuide).setOnClickListener {
             try {
@@ -2513,7 +2513,7 @@ private fun showGithubDialog() {
         val dlg = MaterialAlertDialogBuilder(this)
             .setView(view)
             .create()
-        dlg.window?.setBackgroundDrawableResource(R.drawable.bg_terminal_window)
+        dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
         view.findViewById<View>(R.id.btnStatsClose).setOnClickListener { dlg.dismiss() }
         view.findViewById<View>(R.id.btnStatsCloseX).setOnClickListener { dlg.dismiss() }
         dlg.setOnShowListener { loadStats(tv) }
@@ -2694,7 +2694,7 @@ private fun showGithubDialog() {
             .setView(view)
             .create()
         // 弹窗整体为深色终端窗口背景，避免圆角外露出白色
-        dlg.window?.setBackgroundDrawableResource(R.drawable.bg_terminal_window)
+        dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
 
         /** 终端行：● 点按来源着色（手动黄/自动蓝），正文按领取/结果着色（领取>0绿 / 已签到紫 / 失败红），时间灰色 */
         fun logLine(source: String, result: String, earned: Long, time: String, body: String): CharSequence {

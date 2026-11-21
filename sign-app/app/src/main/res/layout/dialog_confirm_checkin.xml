@@ -3,7 +3,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="22dp">
+    android:padding="22dp"
+    android:background="@drawable/bg_dialog_glass">
 
     <!-- 图标 + 标题 -->
     <TextView

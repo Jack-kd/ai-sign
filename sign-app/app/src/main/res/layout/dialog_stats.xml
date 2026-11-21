@@ -2,7 +2,8 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:background="@drawable/bg_dialog_terminal_glass">
 
     <!-- 终端标题栏 -->
     <LinearLayout
@@ -10,7 +11,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="#2D2D2D"
+        android:background="@drawable/bg_terminal_titlebar"
         android:paddingLeft="12dp"
         android:paddingRight="12dp"
         android:paddingTop="8dp"

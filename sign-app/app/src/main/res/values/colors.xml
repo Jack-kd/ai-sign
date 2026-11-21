@@ -18,8 +18,8 @@
     <color name="surface_end">#EAF3FF</color>
 
     <!-- 弹窗玻璃：比卡片更实一层（保证内容可读），仍是半透明 + 顶部高光，与主 UI 玻璃卡同语言 -->
-    <color name="dialog_glass_start">#F2FFFFFF</color>
-    <color name="dialog_glass_end">#C9F1FBFF</color>
+    <color name="dialog_glass_start">#FBFFFFFF</color>
+    <color name="dialog_glass_end">#EFF7FFFF</color>
 
     <!-- ===== 状态色 ===== -->
     <color name="success_green">#10B981</color>

@@ -9,8 +9,8 @@
     <color name="surface_end">#15202E</color>
 
     <!-- 弹窗玻璃（深色）：比卡片实一层，半透明冷调，与主 UI 玻璃一致 -->
-    <color name="dialog_glass_start">#F01E293B</color>
-    <color name="dialog_glass_end">#CC15202E</color>
+    <color name="dialog_glass_start">#FA1E293B</color>
+    <color name="dialog_glass_end">#E615202E</color>
     <color name="gray">#9E9E9E</color>
     <color name="light_gray">#1E1E1E</color>
     <!-- 深色模式首页背景（之前漏了，浅底浅字导致看不清） -->

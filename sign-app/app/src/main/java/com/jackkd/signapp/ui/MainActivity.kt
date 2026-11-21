@@ -134,13 +134,8 @@ fun animateMainTheme(activity: android.app.Activity) {
             animateGradient(it, s, e, 8f)
         }
     }
-    // 顶栏也走品牌色渐变动画（首页顶栏 + 详情头部），随主题一起平滑过渡
-    listOf(R.id.mainTopBar, R.id.detailHeader).forEach { id ->
-        activity.findViewById<android.view.View>(id)?.let {
-            animateGradient(it, s, e, 0f)
-        }
-    }
-    // 状态栏跟随主题主色（与顶栏渐变起色一致）
+    // 顶栏已是玻璃胶囊（XML 静态背景），不再走品牌色渐变动画，避免覆盖玻璃
+    // 状态栏跟随主题主色（与卡片渐变起色一致）
     activity.window?.statusBarColor = s
 }
 
@@ -390,26 +385,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** 切换 GitHub 账号菜单（仿账号名后的▽下拉） */
+    /** 点击顶部 GitHub 账号区：直接打开授权/切换弹窗（不再弹中间菜单） */
     private fun showSwitchAccountMenu() {
-        if (config.verified && config.username.isNotBlank()) {
-            val items = arrayOf("切换 GitHub 账号")
-            MaterialAlertDialogBuilder(this)
-                .setTitle("当前账号：${config.username}")
-                .setItems(items) { _, _ ->
-                    switchAccount()
-                }
-                .show()
-        } else {
-            // 未授权时点击直接走授权流程
-            showGithubDialog()
-        }
-    }
-
-    /** 切换到新 GitHub 账号：清空旧账号凭证并重新授权 */
-    private fun switchAccount() {
-        // 不退出当前账号：直接弹出授权弹窗，新账号验证成功后才覆盖当前账号；
-        // 若中途取消/关闭，当前账号保持不变，无需重新登录
+        // 不论是否有已登录账号，都直接进授权弹窗：
+        // 已登录时弹窗顶部带"切换账号"展开列表；未登录时就是首次授权
         showGithubDialog()
     }
 
@@ -450,6 +429,7 @@ class MainActivity : AppCompatActivity() {
             .create()
         // 弹窗整体浅色渐变 + 大圆角（与其他美化弹窗一致）
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        applyDialogBlur(dialog)
 
         view.findViewById<View>(R.id.btnSyncSchedule).setOnClickListener {
             dialog.dismiss(); showGlobalScheduleDialog()
@@ -497,6 +477,7 @@ class MainActivity : AppCompatActivity() {
             .setView(view)
             .create()
         dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        applyDialogBlur(dlg)
         view.findViewById<View>(R.id.btnConfirmCheckin).setOnClickListener {
             dlg.dismiss()
             if (both) triggerBothNow() else triggerNow(platform!!)
@@ -593,6 +574,7 @@ class MainActivity : AppCompatActivity() {
             .create()
         // 弹窗整体浅色渐变（含底部按钮区，圆角）
         dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        applyDialogBlur(dlg)
         dlg.show()
     }
 
@@ -852,23 +834,26 @@ private fun showGithubDialog() {
         val iconSaved = view.findViewById<TextView>(R.id.iconSavedAccounts)
         val containerSaved = view.findViewById<LinearLayout>(R.id.containerSavedAccounts)
 
-        // 已登录过账号：弹窗用于"切换账号"，按钮为取消、可点外部关闭；
-        // 无账号（首次）：必须授权，按钮为退出、不可外部关闭
+        // 已登录过账号：弹窗用于"切换账号"，点为卡片内取消、可点外部关闭；
+        // 无账号（首次）：必须授权，卡片内为退出、不可外部关闭
         val hasSaved = config.savedAccounts().isNotEmpty()
         val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle("GitHub 授权")
             .setView(view)
-            .setPositiveButton("确认", null)
-            .setNegativeButton(if (hasSaved) "取消" else "退出", { _, _ ->
-                if (hasSaved) githubDialog?.dismiss() else finish()
-            })
             .create()
         // 弹窗整体浅色渐变（含底部按钮区，圆角）
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        applyDialogBlur(dialog)
         dialog.setCancelable(!hasSaved)
         dialog.setOnCancelListener { githubDialog = null }
         dialog.setOnDismissListener { githubDialog = null }
         githubDialog = dialog
+
+        val btnConfirm = view.findViewById<TextView>(R.id.btnGithubConfirm)
+        val btnCancel = view.findViewById<TextView>(R.id.btnGithubCancel)
+        btnCancel.text = if (hasSaved) "取消" else "退出"
+        btnCancel.setOnClickListener {
+            if (hasSaved) githubDialog?.dismiss() else finish()
+        }
 
         // 已登录账号：默认展示当前账号名，点击 ▽ 展开列表
         var expandedSaved = false
@@ -917,17 +902,15 @@ private fun showGithubDialog() {
             iconSaved.text = if (expandedSaved) "△" else "▽"
         }
 
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val token = etToken.text?.toString()?.trim() ?: ""
-                val repoInput = etRepo.text?.toString()?.trim() ?: ""
-                if (token.isBlank()) {
-                    tilToken.error = "Token 不能为空"
-                    return@setOnClickListener
-                }
-                tilToken.error = null
-                verifyGithub(token, repoInput)
+        btnConfirm.setOnClickListener {
+            val token = etToken.text?.toString()?.trim() ?: ""
+            val repoInput = etRepo.text?.toString()?.trim() ?: ""
+            if (token.isBlank()) {
+                tilToken.error = "Token 不能为空"
+                return@setOnClickListener
             }
+            tilToken.error = null
+            verifyGithub(token, repoInput)
         }
         view.findViewById<View>(R.id.btnTokenHelp)?.setOnClickListener {
             showTokenHelpDialog()
@@ -942,6 +925,7 @@ private fun showGithubDialog() {
             .setView(view)
             .create()
         dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        applyDialogBlur(dlg)
         view.findViewById<View>(R.id.btnOpenTokens).setOnClickListener {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/settings/tokens")))
@@ -955,20 +939,24 @@ private fun showGithubDialog() {
 
     private fun verifyGithub(token: String, repoInput: String) {
         val dlg = githubDialog ?: return
-        dlg.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
+        val btnConfirm = dlg.findViewById<TextView>(R.id.btnGithubConfirm)
+        btnConfirm.isEnabled = false
+        btnConfirm.alpha = 0.5f
         lifecycleScope.launch {
             try {
                 val api = GithubApi("", token)
                 val result = withContext(Dispatchers.IO) { api.verifyAndGetLogin() }
                 if (result == null) {
-                    dlg.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+                    btnConfirm.isEnabled = true
+                    btnConfirm.alpha = 1f
                     tilError(dlg, "验证失败：Token 无效")
                     return@launch
                 }
 
                 val prepared = withContext(Dispatchers.IO) { resolveAndPrepareRepo(api, result, repoInput) }
                 if (prepared == null) {
-                    dlg.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+                    btnConfirm.isEnabled = true
+                    btnConfirm.alpha = 1f
                     tilError(dlg, "仓库准备失败，请检查网络后重试")
                     return@launch
                 }
@@ -983,7 +971,8 @@ private fun showGithubDialog() {
                     // 权限不足：不允许登录（首次登录与切换账号都执行此检查），提示重新获取；
                     // 不保存配置、不退出当前账号、不关闭弹窗
                     runOnUiThread {
-                        dlg.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+                        btnConfirm.isEnabled = true
+                        btnConfirm.alpha = 1f
                         tilError(dlg, "token 权限不足，请重新获取（classic 需勾选 repo + workflow）")
                         Toast.makeText(this@MainActivity, "token 权限不足，登录失败，请重新获取", Toast.LENGTH_LONG).show()
                         showPermissionReport(result, prepared.repoName, perms, false)
@@ -1009,7 +998,8 @@ private fun showGithubDialog() {
                 fetchCloudAccounts(true)
             } catch (e: Exception) {
                 e.printStackTrace()
-                dlg.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+                btnConfirm.isEnabled = true
+                btnConfirm.alpha = 1f
                 tilError(dlg, "验证失败：${e.message ?: "网络异常"}")
             }
         }
@@ -1086,6 +1076,7 @@ private fun showGithubDialog() {
 
         val dlg = MaterialAlertDialogBuilder(this).setView(view).create()
         dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        applyDialogBlur(dlg)
         view.findViewById<View>(R.id.btnIssuesClose).setOnClickListener { dlg.dismiss() }
 
         for ((index, pair) in entries.withIndex()) {
@@ -1150,6 +1141,26 @@ private fun showGithubDialog() {
     }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
+    /** 给弹窗加系统级高斯模糊：Android 12+(API 31) 起可用 Window.setBackgroundBlurRadius，
+     *  Android 13+(API 33) 追加 blurBehindRadius；低版本静默跳过不影响功能 */
+    private fun applyDialogBlur(dlg: androidx.appcompat.app.AlertDialog) {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                val win = dlg.window ?: return
+                // 回避 lint 报错：setBackgroundBlurRadius/blurBehindRadius 在 API 31/33 才有，
+                // 用后台反射调用，低版本抛异常则忽略
+                val m1 = win.javaClass.getMethod("setBackgroundBlurRadius", Int::class.javaPrimitiveType)
+                m1.invoke(win, 40)
+                if (android.os.Build.VERSION.SDK_INT >= 33) {
+                    val m2 = win.javaClass.getMethod("setBlurBehindRadius", Int::class.javaPrimitiveType)
+                    m2.invoke(win, 40)
+                }
+            }
+        } catch (_: Exception) {
+            // 设备/系统不支持模糊：忽略
+        }
+    }
 
     /** 检测登录态失效：拉云端日志，若有"需重新登录/失效"的失败记录则显示顶部警告横幅 */
     private fun checkLoginIssues() {
@@ -1895,6 +1906,8 @@ private fun showGithubDialog() {
         val dlg = MaterialAlertDialogBuilder(this)
             .setView(view)
             .create()
+        dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        applyDialogBlur(dlg)
         view.findViewById<View>(R.id.btnOpenSecrets).setOnClickListener {
             // 一键跳转到当前仓库的 Actions Secrets 配置页
             val url = if (config.repoName.isNotBlank())
@@ -1936,6 +1949,7 @@ private fun showGithubDialog() {
             .setView(view)
             .create()
         dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        applyDialogBlur(dlg)
 
         fun pick(t: String) {
             UiSnapshot.capture(this@MainActivity)
@@ -1977,6 +1991,7 @@ private fun showGithubDialog() {
             .setView(view)
             .create()
         dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        applyDialogBlur(dlg)
 
         view.findViewById<View>(R.id.btnOpenSptGuide).setOnClickListener {
             try {
@@ -2514,6 +2529,7 @@ private fun showGithubDialog() {
             .setView(view)
             .create()
         dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        applyDialogBlur(dlg)
         view.findViewById<View>(R.id.btnStatsClose).setOnClickListener { dlg.dismiss() }
         view.findViewById<View>(R.id.btnStatsCloseX).setOnClickListener { dlg.dismiss() }
         dlg.setOnShowListener { loadStats(tv) }
@@ -2695,6 +2711,7 @@ private fun showGithubDialog() {
             .create()
         // 弹窗整体为深色终端窗口背景，避免圆角外露出白色
         dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        applyDialogBlur(dlg)
 
         /** 终端行：● 点按来源着色（手动黄/自动蓝），正文按领取/结果着色（领取>0绿 / 已签到紫 / 失败红），时间灰色 */
         fun logLine(source: String, result: String, earned: Long, time: String, body: String): CharSequence {

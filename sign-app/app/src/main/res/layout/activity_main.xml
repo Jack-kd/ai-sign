@@ -11,15 +11,21 @@
         android:orientation="vertical"
         android:background="@drawable/bg_page_gradient">
 
-    <!-- 顶部栏：GitHub 账号(可点击切换) + 设置图标 -->
+    <!-- 顶部栏：GitHub 账号(可点击切换) + 设置图标（玻璃胶囊，浮于渐变衬底上） -->
     <LinearLayout
         android:id="@+id/mainTopBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:padding="16dp"
-        android:background="@drawable/bg_top_gradient">
+        android:layout_marginLeft="12dp"
+        android:layout_marginRight="12dp"
+        android:layout_marginTop="10dp"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp"
+        android:background="@drawable/bg_top_glass">
         <LinearLayout
             android:id="@+id/btnSwitchAccount"
             android:layout_width="0dp"
@@ -33,7 +39,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="GitHub: 未授权"
-                android:textColor="@color/white"
+                android:textColor="@color/text_primary"
                 android:textSize="16sp"
                 android:textStyle="bold" />
             <TextView
@@ -42,7 +48,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
                 android:text="▽"
-                android:textColor="@color/white"
+                android:textColor="@color/gray"
                 android:textSize="14sp"
                 android:padding="2dp" />
         </LinearLayout>
@@ -51,7 +57,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="⚙"
-            android:textColor="@color/white"
+            android:textColor="@color/text_primary"
             android:textSize="24sp"
             android:padding="4dp"
             android:background="?attr/selectableItemBackgroundBorderless" />
@@ -572,18 +578,21 @@
         android:orientation="vertical"
         android:visibility="gone">
 
-        <!-- 详情头：返回 + 渠道名 -->
+        <!-- 详情头：返回 + 渠道名（玻璃胶囊，浮于渐变衬底上） -->
         <LinearLayout
             android:id="@+id/detailHeader"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:paddingLeft="8dp"
+            android:layout_marginLeft="12dp"
+            android:layout_marginRight="12dp"
+            android:layout_marginTop="10dp"
+            android:paddingLeft="12dp"
             android:paddingRight="16dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            android:background="@drawable/bg_top_gradient">
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:background="@drawable/bg_top_glass">
 
             <TextView
                 android:id="@+id/btnBackHome"
@@ -591,7 +600,7 @@
                 android:layout_height="wrap_content"
                 android:padding="8dp"
                 android:text="‹"
-                android:textColor="@color/white"
+                android:textColor="@color/text_primary"
                 android:textSize="26sp"
                 android:textStyle="bold"
                 android:background="?attr/selectableItemBackgroundBorderless" />
@@ -602,7 +611,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
                 android:text="TRAE"
-                android:textColor="@color/white"
+                android:textColor="@color/text_primary"
                 android:textSize="17sp"
                 android:textStyle="bold" />
         </LinearLayout>

@@ -8,7 +8,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:background="@drawable/bg_page_gradient">
+        android:background="@drawable/bg_page_background">
 
     <!-- 顶部栏：GitHub 账号(可点击切换) + 设置图标 -->
     <LinearLayout

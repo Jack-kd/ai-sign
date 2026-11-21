@@ -31,9 +31,14 @@
     <color name="gradient_start">#1B4F8A</color>
     <color name="gradient_end">#0E3A66</color>
     <color name="icon_circle_bg">#1B3A5C</color>
-    <!-- 页面渐变衬底 + 玻璃色（深色） -->
-    <color name="page_gradient_start">#0C1524</color>
-    <color name="page_gradient_end">#131E2E</color>
-    <color name="glass_fill">#2EFFFFFF</color>
-    <color name="glass_stroke">#1FFFFFFF</color>
+    <!-- 页面渐变衬底 + 玻璃色（深色）：深蓝紫衬底，玻璃提亮一档透出层次 -->
+    <color name="page_gradient_start">#16213A</color>
+    <color name="page_gradient_end">#0D1626</color>
+    <color name="glass_highlight">#38FFFFFF</color>
+    <color name="glass_fill">#22FFFFFF</color>
+    <color name="glass_stroke">#33FFFFFF</color>
+    <!-- 首页玻璃背后的品牌光斑（深色模式更亮一档） -->
+    <color name="glow_blue">#554C6FFF</color>
+    <color name="glow_cyan">#4006B6D4</color>
+    <color name="glow_purple">#408B5CF6</color>
 </resources>

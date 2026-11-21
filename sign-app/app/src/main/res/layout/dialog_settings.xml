@@ -62,7 +62,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="两平台同步设置"
+                    android:text="统一签到时间"
                     android:textColor="@color/text_primary"
                     android:textSize="15sp"
                     android:textStyle="bold" />
@@ -71,7 +71,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="TRAE 和 WorkBuddy 设为同一时间"
+                    android:text="TRAE / WorkBuddy / Qoder中国版 / Loomy 设为同一时间"
                     android:textColor="@color/gray"
                     android:textSize="12sp" />
             </LinearLayout>
@@ -122,7 +122,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="立即触发 TRAE + WorkBuddy 签到"
+                    android:text="立即触发全部 4 渠道签到（TRAE / WorkBuddy / Qoder中国版 / Loomy）"
                     android:textColor="@color/gray"
                     android:textSize="12sp" />
             </LinearLayout>
@@ -223,7 +223,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="今日 / 本周 / 本月领取与近 7 天趋势"
+                    android:text="全渠道今日 / 本月 / 累计领取与近 7 天趋势"
                     android:textColor="@color/gray"
                     android:textSize="12sp" />
             </LinearLayout>

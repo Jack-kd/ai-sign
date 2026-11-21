@@ -490,7 +490,7 @@ class MainActivity : AppCompatActivity() {
             }
         view.findViewById<TextView>(R.id.tvConfirmTitle).text = if (both) "一键签到" else "立即签到$displayName"
         view.findViewById<TextView>(R.id.tvConfirmDesc).text = if (both)
-            "将立即触发 TRAE、WorkBuddy 与 Qoder 中国版\n全部账号的云端签到，并等待执行完成。\n\n确定现在签到吗？"
+            "将立即触发全部 4 渠道（TRAE / WorkBuddy / Qoder中国版 / Loomy）\n全部账号的云端签到，并等待执行完成。\n\n确定现在签到吗？"
         else
             "将立即触发 $displayName 全部账号的云端签到\n并等待执行完成。\n\n确定现在签到吗？"
         val dlg = MaterialAlertDialogBuilder(this)
@@ -556,7 +556,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** 全局设置签到时间：两平台设同一时间（滚轮选择） */
+    /** 全局设置签到时间：四平台设同一时间（滚轮选择） */
     private fun showGlobalScheduleDialog() {
         val h = config.spForScheduleHour().let { if (it in 0..23) it else 0 }
         val m = config.spForScheduleMinute().let { if (it in 0..59) it else 30 }
@@ -596,7 +596,7 @@ class MainActivity : AppCompatActivity() {
         dlg.show()
     }
 
-    /** 同时保存 TRAE + WorkBuddy + Qoder 中国版 的签到时间 */
+    /** 同时保存 TRAE + WorkBuddy + Qoder 中国版 + Loomy 的签到时间 */
     private fun saveBothSchedule(hour: Int, minute: Int) {
         lifecycleScope.launch {
             val api = GithubApi(config.username, config.token)
@@ -644,7 +644,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** 一键签到：同时触发 TRAE + WorkBuddy + Qoder 中国版 */
+    /** 一键签到：同时触发 TRAE + WorkBuddy + Qoder 中国版 + Loomy */
     private fun triggerBothNow() {
         triggerNow("TRAE")
         triggerNow("WorkBuddy")
@@ -2561,8 +2561,55 @@ private fun showGithubDialog() {
             val year = now.get(java.util.Calendar.YEAR)
 
             fun earnedOf(log: CloudSignLog): Long = log.earned
+            // ===== 分渠道统计（4 渠道 + 旧日志未标注）=====
+            data class ChStat(
+                val name: String, val color: Int,
+                val today: Long, val month: Long, val total: Long,
+                val ok: Int, val fail: Int, val already: Int, val accounts: Int
+            )
+            val chColors = mapOf(
+                "TRAE" to R.color.channel_trae,
+                "WorkBuddy" to R.color.channel_workbuddy,
+                "QoderCn" to R.color.channel_qodercn,
+                "Loomy" to R.color.channel_loomy
+            )
+            val chNames = mapOf(
+                "TRAE" to "TRAE", "WorkBuddy" to "WorkBuddy",
+                "QoderCn" to "Qoder中国版", "Loomy" to "Loomy"
+            )
+            fun inMonth(l: CloudSignLog): Boolean {
+                val c = java.util.Calendar.getInstance().apply { time = java.util.Date(l.time) }
+                return c.get(java.util.Calendar.MONTH) == month && c.get(java.util.Calendar.YEAR) == year
+            }
+            fun chStat(ch: String): ChStat {
+                val sub = list.filter { it.platform == ch }
+                val accounts = sub.map { it.uid.ifBlank { it.account } }.distinct().size
+                return ChStat(
+                    chNames[ch] ?: ch,
+                    ContextCompat.getColor(this, chColors[ch] ?: R.color.terminal_gray),
+                    sub.filter { fmt.format(java.util.Date(it.time)) == today }.sumOf { it.earned },
+                    sub.filter { inMonth(it) }.sumOf { it.earned },
+                    sub.sumOf { it.earned },
+                    sub.count { it.result == "成功" },
+                    sub.count { it.result == "失败" },
+                    sub.count { it.result == "已签到" },
+                    accounts
+                )
+            }
+            val statsByCh = listOf("TRAE", "WorkBuddy", "QoderCn", "Loomy").map { chStat(it) }
+            val unknownCount = list.count { it.platform.isBlank() }
+            val unknownTotal = list.filter { it.platform.isBlank() }.sumOf { it.earned }
+
             val earnedToday = list.filter { fmt.format(java.util.Date(it.time)) == today }.sumOf { earnedOf(it) }
-            // 近 7 天（含今天）每日领取
+            val earnedMonth = list.filter { inMonth(it) }.sumOf { earnedOf(it) }
+            val earnedTotal = list.sumOf { earnedOf(it) }
+            val success = list.count { it.result == "成功" }
+            val fail = list.count { it.result == "失败" }
+            val already = list.count { it.result == "已签到" }
+            val manual = list.count { it.source == "手动" }
+            val auto = list.size - manual
+
+            // 近 7 天（含今天）每日领取趋势
             val trend = ArrayList<Pair<String, Long>>()
             val trendTotal = list.filter {
                 val d = fmt.format(java.util.Date(it.time))
@@ -2576,31 +2623,47 @@ private fun showGithubDialog() {
                 val sum = list.filter { fmt.format(java.util.Date(it.time)) == ds }.sumOf { earnedOf(it) }
                 trend.add(ds to sum)
             }
-            val earnedMonth = list.filter {
-                val c = java.util.Calendar.getInstance().apply { time = java.util.Date(it.time) }
-                c.get(java.util.Calendar.MONTH) == month && c.get(java.util.Calendar.YEAR) == year
-            }.sumOf { earnedOf(it) }
-            val earnedTotal = list.sumOf { earnedOf(it) }
-            val success = list.count { it.result == "成功" }
-            val fail = list.count { it.result == "失败" }
-            val manual = list.count { it.source == "手动" }
-            val auto = list.size - manual
+
+            // 等宽对齐：半角 1 格 / 全角 2 格
+            fun pad(s: String, width: Int): String {
+                var w = 0
+                for (ch in s) w += if (ch.code > 0x7F) 2 else 1
+                return s + " ".repeat((width - w).coerceAtLeast(1))
+            }
+            fun two(v: Long) = pad(v.toString(), 6)
 
             val sb = SpannableStringBuilder()
-            sb.append(line("# 积分统计（TRAE + WorkBuddy）\n", cCyan))
-            sb.append(line("今日领取：" + earnedToday + " 分\n", cGreen))
-            sb.append(line("近 7 天：" + trendTotal + " 分\n", cCyan))
-            sb.append(line("本月领取：" + earnedMonth + " 分\n", cGreen))
-            sb.append(line("累计领取：" + earnedTotal + " 分\n", cCyan))
-            sb.append(line("成功 " + success + " 次 / 失败 " + fail + " 次\n", cGray))
-            sb.append(line("手动 " + manual + " 条 / 自动 " + auto + " 条\n", cGray))
-            sb.append(line("\n# 近 7 天趋势\n", cCyan))
+            // ===== ① 总览 =====
+            sb.append(line("# 积分统计 · 全部渠道\n", cCyan))
+            sb.append(line("  今日领取  " + two(earnedToday) + " 分   累计领取  " + two(earnedTotal) + " 分\n", cGreen))
+            sb.append(line("  近 7 天   " + two(trendTotal) + " 分   本月领取  " + two(earnedMonth) + " 分\n", cCyan))
+            sb.append(line("  成功 " + success + " 次 / 失败 " + fail + " 次 / 已签到 " + already + " 次\n", cGray))
+            sb.append(line("  手动 $manual 条 / 自动 $auto 条" + (if (unknownCount > 0) " / 未标注渠道 +$unknownTotal 分" else "") + "\n", cGray))
+            // ===== ② 分渠道 =====
+            sb.append(line("# 分渠道明细\n", cCyan))
+            statsByCh.forEach { st ->
+                val dot = SpannableString("● ")
+                dot.setSpan(ForegroundColorSpan(st.color), 0, dot.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sb.append(dot)
+                val head = pad(st.name, 10)
+                sb.append(line(head, cWhite))
+                sb.append(line("今日 " + pad(st.today.toString(), 5) + "  本月 " + pad(st.month.toString(), 6) + "  累计 " + pad(st.total.toString(), 6) + "  账号 " + st.accounts + "\n",
+                    if (st.total > 0) cGreen else cGray))
+            }
+            if (unknownTotal > 0) {
+                sb.append(line("  （另有 ${unknownCount} 条旧日志未标注渠道，+$unknownTotal 分）\n", cGray))
+            }
+            // ===== ③ 近 7 天趋势 =====
+            sb.append(line("# 近 7 天领取趋势\n", cCyan))
             val max = (trend.maxOfOrNull { it.second } ?: 0L).coerceAtLeast(1)
             for ((date, sum) in trend) {
                 val bars = "█".repeat(((sum * 24 / max).toInt()))
-                val mark = if (date == today) " ◀ 今天" else ""
-                sb.append(line("  " + date.substring(5) + "  +" + sum + " " + bars + mark + "\n", if (sum > 0) cGreen else cGray))
+                val mark = if (date == today) "  ◀今天" else ""
+                sb.append(line("  " + pad(date.substring(5), 6) + " +" + pad(sum.toString(), 5) + " " + bars + mark + "\n", if (sum > 0) cGreen else cGray))
             }
+            // ===== ④ 说明 =====
+            sb.append(line("\n单位：分（签到领取的积分/额度）；成功/失败/已签到 为云端返回结果；", cGray))
+            sb.append(line("已签到 = 当日已领过；累计 = 全部历史记录之和。", cGray))
             tv.text = sb
         }
     }

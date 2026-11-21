@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 首页玻璃衬底：品牌色径向光晕（液态玻璃背后可透的元素），全尺寸铺满避免负偏移 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 左上：电蓝晕 -->
+    <item>
+        <shape android:shape="oval">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="260dp"
+                android:centerX="0.18"
+                android:centerY="0.08"
+                android:startColor="@color/glow_blue"
+                android:endColor="#00FFFFFF" />
+        </shape>
+    </item>
+    <!-- 右上：青色晕 -->
+    <item>
+        <shape android:shape="oval">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="240dp"
+                android:centerX="0.88"
+                android:centerY="0.30"
+                android:startColor="@color/glow_cyan"
+                android:endColor="#00FFFFFF" />
+        </shape>
+    </item>
+    <!-- 左下：紫色晕 -->
+    <item>
+        <shape android:shape="oval">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="250dp"
+                android:centerX="0.15"
+                android:centerY="0.92"
+                android:startColor="@color/glow_purple"
+                android:endColor="#00FFFFFF" />
+        </shape>
+    </item>
+</layer-list>

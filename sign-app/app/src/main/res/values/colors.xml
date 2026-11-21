@@ -32,10 +32,17 @@
     <color name="topbar_end">#0F172A</color>
 
     <!-- ===== 页面渐变衬底（液态玻璃透底）===== -->
-    <color name="page_gradient_start">#E9EFFF</color>
-    <color name="page_gradient_end">#F8FAFE</color>
-    <color name="glass_fill">#CCFFFFFF</color>
-    <color name="glass_stroke">#59FFFFFF</color>
+    <!-- 加深顶部蓝：玻璃卡透出淡蓝层次；底部接近白，版面不脏 -->
+    <color name="page_gradient_start">#D6E4FF</color>
+    <color name="page_gradient_end">#F4F8FE</color>
+    <!-- 玻璃：顶部高光渐变 → 底部更透；描边用亮白高光 -->
+    <color name="glass_highlight">#EDFFFFFF</color>
+    <color name="glass_fill">#A8FFFFFF</color>
+    <color name="glass_stroke">#8CFFFFFF</color>
+    <!-- 首页玻璃背后的品牌光斑（半透明径向晕，玻璃透出才有液态感） -->
+    <color name="glow_blue">#334C6FFF</color>
+    <color name="glow_cyan">#2E06B6D4</color>
+    <color name="glow_purple">#2E8B5CF6</color>
 
     <!-- ===== 渠道品牌色 ===== -->
     <color name="channel_trae">#00B3A4</color>

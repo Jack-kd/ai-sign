@@ -835,7 +835,7 @@ private fun showGithubDialog() {
         val containerSaved = view.findViewById<LinearLayout>(R.id.containerSavedAccounts)
 
         // 已登录过账号：弹窗用于"切换账号"，点为卡片内取消、可点外部关闭；
-        // 无账号（首次）：必须授权，卡片内为退出、不可外部关闭
+        // 无账号（首次）：可直接退出授权流程（卡片内"退出"按钮），也可点外部空白关闭
         val hasSaved = config.savedAccounts().isNotEmpty()
         val dialog = MaterialAlertDialogBuilder(this)
             .setView(view)
@@ -843,7 +843,8 @@ private fun showGithubDialog() {
         // 弹窗整体浅色渐变（含底部按钮区，圆角）
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
         applyDialogBlur(dialog)
-        dialog.setCancelable(!hasSaved)
+        dialog.setCancelable(true)
+        dialog.setCanceledOnTouchOutside(true)
         dialog.setOnCancelListener { githubDialog = null }
         dialog.setOnDismissListener { githubDialog = null }
         githubDialog = dialog

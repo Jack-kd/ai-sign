@@ -122,7 +122,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="立即触发全部 4 渠道签到（TRAE / WorkBuddy / Qoder中国版 / Loomy）"
+                    android:text="一键签到所有渠道"
                     android:textColor="@color/gray"
                     android:textSize="12sp" />
             </LinearLayout>

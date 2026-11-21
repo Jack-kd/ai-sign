@@ -126,8 +126,36 @@ data class CloudSignLog(
     val account: String,
     val result: String,   // 成功 / 失败 / 已签到
     val detail: String = "",
-    val platform: String = "",   // TRAE / WorkBuddy，用于分类展示
-    val uid: String = "",        // 账号 uid（用于按账号精确过滤；旧日志可能为空）
-    val source: String = "",     // 手动 / 自动（触发来源；旧日志可能为空）
-    val earned: Long = 0         // 本次签到领取的积分/额度（用于"今日领取"统计）
+    val platform: String = "",   // TRAE / WorkBuddy / QoderCn / Loomy；旧日志可能缺失
+    val uid: String = "",        // 账号 uid；旧日志可能缺失
+    val source: String = "",     // 手动 / 自动；旧日志可能缺失
+    val earned: Long = 0         // 本次签到领取的积分/额度
 )
+
+/**
+ * 手动解析 sign_logs.json（而非 Gson 直接绑定 data class）：
+ * Gson 反序列化时 JSON 缺失/为 null 的字段会绕过 Kotlin 非空默认值直接注入 null，
+ * 导致下游 .isBlank()/.ifBlank() 运行期 NPE。这里逐字段兜底 null → ""。
+ */
+fun parseSignLogs(raw: String): List<CloudSignLog> {
+    return try {
+        com.google.gson.JsonParser.parseString(raw).asJsonArray.mapNotNull { el ->
+            if (!el.isJsonObject) return@mapNotNull null
+            val o = el.asJsonObject
+            fun s(key: String): String =
+                if (o.has(key) && !o.get(key).isJsonNull) o.get(key).asString else ""
+            CloudSignLog(
+                time = if (o.has("time") && !o.get("time").isJsonNull) o.get("time").asLong else 0L,
+                account = s("account"),
+                result = s("result"),
+                detail = s("detail"),
+                platform = s("platform"),
+                uid = s("uid"),
+                source = s("source"),
+                earned = if (o.has("earned") && !o.get("earned").isJsonNull) o.get("earned").asLong else 0L
+            )
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
+}

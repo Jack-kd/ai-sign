@@ -28,10 +28,10 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import com.jackkd.signapp.R
 import com.jackkd.signapp.data.AccountStore
 import com.jackkd.signapp.data.CloudSignLog
+import com.jackkd.signapp.data.parseSignLogs
 import com.jackkd.signapp.data.GithubConfig
 import com.jackkd.signapp.data.GithubSavedAccount
 import com.jackkd.signapp.data.LogStore
@@ -210,6 +210,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var homeOverviewValue: TextView
     private lateinit var mainTopBar: View
     private lateinit var loginAlertBanner: View
+    private lateinit var backdropBlur: View   // 背景装饰层（光斑），API 31+ 高斯模糊，低版本仅显示不模糊
     private var onResumeCalledForThemeRestart = false   // 本次 onResume 是主题切换重建触发，跳过云端重拉
 
     // 首页渠道卡片视图（4 张固定卡片）
@@ -271,6 +272,8 @@ class MainActivity : AppCompatActivity() {
         homeOverviewValue = findViewById(R.id.homeOverviewValue)
         mainTopBar = findViewById(R.id.mainTopBar)
         loginAlertBanner = findViewById(R.id.loginAlertBanner)
+        backdropBlur = findViewById(R.id.backdropBlur)
+        applyBackdropBlur()
 
         // 首页 4 张渠道卡片
         subTrae = findViewById(R.id.subTrae)
@@ -490,7 +493,7 @@ class MainActivity : AppCompatActivity() {
             }
         view.findViewById<TextView>(R.id.tvConfirmTitle).text = if (both) "一键签到" else "立即签到$displayName"
         view.findViewById<TextView>(R.id.tvConfirmDesc).text = if (both)
-            "将立即触发全部 4 渠道（TRAE / WorkBuddy / Qoder中国版 / Loomy）\n全部账号的云端签到，并等待执行完成。\n\n确定现在签到吗？"
+            "将立即触发所有渠道、全部账号的\n云端签到，并等待执行完成。\n\n确定现在签到吗？"
         else
             "将立即触发 $displayName 全部账号的云端签到\n并等待执行完成。\n\n确定现在签到吗？"
         val dlg = MaterialAlertDialogBuilder(this)
@@ -641,6 +644,21 @@ class MainActivity : AppCompatActivity() {
                     Toast.LENGTH_LONG
                 ).show()
             }
+        }
+    }
+
+    /** 背景光斑层高斯模糊（毛玻璃灵魂）：API 31+ 用 RenderEffect 真模糊，低版本静默降级为不模糊 */
+    private fun applyBackdropBlur() {
+        try {
+            // RenderEffect 是 API 31 (Android 12) 引入；minSdk 26，低版本走 else 分支（Android Studio 识别 API 门槛需要条件判断）
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                val blur = android.graphics.RenderEffect.createBlurEffect(
+                    24f, 24f, android.graphics.Shader.TileMode.CLAMP
+                )
+                backdropBlur.setRenderEffect(blur)
+            }
+        } catch (e: Exception) {
+            // 个别厂商 ROM 可能不支持 blur render effect：降级为不模糊，不影响功能
         }
     }
 
@@ -1166,8 +1184,7 @@ private fun showGithubDialog() {
                 return@launch
             }
             val list: List<CloudSignLog> = try {
-                val type = object : TypeToken<List<CloudSignLog>>() {}.type
-                Gson().fromJson<List<CloudSignLog>>(raw, type) ?: emptyList()
+                parseSignLogs(raw)
             } catch (e: Exception) {
                 emptyList()
             }
@@ -1225,8 +1242,7 @@ private fun showGithubDialog() {
                 return@launch
             }
             val list: List<CloudSignLog> = try {
-                val type = object : TypeToken<List<CloudSignLog>>() {}.type
-                Gson().fromJson<List<CloudSignLog>>(raw, type) ?: emptyList()
+                parseSignLogs(raw)
             } catch (e: Exception) {
                 emptyList()
             }
@@ -2425,8 +2441,7 @@ private fun showGithubDialog() {
 
                 // 4) 今日总积分标题
                 try {
-                    val type = object : TypeToken<List<CloudSignLog>>() {}.type
-                    val logs: List<CloudSignLog> = Gson().fromJson(logsRaw2, type) ?: emptyList()
+                    val logs: List<CloudSignLog> = parseSignLogs(logsRaw2)
                     val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                     val today = fmt.format(java.util.Date())
                     fun todayEarned(platform: String): Long {
@@ -2552,8 +2567,7 @@ private fun showGithubDialog() {
                 return@launch
             }
             val list: List<CloudSignLog> = try {
-                val type = object : TypeToken<List<CloudSignLog>>() {}.type
-                Gson().fromJson<List<CloudSignLog>>(raw, type) ?: emptyList()
+                parseSignLogs(raw)
             } catch (e: Exception) {
                 emptyList()
             }
@@ -2779,8 +2793,7 @@ private fun showGithubDialog() {
                     tv.text = info("$ 拉取失败或暂无日志\n\n# 请确认：\n# 1. 已在 GitHub 授权\n# 2. 签到工作流至少运行过一次")
                 } else {
                     val list = try {
-                        val type = object : TypeToken<List<CloudSignLog>>() {}.type
-                        Gson().fromJson<List<CloudSignLog>>(raw, type) ?: emptyList()
+                        parseSignLogs(raw)
                     } catch (e: Exception) {
                         emptyList()
                     }

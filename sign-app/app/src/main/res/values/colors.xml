@@ -36,8 +36,8 @@
     <color name="page_gradient_start">#D6E4FF</color>
     <color name="page_gradient_end">#F4F8FE</color>
     <!-- 玻璃：顶部高光渐变 → 底部更透；描边用亮白高光 -->
-    <color name="glass_highlight">#EDFFFFFF</color>
-    <color name="glass_fill">#A8FFFFFF</color>
+    <color name="glass_highlight">#E8FFFFFF</color>
+    <color name="glass_fill">#96FFFFFF</color>
     <color name="glass_stroke">#8CFFFFFF</color>
     <!-- 首页玻璃背后的品牌光斑（半透明径向晕，玻璃透出才有液态感） -->
     <color name="glow_blue">#334C6FFF</color>

@@ -17,11 +17,10 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import com.jackkd.signapp.R
 import com.jackkd.signapp.data.AccountStore
 import com.jackkd.signapp.data.CloudSignLog
+import com.jackkd.signapp.data.parseSignLogs
 import com.jackkd.signapp.data.GithubConfig
 import com.jackkd.signapp.data.TraeAccount
 import com.jackkd.signapp.data.UploadAccount
@@ -190,8 +189,7 @@ class AccountDetailActivity : AppCompatActivity() {
                 return@launch
             }
             val list: List<CloudSignLog> = try {
-                val type = object : TypeToken<List<CloudSignLog>>() {}.type
-                Gson().fromJson<List<CloudSignLog>>(raw, type) ?: emptyList()
+                parseSignLogs(raw)
             } catch (e: Exception) {
                 emptyList()
             }

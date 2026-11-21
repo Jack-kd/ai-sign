@@ -32,7 +32,7 @@
         android:layout_marginTop="12dp"
         android:gravity="center"
         android:lineSpacingExtra="4dp"
-        android:text="将立即触发全部 4 渠道（TRAE / WorkBuddy / Qoder中国版 / Loomy）\n全部账号的云端签到，并等待执行完成。\n\n确定现在签到吗？"
+        android:text="将立即触发所有渠道、全部账号的\n云端签到，并等待执行完成。\n\n确定现在签到吗？"
         android:textColor="@color/gray"
         android:textSize="14sp" />
 

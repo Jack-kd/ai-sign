@@ -2528,6 +2528,13 @@ private fun showGithubDialog() {
         val cYellow = ContextCompat.getColor(this, R.color.terminal_yellow)
         val cGray = ContextCompat.getColor(this, R.color.terminal_gray)
         val cWhite = ContextCompat.getColor(this, R.color.terminal_white)
+        // 渠道品牌色（在 launch 外解析：launch 内 this 是 CoroutineScope，不能取 Context 颜色）
+        val chColorMap = mapOf(
+            "TRAE" to ContextCompat.getColor(this, R.color.channel_trae),
+            "WorkBuddy" to ContextCompat.getColor(this, R.color.channel_workbuddy),
+            "QoderCn" to ContextCompat.getColor(this, R.color.channel_qodercn),
+            "Loomy" to ContextCompat.getColor(this, R.color.channel_loomy)
+        )
         fun line(text: String, color: Int): CharSequence {
             val sp = SpannableString(text)
             sp.setSpan(ForegroundColorSpan(color), 0, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -2567,12 +2574,6 @@ private fun showGithubDialog() {
                 val today: Long, val month: Long, val total: Long,
                 val ok: Int, val fail: Int, val already: Int, val accounts: Int
             )
-            val chColors = mapOf(
-                "TRAE" to R.color.channel_trae,
-                "WorkBuddy" to R.color.channel_workbuddy,
-                "QoderCn" to R.color.channel_qodercn,
-                "Loomy" to R.color.channel_loomy
-            )
             val chNames = mapOf(
                 "TRAE" to "TRAE", "WorkBuddy" to "WorkBuddy",
                 "QoderCn" to "Qoder中国版", "Loomy" to "Loomy"
@@ -2586,7 +2587,7 @@ private fun showGithubDialog() {
                 val accounts = sub.map { it.uid.ifBlank { it.account } }.distinct().size
                 return ChStat(
                     chNames[ch] ?: ch,
-                    ContextCompat.getColor(this, chColors[ch] ?: R.color.terminal_gray),
+                    chColorMap[ch] ?: cGray,
                     sub.filter { fmt.format(java.util.Date(it.time)) == today }.sumOf { it.earned },
                     sub.filter { inMonth(it) }.sumOf { it.earned },
                     sub.sumOf { it.earned },

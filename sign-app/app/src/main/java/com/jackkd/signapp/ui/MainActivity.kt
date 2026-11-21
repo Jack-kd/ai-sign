@@ -134,18 +134,14 @@ fun animateMainTheme(activity: android.app.Activity) {
             animateGradient(it, s, e, 8f)
         }
     }
-    // 顶栏固定深色（不随主题动画）：保持视觉一致
+    // 顶栏也走品牌色渐变动画（首页顶栏 + 详情头部），随主题一起平滑过渡
     listOf(R.id.mainTopBar, R.id.detailHeader).forEach { id ->
         activity.findViewById<android.view.View>(id)?.let {
-            it.background = android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
-                intArrayOf(
-                    it.resources.getColor(R.color.topbar_start, null),
-                    it.resources.getColor(R.color.topbar_end, null)
-                )
-            )
+            animateGradient(it, s, e, 0f)
         }
     }
+    // 状态栏跟随主题主色（与顶栏渐变起色一致）
+    activity.window?.statusBarColor = s
 }
 
 /** 解析 JWT accessToken 的过期时间（毫秒）；非 JWT/失败返回 null */
@@ -212,6 +208,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var detailContainer: View
     private lateinit var detailChannelName: TextView
     private lateinit var homeOverviewValue: TextView
+    private lateinit var mainTopBar: View
+    private lateinit var loginAlertBanner: View
+    private var onResumeCalledForThemeRestart = false   // 本次 onResume 是主题切换重建触发，跳过云端重拉
 
     // 首页渠道卡片视图（4 张固定卡片）
     private lateinit var subTrae: TextView
@@ -270,6 +269,8 @@ class MainActivity : AppCompatActivity() {
         detailContainer = findViewById(R.id.detailContainer)
         detailChannelName = findViewById(R.id.detailChannelName)
         homeOverviewValue = findViewById(R.id.homeOverviewValue)
+        mainTopBar = findViewById(R.id.mainTopBar)
+        loginAlertBanner = findViewById(R.id.loginAlertBanner)
 
         // 首页 4 张渠道卡片
         subTrae = findViewById(R.id.subTrae)
@@ -376,7 +377,17 @@ class MainActivity : AppCompatActivity() {
         // 登录态失效横幅：点击弹出全部失效账号列表，选哪个跳对应平台登录页
         findViewById<View>(R.id.loginAlertBanner).setOnClickListener { showLoginIssuesDialog() }
 
+        // 主题/深色切换重建后恢复 UI 快照（须在 refresh() 前：让卡片汇总先读到旧积分，避免闪成 "--"）
+        val themeRestart = UiSnapshot.consumeThemeRestart()
+        if (themeRestart) {
+            UiSnapshot.restore(this)
+        }
         refresh()
+
+        // 主题切换重建：本次 onResume 跳过云端重拉（快照已恢复，账号列表由 refresh() 本地重建）
+        if (themeRestart) {
+            onResumeCalledForThemeRestart = true
+        }
     }
 
     /** 切换 GitHub 账号菜单（仿账号名后的▽下拉） */
@@ -406,6 +417,9 @@ class MainActivity : AppCompatActivity() {
     private fun showHome() {
         detailContainer.visibility = View.GONE
         homePage.visibility = View.VISIBLE
+        // 首页专属顶栏（GitHub 账号 + ⚙ 设置）只在首页显示；横幅由 renderLoginIssues 重算
+        mainTopBar.visibility = View.VISIBLE
+        renderLoginIssues()
     }
 
     /** 进入某渠道详情（方案 A：MainActivity 内视图切换，云端逻辑原地不动） */
@@ -413,6 +427,9 @@ class MainActivity : AppCompatActivity() {
         currentTab = tab
         homePage.visibility = View.GONE
         detailContainer.visibility = View.VISIBLE
+        // 详情页不显示首页顶栏与失效横幅（避免遮挡/重复）
+        mainTopBar.visibility = View.GONE
+        loginAlertBanner.visibility = View.GONE
         pageTrae.visibility = if (tab == "TRAE") View.VISIBLE else View.GONE
         pageWb.visibility = if (tab == "WorkBuddy") View.VISIBLE else View.GONE
         pageQc.visibility = if (tab == "QoderCn") View.VISIBLE else View.GONE
@@ -638,6 +655,11 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refresh()
+        if (onResumeCalledForThemeRestart) {
+            // 主题/深色切换重建：不重新拉云端，快照已恢复（积分/总览/失效标记原样保留）
+            onResumeCalledForThemeRestart = false
+            return
+        }
         if (config.verified && config.token.isNotBlank()) {
             // fetchCloudAccounts 完成账号入库后，会串行触发积分/失效横幅/今日积分的刷新；
             // 由 fetch 内部 finally 统一调用，确保失效判定用「最新云端解密密文」，避免并发读到旧 token 误报。
@@ -1918,6 +1940,7 @@ private fun showGithubDialog() {
         dlg.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_light_rounded)
 
         fun pick(t: String) {
+            UiSnapshot.capture(this@MainActivity)
             config.setColorTheme(t)
             Toast.makeText(this, "已切换" + when (t) {
                 "green" -> "绿色"; "orange" -> "橙色"; else -> "蓝色"
@@ -1932,6 +1955,7 @@ private fun showGithubDialog() {
         view.findViewById<View>(R.id.btnThemeGreen).setOnClickListener { pick("green") }
         view.findViewById<View>(R.id.btnThemeOrange).setOnClickListener { pick("orange") }
         swDark.setOnCheckedChangeListener { _, checked ->
+            UiSnapshot.capture(this@MainActivity)
             config.setForceDark(checked)
             AppCompatDelegate.setDefaultNightMode(
                 if (checked) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
@@ -2859,6 +2883,60 @@ private fun showGithubDialog() {
     private fun stopCheckinAnimation(tv: TextView) {
         checkinAnim.remove(tv.id)?.let { tv.removeCallbacks(it) }
     }
+
+    /** 主题/深色切换重建时保留 UI 快照，重建后直接恢复，避免积分/总览闪成 "--" 后重新拉云端 */
+    object UiSnapshot {
+        var creditsTrae: Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>>? = null
+        var creditsWb: Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>>? = null
+        var creditsQc: Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>>? = null
+        var creditsLoomy: Pair<HashMap<String, String>, HashMap<String, Int>>? = null
+        var titleTrae: String? = null
+        var titleWb: String? = null
+        var titleQc: String? = null
+        var titleLoomy: String? = null
+        var overviewText: String? = null
+        var currentTab: String? = null
+        @Volatile var themeRestartPending = false
+
+        /** 重建前由 showThemeDialog 调用：抓取各 adapter 与首页文案 */
+        fun capture(activity: MainActivity) {
+            creditsTrae = activity.accountAdapter.snapshotCredits()
+            creditsWb = activity.wbAccountAdapter.snapshotCredits()
+            creditsQc = activity.qcAccountAdapter.snapshotCredits()
+            creditsLoomy = activity.loomyAccountAdapter.snapshotCredits()
+            titleTrae = activity.tvAccountTitleTrae.text?.toString()
+            titleWb = activity.tvAccountTitleWb.text?.toString()
+            titleQc = activity.tvAccountTitleQc.text?.toString()
+            titleLoomy = activity.tvAccountTitleLoomy.text?.toString()
+            overviewText = activity.homeOverviewValue.text?.toString()
+            currentTab = activity.currentTab
+            themeRestartPending = true
+        }
+
+        /** 重建后由 onCreate 调用：回填 adapter 显示与首页文案（调用方已通过 consumeThemeRestart 确认为主题重建） */
+        fun restore(activity: MainActivity) {
+            creditsTrae?.let { activity.accountAdapter.restoreCredits(it) }
+            creditsWb?.let { activity.wbAccountAdapter.restoreCredits(it) }
+            creditsQc?.let { activity.qcAccountAdapter.restoreCredits(it) }
+            creditsLoomy?.let { activity.loomyAccountAdapter.restoreCredits(it) }
+            titleTrae?.let { activity.tvAccountTitleTrae.text = it }
+            titleWb?.let { activity.tvAccountTitleWb.text = it }
+            titleQc?.let { activity.tvAccountTitleQc.text = it }
+            titleLoomy?.let { activity.tvAccountTitleLoomy.text = it }
+            overviewText?.let { activity.homeOverviewValue.text = it }
+            val tab = currentTab
+            if (tab != null && tab != "TRAE") {
+                activity.showChannelDetail(tab)
+            }
+        }
+
+        /** 消费一次"主题切换重建"标记；返回 true 表示本次 onResume 应跳过云端重拉 */
+        fun consumeThemeRestart(): Boolean {
+            val t = themeRestartPending
+            themeRestartPending = false
+            return t
+        }
+    }
 }
 
 class AccountAdapter(
@@ -2873,6 +2951,18 @@ class AccountAdapter(
     private val credits = HashMap<String, String>()   // accountId -> 积分显示文本
     private val colors = HashMap<String, Int>()        // accountId -> 文本颜色资源（0=主题色）
     private val expired = HashMap<String, Boolean>()   // accountId -> 凭证已失效标记
+
+    /** 主题切换重建前快照：积分/颜色/失效标记（restoreCredits 对应恢复，避免重建后闪成 "--"） */
+    fun snapshotCredits(): Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>> =
+        Triple(HashMap(credits), HashMap(colors), HashMap(expired))
+
+    /** 重建后恢复积分显示（只回填 map，不触发生效判定等云端逻辑） */
+    fun restoreCredits(snap: Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>>) {
+        credits.putAll(snap.first)
+        colors.putAll(snap.second)
+        expired.putAll(snap.third)
+        notifyDataSetChanged()
+    }
 
     /** 首页卡片汇总：总积分 = 解析积分文本数字求和；null = 尚无有效数据（显示 --） */
     fun sumCredits(): Double? {
@@ -2955,6 +3045,18 @@ class WorkBuddyAccountAdapter(
     private val credits = HashMap<String, String>()   // accountId -> 额度显示文本
     private val colors = HashMap<String, Int>()        // accountId -> 文本颜色资源（0=主题色）
     private val expired = HashMap<String, Boolean>()   // accountId -> 凭证已失效标记
+
+    /** 主题切换重建前快照：额度/颜色/失效标记（restoreCredits 对应恢复，避免重建后闪成 "--"） */
+    fun snapshotCredits(): Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>> =
+        Triple(HashMap(credits), HashMap(colors), HashMap(expired))
+
+    /** 重建后恢复额度显示（只回填 map，不触发生效判定等云端逻辑） */
+    fun restoreCredits(snap: Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>>) {
+        credits.putAll(snap.first)
+        colors.putAll(snap.second)
+        expired.putAll(snap.third)
+        notifyDataSetChanged()
+    }
 
     /** 首页卡片汇总：总额度 = 解析额度文本数字求和；null = 尚无有效数据（显示 --） */
     fun sumCredits(): Double? {
@@ -3039,6 +3141,18 @@ class QoderCnAccountAdapter(
     private val colors = HashMap<String, Int>()
     private val expired = HashMap<String, Boolean>()
 
+    /** 主题切换重建前快照：余额/颜色/失效标记（restoreCredits 对应恢复，避免重建后闪成 "--"） */
+    fun snapshotCredits(): Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>> =
+        Triple(HashMap(credits), HashMap(colors), HashMap(expired))
+
+    /** 重建后恢复余额显示（只回填 map，不触发生效判定等云端逻辑） */
+    fun restoreCredits(snap: Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>>) {
+        credits.putAll(snap.first)
+        colors.putAll(snap.second)
+        expired.putAll(snap.third)
+        notifyDataSetChanged()
+    }
+
     /** 首页卡片汇总：总余额 = 解析积分文本数字求和；null = 尚无有效数据（显示 --） */
     fun sumCredits(): Double? {
         if (items.isEmpty()) return 0.0
@@ -3114,6 +3228,17 @@ class LoomyAccountAdapter(
     fun accountCount(): Int = items.size
     private val credits = HashMap<String, String>()
     private val colors = HashMap<String, Int>()
+
+    /** 主题切换重建前快照：积分/颜色（Loomy 无过期标记；restoreCredits 对应恢复） */
+    fun snapshotCredits(): Pair<HashMap<String, String>, HashMap<String, Int>> =
+        Pair(HashMap(credits), HashMap(colors))
+
+    /** 重建后恢复积分显示（只回填 map，不触发生效判定等云端逻辑） */
+    fun restoreCredits(snap: Pair<HashMap<String, String>, HashMap<String, Int>>) {
+        credits.putAll(snap.first)
+        colors.putAll(snap.second)
+        notifyDataSetChanged()
+    }
 
     /** 首页卡片汇总：总积分 = 解析积分文本数字求和；null = 尚无有效数据（显示 --） */
     fun sumCredits(): Double? {

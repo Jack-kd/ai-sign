@@ -31,6 +31,12 @@
     <color name="topbar_start">#1E293B</color>
     <color name="topbar_end">#0F172A</color>
 
+    <!-- ===== 页面渐变衬底（液态玻璃透底）===== -->
+    <color name="page_gradient_start">#E9EFFF</color>
+    <color name="page_gradient_end">#F8FAFE</color>
+    <color name="glass_fill">#CCFFFFFF</color>
+    <color name="glass_stroke">#59FFFFFF</color>
+
     <!-- ===== 渠道品牌色 ===== -->
     <color name="channel_trae">#00B3A4</color>
     <color name="channel_workbuddy">#4C6FFF</color>

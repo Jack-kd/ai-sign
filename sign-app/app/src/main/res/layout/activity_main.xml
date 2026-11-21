@@ -7,7 +7,8 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:background="@drawable/bg_page_gradient">
 
     <!-- 顶部栏：GitHub 账号(可点击切换) + 设置图标 -->
     <LinearLayout
@@ -93,8 +94,7 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:orientation="vertical"
-        android:background="@color/bg_page">
+        android:orientation="vertical">
 
         <!-- 欢迎头 -->
         <LinearLayout

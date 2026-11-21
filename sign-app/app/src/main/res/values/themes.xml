@@ -18,6 +18,7 @@
     <style name="Theme.SignAppGreen" parent="Theme.SignApp">
         <item name="colorPrimary">#10B981</item>
         <item name="colorPrimaryVariant">#059669</item>
+        <item name="android:statusBarColor">#10B981</item>
         <item name="signPrimary">#10B981</item>
         <item name="signGradientStart">#10B981</item>
         <item name="signGradientEnd">#059669</item>
@@ -30,6 +31,7 @@
     <style name="Theme.SignAppOrange" parent="Theme.SignApp">
         <item name="colorPrimary">#F59E0B</item>
         <item name="colorPrimaryVariant">#D97706</item>
+        <item name="android:statusBarColor">#F59E0B</item>
         <item name="signPrimary">#F59E0B</item>
         <item name="signGradientStart">#F59E0B</item>
         <item name="signGradientEnd">#D97706</item>

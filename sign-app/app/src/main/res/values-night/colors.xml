@@ -9,6 +9,8 @@
     <color name="surface_end">#15202E</color>
     <color name="gray">#9E9E9E</color>
     <color name="light_gray">#1E1E1E</color>
+    <!-- 深色模式首页背景（之前漏了，浅底浅字导致看不清） -->
+    <color name="bg_page">#0F1724</color>
     <color name="success_green">#52C41A</color>
     <color name="error_red">#FF6B6B</color>
     <!-- 终端/日志样式（深色下保持不变） -->
@@ -29,4 +31,9 @@
     <color name="gradient_start">#1B4F8A</color>
     <color name="gradient_end">#0E3A66</color>
     <color name="icon_circle_bg">#1B3A5C</color>
+    <!-- 页面渐变衬底 + 玻璃色（深色） -->
+    <color name="page_gradient_start">#0C1524</color>
+    <color name="page_gradient_end">#131E2E</color>
+    <color name="glass_fill">#2EFFFFFF</color>
+    <color name="glass_stroke">#1FFFFFFF</color>
 </resources>

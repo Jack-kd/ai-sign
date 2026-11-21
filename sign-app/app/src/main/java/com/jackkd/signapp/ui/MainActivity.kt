@@ -361,6 +361,18 @@ class MainActivity : AppCompatActivity() {
         // 详情页返回 → 回大厅
         findViewById<View>(R.id.btnBackHome).setOnClickListener { showHome() }
 
+        // 系统返回键：渠道详情页时返回主页（主页时走默认行为退出 App）
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (detailContainer.visibility == View.VISIBLE) {
+                    showHome()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
+
         // ⚙️ 设置菜单（仿微信"+"弹出）
         findViewById<TextView>(R.id.btnSettings).setOnClickListener { showSettingsMenu() }
 
@@ -415,7 +427,7 @@ class MainActivity : AppCompatActivity() {
         pageLoomy.visibility = if (tab == "Loomy") View.VISIBLE else View.GONE
         detailChannelName.text = when (tab) {
             "TRAE" -> "TRAE"
-            "WorkBuddy" -> "WorkBuddy"
+            "WorkBuddy" -> "WorkBuddy_国内版"
             "QoderCn" -> "Qoder 中国版"
             else -> "Loomy"
         }
@@ -464,6 +476,7 @@ class MainActivity : AppCompatActivity() {
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_confirm_checkin, null)
         val both = platform == null
         val displayName = when (platform) {
+                "WorkBuddy" -> "WorkBuddy_国内版"
                 "QoderCn" -> "Qoder 中国版"
                 "Loomy" -> "Loomy"
                 else -> platform
@@ -529,7 +542,7 @@ class MainActivity : AppCompatActivity() {
                     "QoderCn" -> { config.saveQcSchedule(hour, minute); showQcScheduleText() }
                     else -> { config.saveLoomySchedule(hour, minute); showLoomyScheduleText() }
                 }
-                val name = when (platform) { "QoderCn" -> "Qoder 中国版"; else -> platform }
+                val name = when (platform) { "WorkBuddy" -> "WorkBuddy_国内版"; "QoderCn" -> "Qoder 中国版"; else -> platform }
                 Toast.makeText(this@MainActivity, "$name 签到时间已设置为 %02d:%02d".format(hour, minute), Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(this@MainActivity, "$platform 时间同步失败，请检查 GitHub 授权", Toast.LENGTH_LONG).show()
@@ -619,7 +632,7 @@ class MainActivity : AppCompatActivity() {
             } else {
                 Toast.makeText(
                     this@MainActivity,
-                    "同步失败：TRAE=${if (traeOk) "成功" else "失败"}，WorkBuddy=${if (wbOk) "成功" else "失败"}，Qoder=${if (qcOk) "成功" else "失败"}，Loomy=${if (loomyOk) "成功" else "失败"}",
+                    "同步失败：TRAE=${if (traeOk) "成功" else "失败"}，WorkBuddy_国内版=${if (wbOk) "成功" else "失败"}，Qoder=${if (qcOk) "成功" else "失败"}，Loomy=${if (loomyOk) "成功" else "失败"}",
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -734,9 +747,9 @@ class MainActivity : AppCompatActivity() {
         val h = config.spForWbScheduleHour()
         val m = config.spForWbScheduleMinute()
         tvScheduleWb.text = if (h in 0..23 && m in 0..59) {
-            "WorkBuddy 签到时间: %02d:%02d".format(h, m)
+            "WorkBuddy_国内版 签到时间: %02d:%02d".format(h, m)
         } else {
-            "WorkBuddy 签到时间: 未设置"
+            "WorkBuddy_国内版 签到时间: 未设置"
         }
     }
 
@@ -1098,6 +1111,7 @@ private fun showGithubDialog() {
             val badge = TextView(this).apply {
                 text = when (platform) {
                     "QoderCn" -> "Qoder"
+                    "WorkBuddy" -> "WorkBuddy_国内版"
                     else -> platform
                 }
                 setTextColor(android.graphics.Color.WHITE)
@@ -1228,7 +1242,7 @@ private fun showGithubDialog() {
             if (raw == null) {
                 runOnUiThread {
                     tvAccountTitleTrae.text = "TRAE 账号"
-                    tvAccountTitleWb.text = "WorkBuddy 账号"
+                    tvAccountTitleWb.text = "WorkBuddy_国内版 账号"
                     tvAccountTitleQc.text = "Qoder 中国版 账号"
                     tvAccountTitleLoomy.text = "Loomy 账号"
                     homeOverviewValue.text = "-- / --"
@@ -1271,7 +1285,7 @@ private fun showGithubDialog() {
                 qcAccountAdapter.accountCount() + loomyAccountAdapter.accountCount()
             runOnUiThread {
                 tvAccountTitleTrae.text = "TRAE 账号 · 今日已领 $trae 分"
-                tvAccountTitleWb.text = "WorkBuddy 账号 · 今日已领 $wb 额度"
+                tvAccountTitleWb.text = "WorkBuddy_国内版 账号 · 今日已领 $wb 额度"
                 tvAccountTitleQc.text = "Qoder 中国版 账号 · 今日已领 $qc 积分"
                 tvAccountTitleLoomy.text = "Loomy 账号 · 今日已领 $loomy 积分"
                 homeOverviewValue.text = "$todayDoneAccounts / $totalAccounts"
@@ -1545,7 +1559,7 @@ private fun showGithubDialog() {
 
     private fun confirmDeleteWorkBuddy(acc: WorkBuddyAccount) {
         MaterialAlertDialogBuilder(this)
-            .setTitle("删除 WorkBuddy 账号")
+            .setTitle("删除 WorkBuddy_国内版 账号")
             .setMessage("确定删除 ${acc.label} 吗？\n\n将从本地和云端(GitHub)同时删除。")
             .setPositiveButton("删除", { _, _ ->
                 if (!config.verified) {
@@ -1877,7 +1891,7 @@ private fun showGithubDialog() {
             wbAccountStore.remove(acc.id)
             refresh()
             refreshAccountCredits(true)
-            logStore.add(SignLog(System.currentTimeMillis(), acc.label, "删除成功", "已从本地和云端删除 WorkBuddy"))
+            logStore.add(SignLog(System.currentTimeMillis(), acc.label, "删除成功", "已从本地和云端删除 WorkBuddy_国内版"))
             Toast.makeText(this@MainActivity, "${acc.label} 已从本地和云端删除", Toast.LENGTH_SHORT).show()
         }
     }
@@ -2453,7 +2467,7 @@ private fun showGithubDialog() {
                         }.sumOf { it.earned }
                     }
                     tvAccountTitleTrae.text = "TRAE 账号 · 今日已领 ${todayEarned("TRAE")} 分"
-                    tvAccountTitleWb.text = "WorkBuddy 账号 · 今日已领 ${todayEarned("WorkBuddy")} 额度"
+                    tvAccountTitleWb.text = "WorkBuddy_国内版 账号 · 今日已领 ${todayEarned("WorkBuddy")} 额度"
                     tvAccountTitleQc.text = "Qoder 中国版 账号 · 今日已领 ${todayEarned("QoderCn")} 积分"
                     tvAccountTitleLoomy.text = "Loomy 账号 · 今日已领 ${todayEarned("Loomy")} 积分"
                     // 4b) 登录态失效（收集日志中全部命中账号加入集合，多个账号聚合显示）
@@ -2589,7 +2603,7 @@ private fun showGithubDialog() {
                 val ok: Int, val fail: Int, val already: Int, val accounts: Int
             )
             val chNames = mapOf(
-                "TRAE" to "TRAE", "WorkBuddy" to "WorkBuddy",
+                "TRAE" to "TRAE", "WorkBuddy" to "WorkBuddy_国内版",
                 "QoderCn" to "Qoder中国版", "Loomy" to "Loomy"
             )
             fun inMonth(l: CloudSignLog): Boolean {
@@ -2774,8 +2788,8 @@ private fun showGithubDialog() {
             for (log in trae) {
                 sb.append(logLine(log.source ?: "", log.result, log.earned, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
             }
-            sb.append(section("\n# WorkBuddy (" + wb.size + " 条)\n"))
-            if (wb.isEmpty()) sb.append(info("  (暂无 WorkBuddy 签到记录)\n"))
+            sb.append(section("\n# WorkBuddy_国内版 (" + wb.size + " 条)\n"))
+            if (wb.isEmpty()) sb.append(info("  (暂无 WorkBuddy_国内版 签到记录)\n"))
             for (log in wb) {
                 sb.append(logLine(log.source ?: "", log.result, log.earned, formatTime(log.time), log.detail.ifBlank { log.account })).append("\n")
             }
@@ -2828,6 +2842,7 @@ private fun showGithubDialog() {
             else -> R.id.btnTriggerLoomy
         }
         val displayName = when (platform) {
+                "WorkBuddy" -> "WorkBuddy_国内版"
                 "QoderCn" -> "Qoder 中国版"
                 "Loomy" -> "Loomy"
                 else -> platform

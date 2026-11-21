@@ -107,7 +107,7 @@ class WorkBuddyAccountDetailActivity : AppCompatActivity() {
                 addProperty("nickname", c.nickname)
                 addProperty("expires_at", c.expiresAt)
             }.toString()
-            copyToClipboard("WB凭证JSON", json, "已复制 JSON 凭证，可在 WorkBuddy 登录页「粘贴凭证」导入")
+            copyToClipboard("WB凭证JSON", json, "已复制 JSON 凭证，可在 WorkBuddy_国内版 登录页「粘贴凭证」导入")
         }
         findViewById<TextView>(R.id.btnWbCopyText).setOnClickListener {
             val all = """
@@ -120,7 +120,7 @@ enterprise_id: ${c.enterpriseId}
 nickname: ${c.nickname}
 expires_at: ${c.expiresAt}
 """.trimIndent()
-            copyToClipboard("WorkBuddy凭证", all, "已复制文本凭证，可在 WorkBuddy 登录页「粘贴凭证」导入")
+            copyToClipboard("WorkBuddy凭证", all, "已复制文本凭证，可在 WorkBuddy_国内版 登录页「粘贴凭证」导入")
         }
         // 拉取云端日志并过滤该账号（WorkBuddy 平台）
         loadAccountLogs(tvLogs, account)

@@ -57,7 +57,7 @@
                 android:paddingRight="8dp"
                 android:paddingTop="2dp"
                 android:paddingBottom="2dp"
-                android:text="WorkBuddy"
+                android:text="WorkBuddy_国内版"
                 android:textColor="@color/white"
                 android:textSize="12sp" />
         </LinearLayout>

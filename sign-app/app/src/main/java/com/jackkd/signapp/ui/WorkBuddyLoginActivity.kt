@@ -75,7 +75,7 @@ class WorkBuddyLoginActivity : AppCompatActivity() {
             val state = stateAuth.first
             val authUrl = stateAuth.second
 
-            tvStatus.text = "已打开浏览器，请登录 WorkBuddy/CodeBuddy 并授权。\n登录完成后会自动识别账号并保存。"
+            tvStatus.text = "已打开浏览器，请登录 WorkBuddy_国内版/CodeBuddy 并授权。\n登录完成后会自动识别账号并保存。"
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(authUrl)))
             } catch (e: Exception) {
@@ -206,7 +206,7 @@ class WorkBuddyLoginActivity : AppCompatActivity() {
         val clip = cm.primaryClip
         val text = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text?.toString() ?: "" else ""
         if (text.isBlank()) {
-            Toast.makeText(this, "剪贴板为空，请先复制 WorkBuddy 凭证", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "剪贴板为空，请先复制 WorkBuddy_国内版 凭证", Toast.LENGTH_SHORT).show()
             return
         }
         // 先识别两种格式：JSON（{...}）或 多行 key:value（详情页复制导出）；识别不出再走原 JSON 逻辑
@@ -270,7 +270,7 @@ class WorkBuddyLoginActivity : AppCompatActivity() {
             )
             val saved = accountStore.addOrUpdate(acc)
             val isNew = existing == null
-            tvStatus.text = if (isNew) "已添加 ${saved.label}，WorkBuddy 授权成功！\n正在上传到云端..."
+            tvStatus.text = if (isNew) "已添加 ${saved.label}，WorkBuddy_国内版 授权成功！\n正在上传到云端..."
             else "已更新 ${saved.label} 的凭证（重复登录去重）。\n正在上传到云端..."
 
             if (config.verified && config.token.isNotBlank()) uploadToCloud()
@@ -301,8 +301,8 @@ class WorkBuddyLoginActivity : AppCompatActivity() {
                 }.getOrNull()
             }
             if (error == null) {
-                tvStatus.text = tvStatus.text.toString() + "\n✓ 已自动同步 ${accounts.size} 个 WorkBuddy 账号到云端"
-                Toast.makeText(this@WorkBuddyLoginActivity, "已自动同步 WorkBuddy 账号到 GitHub", Toast.LENGTH_SHORT).show()
+                tvStatus.text = tvStatus.text.toString() + "\n✓ 已自动同步 ${accounts.size} 个 WorkBuddy_国内版 账号到云端"
+                Toast.makeText(this@WorkBuddyLoginActivity, "已自动同步 WorkBuddy_国内版 账号到 GitHub", Toast.LENGTH_SHORT).show()
             } else {
                 tvStatus.text = tvStatus.text.toString() + "\n✗ 云端同步失败：$error"
                 btnCopyStatus.visibility = View.VISIBLE

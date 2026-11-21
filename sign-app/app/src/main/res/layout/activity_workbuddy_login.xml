@@ -13,7 +13,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="登录 WorkBuddy / CodeBuddy"
+            android:text="登录 WorkBuddy_国内版 / CodeBuddy"
             android:textSize="22sp"
             android:textStyle="bold"
             android:textColor="?attr/signPrimary" />
@@ -22,7 +22,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="点击下方按钮将打开浏览器登录 WorkBuddy。登录授权完成后，应用会自动识别账号并保存到云端自动签到。"
+            android:text="点击下方按钮将打开浏览器登录 WorkBuddy_国内版。登录授权完成后，应用会自动识别账号并保存到云端自动签到。"
             android:textSize="14sp"
             android:lineSpacingExtra="4dp" />
 

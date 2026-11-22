@@ -31,7 +31,17 @@ jobs:
 
       - name: Build Debug APK
         working-directory: sign-app
-        run: gradle assembleDebug --no-daemon
+        run: |
+          gradle assembleDebug --no-daemon 2>&1 | tee /tmp/build.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Upload build log on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: /tmp/build.log
+          retention-days: 7
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

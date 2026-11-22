@@ -32,6 +32,7 @@ import com.jackkd.signapp.R
 import com.jackkd.signapp.data.AccountStore
 import com.jackkd.signapp.data.CloudSignLog
 import com.jackkd.signapp.data.parseSignLogs
+import com.jackkd.signapp.data.GatewayStore
 import com.jackkd.signapp.data.GithubConfig
 import com.jackkd.signapp.data.GithubSavedAccount
 import com.jackkd.signapp.data.LogStore
@@ -58,6 +59,7 @@ import com.jackkd.signapp.net.LoomyApi
 import com.jackkd.signapp.net.QoderCnApi
 import com.jackkd.signapp.net.TraeApi
 import com.jackkd.signapp.net.UploadService
+import com.jackkd.signapp.service.GatewayService
 import com.jackkd.signapp.net.WorkBuddyApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -173,6 +175,7 @@ class MainActivity : AppCompatActivity() {
 
     lateinit var config: GithubConfig
     private lateinit var accountStore: AccountStore
+    private lateinit var gatewayStore: GatewayStore
     private lateinit var wbAccountStore: WorkBuddyAccountStore
     private lateinit var qcAccountStore: QoderCnAccountStore
     private lateinit var loomyAccountStore: LoomyAccountStore
@@ -196,7 +199,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var rvQcAccounts: RecyclerView
     private lateinit var rvLoomyAccounts: RecyclerView
     private lateinit var pageTrae: View
+    private lateinit var pageTraeGateway: View
     private lateinit var pageWb: View
+    private lateinit var btnGatewayEntry: TextView
+    private lateinit var tvGatewayStatus: TextView
+    private lateinit var btnGatewayToggle: TextView
+    private lateinit var tvGatewayPort: TextView
+    private lateinit var tvGatewayKey: TextView
+    private lateinit var btnGatewayCopyKey: TextView
+    private lateinit var btnGatewayRotateKey: TextView
+    private lateinit var tvGatewayAccount: TextView
+    private lateinit var tvGatewayBaseUrl: TextView
     private lateinit var pageQc: View
     private lateinit var pageLoomy: View
     private lateinit var homePage: View
@@ -225,6 +238,8 @@ class MainActivity : AppCompatActivity() {
     var currentTab: String = "TRAE"
     private var pendingLoginPlatform: String = "TRAE"   // 登录态失效横幅点击跳转的平台
     private var pullRefreshStarted = false              // 本次松手是否已触发下拉刷新（用于修复圈圈残留）
+    private var gatewayKeyRevealed = false              // 网关 Key 是否显示完整（默认打码）
+    private var gatewayPageActive = false               // 当前是否停在网关子页（返回键分层用）
 
     override fun onCreate(savedInstanceState: Bundle?) {
         config = GithubConfig(this)
@@ -238,6 +253,7 @@ class MainActivity : AppCompatActivity() {
         CredentialCrypto.init(this)
 
         accountStore = AccountStore(this)
+        gatewayStore = GatewayStore(this)
         wbAccountStore = WorkBuddyAccountStore(this)
         qcAccountStore = QoderCnAccountStore(this)
         loomyAccountStore = LoomyAccountStore(this)
@@ -258,6 +274,16 @@ class MainActivity : AppCompatActivity() {
         rvLoomyAccounts = findViewById(R.id.rvLoomyAccounts)
         pageLoomy = findViewById(R.id.pageLoomy)
         pageTrae = findViewById(R.id.pageTrae)
+        pageTraeGateway = findViewById(R.id.pageTraeGateway)
+        btnGatewayEntry = findViewById(R.id.btnGatewayEntry)
+        tvGatewayStatus = findViewById(R.id.tvGatewayStatus)
+        btnGatewayToggle = findViewById(R.id.btnGatewayToggle)
+        tvGatewayPort = findViewById(R.id.tvGatewayPort)
+        tvGatewayKey = findViewById(R.id.tvGatewayKey)
+        btnGatewayCopyKey = findViewById(R.id.btnGatewayCopyKey)
+        btnGatewayRotateKey = findViewById(R.id.btnGatewayRotateKey)
+        tvGatewayAccount = findViewById(R.id.tvGatewayAccount)
+        tvGatewayBaseUrl = findViewById(R.id.tvGatewayBaseUrl)
         pageWb = findViewById(R.id.pageWorkBuddy)
         pageQc = findViewById(R.id.pageQoderCn)
         homePage = findViewById(R.id.homePage)
@@ -358,20 +384,53 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, LoomyLoginActivity::class.java))
         }
 
-        // 详情页返回 → 回大厅
-        findViewById<View>(R.id.btnBackHome).setOnClickListener { showHome() }
+        // 详情页返回：分层返回（网关页→渠道详情→首页）
+        findViewById<View>(R.id.btnBackHome).setOnClickListener { goBackFromDetail() }
 
-        // 系统返回键：渠道详情页时返回主页（主页时走默认行为退出 App）
+        // 系统返回键：渠道详情页时先走分层返回，否则默认退出
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (detailContainer.visibility == View.VISIBLE) {
-                    showHome()
+                    goBackFromDetail()
                 } else {
                     isEnabled = false
                     onBackPressedDispatcher.onBackPressed()
                 }
             }
         })
+
+        // TRAE 详情页顶栏「API」胶囊 → 网关子页
+        btnGatewayEntry.setOnClickListener {
+            showGatewayPage()
+        }
+
+        // 网关页：启动/停止（服务起停是异步的，延迟刷新让状态跟上）
+        btnGatewayToggle.setOnClickListener {
+            if (GatewayService.serverRunning) {
+                GatewayService.stop(this)
+            } else {
+                GatewayService.start(this)
+            }
+            // 服务 onStartCommand/onDestroy 异步执行，等一会再刷新状态
+            btnGatewayToggle.postDelayed({ refreshGatewayPage() }, 400)
+        }
+        // 复制 Key
+        btnGatewayCopyKey.setOnClickListener {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            cm.setPrimaryClip(ClipData.newPlainText("TRAE_GATEWAY_KEY", gatewayStore.apiKey()))
+            Toast.makeText(this, "API Key 已复制", Toast.LENGTH_SHORT).show()
+        }
+        // 换新 Key
+        btnGatewayRotateKey.setOnClickListener {
+            rotateGatewayKey()
+        }
+        // 点 Key 显示完整 Key（打码 → 完整 → 打码）
+        tvGatewayKey.setOnClickListener {
+            gatewayKeyRevealed = !gatewayKeyRevealed
+            refreshGatewayPage()
+        }
+        // 点账号行：选择固定账号（或恢复自动选择）
+        tvGatewayAccount.setOnClickListener { showGatewayAccountPicker() }
 
         // ⚙️ 设置菜单（仿微信"+"弹出）
         findViewById<TextView>(R.id.btnSettings).setOnClickListener { showSettingsMenu() }
@@ -395,6 +454,19 @@ class MainActivity : AppCompatActivity() {
         if (themeRestart) {
             onResumeCalledForThemeRestart = true
         }
+
+        // 网关用户意图持久化：之前开过网关就自动拉起（被系统杀/重启后恢复）
+        if (gatewayStore.shouldRun && !GatewayService.serverRunning) {
+            GatewayService.start(this)
+        }
+        // Android 13+ 常驻通知要运行时授权（不授权只是通知不显示，网关照常工作）
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1001)
+            }
+        }
     }
 
     /** 点击顶部 GitHub 账号区：直接打开授权/切换弹窗（不再弹中间菜单） */
@@ -406,6 +478,8 @@ class MainActivity : AppCompatActivity() {
 
     /** 回到首页：卡片大厅 */
     private fun showHome() {
+        gatewayPageActive = false
+        pageTraeGateway.visibility = View.GONE
         detailContainer.visibility = View.GONE
         homePage.visibility = View.VISIBLE
         // 首页专属顶栏（GitHub 账号 + ⚙ 设置）只在首页显示；横幅由 renderLoginIssues 重算
@@ -421,6 +495,8 @@ class MainActivity : AppCompatActivity() {
         // 详情页不显示首页顶栏与失效横幅（避免遮挡/重复）
         mainTopBar.visibility = View.GONE
         loginAlertBanner.visibility = View.GONE
+        gatewayPageActive = false
+        pageTraeGateway.visibility = View.GONE
         pageTrae.visibility = if (tab == "TRAE") View.VISIBLE else View.GONE
         pageWb.visibility = if (tab == "WorkBuddy") View.VISIBLE else View.GONE
         pageQc.visibility = if (tab == "QoderCn") View.VISIBLE else View.GONE
@@ -431,6 +507,104 @@ class MainActivity : AppCompatActivity() {
             "QoderCn" -> "Qoder 中国版"
             else -> "Loomy"
         }
+        if (tab == "TRAE") {
+            btnGatewayEntry.visibility = View.VISIBLE
+        } else {
+            btnGatewayEntry.visibility = View.GONE
+        }
+    }
+
+    /** 详情页回车：分层返回（网关子页 → 渠道详情 → 首页） */
+    private fun goBackFromDetail() {
+        if (gatewayPageActive) {
+            // 回到 TRAE 签到页（网关子页盖在上面）
+            gatewayPageActive = false
+            pageTraeGateway.visibility = View.GONE
+            pageTrae.visibility = View.VISIBLE
+        } else {
+            showHome()
+        }
+    }
+
+    /** 从 TRAE 详情页顶栏「API」进入网关子页 */
+    private fun showGatewayPage() {
+        if (currentTab != "TRAE") return
+        gatewayPageActive = true
+        refreshGatewayPage()
+        // 同层叠放：盖住签到页
+        pageTrae.visibility = View.GONE
+        pageTraeGateway.visibility = View.VISIBLE
+    }
+
+    /** 刷新网关子页显示（状态/端口/Key 打码/账号/Base URL） */
+    private fun refreshGatewayPage() {
+        val running = GatewayService.serverRunning
+        tvGatewayStatus.text = if (running) "网关运行中" else "网关未运行"
+        tvGatewayStatus.setTextColor(
+            ContextCompat.getColor(this, if (running) R.color.success_green else R.color.error_red)
+        )
+        btnGatewayToggle.text = if (running) "停止" else "启动"
+
+        tvGatewayPort.text = "端口: 8787 · 手机与电脑同局域网可连（0.0.0.0）"
+
+        // Key：打码显示，点按切换（rotateApiKey 后强制完整显示）
+        val fullKey = gatewayStore.apiKey()
+        tvGatewayKey.text = if (gatewayKeyRevealed) fullKey else maskKey(fullKey)
+
+        // 账号：优先显示固定选号
+        val accs = accountStore.load().filter { it.credentials.isComplete() }
+        val prefer = gatewayStore.preferUid?.let { uid -> accs.firstOrNull { it.credentials.uid == uid } }
+        tvGatewayAccount.text = if (prefer != null) {
+            "固定账号：${prefer.label}"
+        } else if (accs.isNotEmpty()) {
+            "自动选择（共 ${accs.size} 个账号，额度不足自动换号）"
+        } else {
+            "暂无账号：先在 TRAE 页添加账号"
+        }
+
+        tvGatewayBaseUrl.text = "http://127.0.0.1:8787/v1"
+    }
+
+    /** 打码 Key：只显示头尾（sk- 前缀 + 末 4 位，中间打码） */
+    private fun maskKey(key: String): String {
+        if (key.length <= 12) return "sk-••••••••••••"
+        return key.take(6) + "••••••••" + key.takeLast(4)
+    }
+
+    /** 换新 Key：旧 Key 全部失效（已配置客户端需更新） */
+    private fun rotateGatewayKey() {
+        val key = gatewayStore.rotateApiKey()
+        gatewayKeyRevealed = true
+        tvGatewayKey.text = key
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText("TRAE_GATEWAY_KEY", key))
+        Toast.makeText(this, "已生成新 Key 并复制（旧 Key 已失效）", Toast.LENGTH_LONG).show()
+    }
+
+    /** 选号：固定用某个账号（preferUid），或恢复自动选择 */
+    private fun showGatewayAccountPicker() {
+        val accs = accountStore.load().filter { it.credentials.isComplete() }
+        val names = mutableListOf("自动选择（额度不足自动换号）")
+        names.addAll(accs.map { it.label })
+        val preferred = gatewayStore.preferUid
+        var checked = 0
+        if (preferred != null) {
+            val idx = accs.indexOfFirst { it.credentials.uid == preferred }
+            if (idx >= 0) checked = idx + 1
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("网关使用账号")
+            .setSingleChoiceItems(names.toTypedArray(), checked) { d, which ->
+                if (which == 0) {
+                    gatewayStore.preferUid = null
+                } else {
+                    gatewayStore.preferUid = accs[which - 1].credentials.uid
+                }
+                d.dismiss()
+                refreshGatewayPage()
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     /** ⚙️ 全局设置菜单（卡片式排版） */
@@ -678,6 +852,7 @@ class MainActivity : AppCompatActivity() {
         showQcScheduleText()
         showLoomyScheduleText()
         updateChannelCards()
+        refreshGatewayPage()
     }
 
     /** 首页 4 张渠道卡片汇总刷新（账号数/总积分/过期徽章），云端逻辑零改动 */

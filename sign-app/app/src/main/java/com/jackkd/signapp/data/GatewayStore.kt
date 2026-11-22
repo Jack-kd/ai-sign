@@ -1,0 +1,70 @@
+package com.jackkd.signapp.data
+
+import android.content.Context
+import java.security.SecureRandom
+
+/**
+ * 网关本地设置：API Key / 用户意图 / 固定选号。
+ *
+ * 与账号存储（AccountStore）分离：账密是 Trae 侧凭证，这里只放「本地网关
+ * 自己的东西」——客户端要用的 sk- key、要不要保持运行、固定优先用哪个账号。
+ *
+ * ⚠️ key 的第一次生成必须 commit()：apply() 是异步落盘，进程若恰好死在
+ * 落盘前，下次启动会重新生成 key，已配置的客户端全部 401（traework2api 踩过）。
+ *
+ * ⚠️ 本地 sk- key 与 Trae 上游 access_token 是两套东西，别混存。
+ */
+class GatewayStore(context: Context) {
+    private val sp = context.getSharedPreferences("gateway_prefs", Context.MODE_PRIVATE)
+
+    /**
+     * 本地 API key（首次自动生成并 commit 落盘）。
+     * 多次调用返回值必须一致且非空（selfCheck：self 用这个 key 请求自己时会验证）。
+     */
+    fun apiKey(): String {
+        sp.getString("api_key", null)?.let {
+            if (it.startsWith("sk-") && it.length >= 16) return it
+        }
+        val key = newKey()
+        saveKey(key)
+        return key
+    }
+
+    /** 主动换 key：旧 key 立即全部失效（所有已配置客户端会 401，需重新填写） */
+    fun rotateApiKey(): String {
+        val key = newKey()
+        saveKey(key)
+        return key
+    }
+
+    /** 校验一个请求里的 Bearer token 是否等于本地 key */
+    fun isKeyValid(provided: String): Boolean {
+        if (provided.isBlank() || !provided.startsWith("sk-")) return false
+        return provided == apiKey()
+    }
+
+    /**
+     * 用户意图：是否该保持网关运行。
+     * 区分「用户主动关」（shouldRun=false，重启后保持关）与「被系统杀/崩溃」
+     * （shouldRun=true，重启后自动拉起）。默认关：网关是用户开了才跑的后门，
+     * 不该在没同意的情况下偷偷占着 8787 端口。
+     */
+    var shouldRun: Boolean
+        get() = sp.getBoolean("should_run", false)
+        set(v) { sp.edit().putBoolean("should_run", v).commit() }
+
+    /** 固定优先账号 uid（null = 自动选第一个可用账号） */
+    var preferUid: String?
+        get() = sp.getString("prefer_uid", null)?.takeIf { it.isNotEmpty() }
+        set(v) { sp.edit().putString("prefer_uid", v ?: "").commit() }
+
+    private fun newKey(): String {
+        val bytes = ByteArray(32)
+        SecureRandom().nextBytes(bytes)
+        return "sk-" + bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun saveKey(key: String) {
+        sp.edit().putString("api_key", key).commit()
+    }
+}

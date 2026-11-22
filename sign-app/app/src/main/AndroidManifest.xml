@@ -3,6 +3,12 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- 网关前台服务：常驻通知保活 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Android 13+ 常驻通知要显式授权（不授予则通知不显示，服务照常跑） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 唤醒锁：网关灭屏后继续响应请求 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:allowBackup="true"
@@ -54,6 +60,13 @@
             android:name=".ui.LoomyLoginActivity"
             android:exported="false"
             android:launchMode="singleTask" />
+
+        <!-- OpenAI 兼容网关前台服务 -->
+        <service
+            android:name=".service.GatewayService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="dataSync" />
 
     </application>
 </manifest>

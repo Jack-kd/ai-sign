@@ -138,10 +138,19 @@ class GatewayService : Service() {
 
     private fun startAsForeground() {
         val n = buildNotification("网关运行中", "端口 8787 · 点击回到应用")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFY_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-        } else {
-            startForeground(NOTIFY_ID, n)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIFY_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            } else {
+                startForeground(NOTIFY_ID, n)
+            }
+        } catch (e: Exception) {
+            // Android 14+ 前台服务类型校验不通过（权限缺失/类型不允许）会在此抛异常，
+            // 未捕获会连累整个 App 进程崩掉。捕获后停止服务并撤销用户意图，
+            // 避免「shouldRun=true → 每次启动自动拉起 → 又崩」的死循环。
+            Log.e(TAG, "startForeground 失败: ${e.message}")
+            GatewayStore(this).shouldRun = false
+            stopSelf()
         }
     }
 

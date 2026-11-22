@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- 网关前台服务：常驻通知保活 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- service 声明了 foregroundServiceType=dataSync，必须配套该权限，否则 Android 14+ 启动即 SecurityException 闪退 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- Android 13+ 常驻通知要显式授权（不授予则通知不显示，服务照常跑） -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 唤醒锁：网关灭屏后继续响应请求 -->

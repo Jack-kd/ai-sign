@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 入口胶囊：主题渐变实底 + 白字（亮/深色下都清晰），与首页卡片渐变一致 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:angle="0"
+        android:startColor="?attr/signGradientStart"
+        android:endColor="?attr/signGradientEnd" />
+    <corners android:radius="999dp" />
+</shape>

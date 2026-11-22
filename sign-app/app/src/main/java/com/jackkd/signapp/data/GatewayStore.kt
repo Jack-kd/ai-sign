@@ -80,3 +80,40 @@ class GatewayStore(context: Context) {
         sp.edit().putString("api_key", key).commit()
     }
 }
+
+    // ---------- 每渠道独立网关（v2：端口即渠道） ----------
+
+    companion object {
+        /** 网关渠道 key：与 ChannelConfigs.prefix / LocalApiServer.portOf 对应 */
+        const val CH_TRAE = "trae"
+        const val CH_LOOMY = "loomy"
+        const val CH_BUDDY = "buddy"
+        val ALL_CHANNELS = listOf(CH_TRAE, CH_LOOMY, CH_BUDDY)
+    }
+
+    /** 某渠道网关的用户意图：是否该保持运行（默认关） */
+    fun shouldRun(channel: String): Boolean {
+        if (channel == CH_TRAE) {
+            // 兼容旧版单渠道字段：gateway_prefs.should_run
+            val legacy = sp.getBoolean("should_run", false)
+            if (legacy) return true
+        }
+        return sp.getBoolean("should_run_$channel", false)
+    }
+
+    fun setShouldRun(channel: String, v: Boolean) {
+        sp.edit().putBoolean("should_run_$channel", v).commit()
+    }
+
+    /**
+     * 某渠道账号使用顺序：按 uid 序列（最前 = 最优先尝试）。
+     * 拖拽排序后落盘；顺序缺失的账号追加在尾部（保持原序）。
+     */
+    fun accountOrder(channel: String): List<String> {
+        val raw = sp.getString("account_order_$channel", null) ?: return emptyList()
+        return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    fun saveAccountOrder(channel: String, uids: List<String>) {
+        sp.edit().putString("account_order_$channel", uids.joinToString(",")).commit()
+    }

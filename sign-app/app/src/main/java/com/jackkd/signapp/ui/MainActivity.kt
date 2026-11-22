@@ -22,6 +22,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -410,26 +411,27 @@ class MainActivity : AppCompatActivity() {
             showGatewayPage()
         }
 
-        // 网关页：启动/停止（服务起停是异步的，延迟刷新让状态跟上）
+        // 网关页：启动/停止（服务起停是异步的，延迟刷新让状态跟上；每渠道独立开关）
         btnGatewayToggle.setOnClickListener {
-            if (GatewayService.serverRunning) {
-                GatewayService.stop(this)
+            val ch = currentChannelKey()
+            if (GatewayService.isRunning(ch)) {
+                GatewayService.stop(this, ch)
             } else {
-                GatewayService.start(this)
+                GatewayService.start(this, ch)
             }
             // 服务 onStartCommand/onDestroy 异步执行，等一会再刷新状态
             btnGatewayToggle.postDelayed({ refreshGatewayPage() }, 400)
         }
-        // 复制 Key
-        btnGatewayCopyKey.setOnClickListener { copyText("TRAE_GATEWAY_KEY", gatewayStore.apiKey(), "API Key 已复制") }
+        // 复制 Key（Key 全渠道共用一把 sk-，见 GatewayStore 注释）
+        btnGatewayCopyKey.setOnClickListener { copyText("SIGNAPP_GATEWAY_KEY", gatewayStore.apiKey(), "API Key 已复制") }
 
         // 复制本机端点
         btnGatewayCopyLocal.setOnClickListener {
-            copyText("TRAE_GATEWAY_URL_LOCAL", tvGatewayBaseUrlLocal.text.toString(), "本机端点已复制")
+            copyText("SIGNAPP_GATEWAY_URL_LOCAL", tvGatewayBaseUrlLocal.text.toString(), "本机端点已复制")
         }
         // 复制局域网端点
         btnGatewayCopyLan.setOnClickListener {
-            copyText("TRAE_GATEWAY_URL_LAN", tvGatewayBaseUrlLan.text.toString(), "局域网端点已复制")
+            copyText("SIGNAPP_GATEWAY_URL_LAN", tvGatewayBaseUrlLan.text.toString(), "局域网端点已复制")
         }
         // 换新 Key
         btnGatewayRotateKey.setOnClickListener {
@@ -466,10 +468,8 @@ class MainActivity : AppCompatActivity() {
             onResumeCalledForThemeRestart = true
         }
 
-        // 网关用户意图持久化：之前开过网关就自动拉起（被系统杀/重启后恢复）
-        if (gatewayStore.shouldRun && !GatewayService.serverRunning) {
-            GatewayService.start(this)
-        }
+        // 网关用户意图持久化：之前开过网关的渠道自动拉起（被系统杀/重启后恢复）
+        GatewayService.startAllIntended(this)
         // Android 13+ 常驻通知要运行时授权（不授权只是通知不显示，网关照常工作）
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
@@ -496,6 +496,32 @@ class MainActivity : AppCompatActivity() {
         // 首页专属顶栏（GitHub 账号 + ⚙ 设置）只在首页显示；横幅由 renderLoginIssues 重算
         mainTopBar.visibility = View.VISIBLE
         renderLoginIssues()
+    }
+
+    /** 当前详情页对应的网关渠道 key（无网关 = 空串） */
+    private fun currentChannelKey(): String = when (currentTab) {
+        "TRAE" -> GatewayStore.CH_TRAE
+        "WorkBuddy" -> GatewayStore.CH_BUDDY
+        "Loomy" -> GatewayStore.CH_LOOMY
+        else -> ""
+    }
+
+    /** 当前渠道网关的显示名 */
+    private fun currentChannelName(): String = when (currentTab) {
+        "TRAE" -> "TRAE"
+        "WorkBuddy" -> "WorkBuddy"
+        "Loomy" -> "Loomy"
+        else -> ""
+    }
+
+    /** 当前渠道完整账号列表（label to uid） */
+    private fun currentChannelAccounts(): List<Pair<String, String>> = when (currentTab) {
+        "WorkBuddy" -> wbAccountStore.load().filter { it.credentials.isComplete() }
+            .map { it.label to it.credentials.uid }
+        "Loomy" -> loomyAccountStore.load().filter { it.credentials.isComplete() }
+            .map { it.label to it.credentials.userId }
+        else -> accountStore.load().filter { it.credentials.isComplete() }
+            .map { it.label to it.credentials.uid }
     }
 
     /** 进入某渠道详情（方案 A：MainActivity 内视图切换，云端逻辑原地不动） */
@@ -550,40 +576,37 @@ class MainActivity : AppCompatActivity() {
         pageTraeGateway.visibility = View.VISIBLE
     }
 
-    /** 刷新网关子页显示（状态/端口/Key 打码/账号/Base URL） */
+    /** 刷新网关子页显示（状态/端口/Key 打码/账号/Base URL；每渠道独立） */
     private fun refreshGatewayPage() {
-        val running = GatewayService.serverRunning
+        val ch = currentChannelKey()
+        if (ch.isEmpty()) return
+        val running = GatewayService.isRunning(ch)
         tvGatewayStatus.text = if (running) "网关运行中" else "网关未运行"
         tvGatewayStatus.setTextColor(
             ContextCompat.getColor(this, if (running) R.color.success_green else R.color.error_red)
         )
         btnGatewayToggle.text = if (running) "停止" else "启动"
 
-        tvGatewayPort.text = "端口: ${GatewayService.serverPort} · 监听 0.0.0.0（本机 + 局域网）"
+        val port = GatewayService.portOf(ch)
+        tvGatewayPort.text = "端口: $port · 监听 0.0.0.0（本机 + 局域网）"
 
-        // Key：打码显示，点按切换（rotateApiKey 后强制完整显示）
+        // Key：打码显示，点按切换（rotateApiKey 后强制完整显示）；Key 全渠道共用一把
         val fullKey = gatewayStore.apiKey()
         tvGatewayKey.text = if (gatewayKeyRevealed) fullKey else maskKey(fullKey)
 
-        // 账号：按当前渠道取对应 Store（TRAE / WorkBuddy / Loomy），preferUid 跨渠道统一匹配
-        val accs: List<Pair<String, String>> = when (currentTab) {
-            "WorkBuddy" -> wbAccountStore.load().filter { it.credentials.isComplete() }
-                .map { it.label to it.credentials.uid }
-            "Loomy" -> loomyAccountStore.load().filter { it.credentials.isComplete() }
-                .map { it.label to it.credentials.userId }
-            else -> accountStore.load().filter { it.credentials.isComplete() }
-                .map { it.label to it.credentials.uid }
-        }
+        // 账号：按当前渠道取对应 Store；preferUid 跨渠道统一匹配
+        val accs = currentChannelAccounts()
         val prefer = gatewayStore.preferUid?.let { uid -> accs.firstOrNull { it.second == uid } }
+        val order = gatewayStore.accountOrder(ch)
+        val orderCount = order.count { uid -> accs.any { it.second == uid } }
         tvGatewayAccount.text = if (prefer != null) {
             "固定账号：${prefer.first}"
         } else if (accs.isNotEmpty()) {
-            "自动选择（共 ${accs.size} 个账号，额度不足自动换号）"
+            "自动选择（共 ${accs.size} 个账号，已排 $orderCount 个 · 有问题的自动跳下一个）"
         } else {
             "暂无账号：先在 ${when (currentTab) { "WorkBuddy" -> "WorkBuddy 页"; "Loomy" -> "Loomy 页"; else -> "TRAE 页" }}添加账号"
         }
 
-        val port = GatewayService.serverPort
         // 本机端点（客户端和网关同一台手机上）
         tvGatewayBaseUrlLocal.text = "http://127.0.0.1:$port/v1"
         // 局域网端点（同 Wi-Fi 设备访问，IP 变化自动跟随）
@@ -638,36 +661,98 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** 选号：固定用某个账号（preferUid），或恢复自动选择（按当前渠道取账号） */
+    /**
+     * 「网关使用账号」弹窗（拖拽排序版）：
+     * 列出当前渠道全部账号，长按拖动调整使用顺序（排前面的先被使用），
+     * 请求时遇到有问题的账号自动跳到下一个（像「模型中转」插件）。
+     * 右上角还保留「固定账号」切换（旧设定兼容）：固定账号始终排最前。
+     */
     private fun showGatewayAccountPicker() {
-        val accs: List<Pair<String, String>> = when (currentTab) {
-            "WorkBuddy" -> wbAccountStore.load().filter { it.credentials.isComplete() }
-                .map { it.label to it.credentials.uid }
-            "Loomy" -> loomyAccountStore.load().filter { it.credentials.isComplete() }
-                .map { it.label to it.credentials.userId }
-            else -> accountStore.load().filter { it.credentials.isComplete() }
-                .map { it.label to it.credentials.uid }
+        val ch = currentChannelKey()
+        if (ch.isEmpty()) return
+        val accs = currentChannelAccounts()
+        if (accs.isEmpty()) {
+            Toast.makeText(this, "该渠道还没有可用的账号", Toast.LENGTH_SHORT).show()
+            return
         }
-        val names = mutableListOf("自动选择（额度不足自动换号）")
-        names.addAll(accs.map { it.first })
-        val preferred = gatewayStore.preferUid
-        var checked = 0
-        if (preferred != null) {
-            val idx = accs.indexOfFirst { it.second == preferred }
-            if (idx >= 0) checked = idx + 1
-        }
-        MaterialAlertDialogBuilder(this)
-            .setTitle("网关使用账号（${detailChannelName.text}）")
-            .setSingleChoiceItems(names.toTypedArray(), checked) { d, which ->
-                if (which == 0) {
-                    gatewayStore.preferUid = null
-                } else {
-                    gatewayStore.preferUid = accs[which - 1].second
-                }
-                d.dismiss()
-                refreshGatewayPage()
+        val order = gatewayStore.accountOrder(ch)
+
+        // 弹窗内容：说明 + 排序列表 + 固定账号切换 + 底部按钮
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_account_order, null)
+        val rv = view.findViewById<RecyclerView>(R.id.rvAccountOrder)
+        rv.layoutManager = LinearLayoutManager(this)
+
+        // 展示列表：按 accountOrder 重排（排过的置前按顺序；没排过的按 store 原顺序附加）
+        val items = mutableListOf<Pair<String, String>>()
+        order.forEach { uid -> accs.firstOrNull { it.second == uid }?.let { items.add(it) } }
+        accs.forEach { if (!order.contains(it.second)) items.add(it) }
+
+        val adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+            override fun getItemCount() = items.size
+            override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+                val v = LayoutInflater.from(parent.context)
+                    .inflate(R.layout.item_account_order, parent, false)
+                return object : RecyclerView.ViewHolder(v) {}
             }
+            override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+                val (label, _) = items[position]
+                holder.itemView.findViewById<TextView>(R.id.tvOrderIndex).text = (position + 1).toString()
+                holder.itemView.findViewById<TextView>(R.id.tvOrderLabel).text = label
+            }
+        }
+        rv.adapter = adapter
+
+        // 长按拖动排序
+        val helper = ItemTouchHelper(
+            object : ItemTouchHelper.Callback() {
+                override fun getMovementFlags(recyclerView: RecyclerView, vh: RecyclerView.ViewHolder): Int =
+                    makeMovementFlags(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0)
+
+                override fun onMove(recyclerView: RecyclerView, from: RecyclerView.ViewHolder, to: RecyclerView.ViewHolder): Boolean {
+                    val fromPos = from.bindingAdapterPosition
+                    val toPos = to.bindingAdapterPosition
+                    if (fromPos < 0 || toPos < 0) return false
+                    val moved = items.removeAt(fromPos)
+                    items.add(toPos, moved)
+                    adapter.notifyItemMoved(fromPos, toPos)
+                    // 立即刷新序号
+                    for (i in items.indices) {
+                        adapter.notifyItemChanged(i)
+                    }
+                    return true
+                }
+
+                override fun onSwiped(vh: RecyclerView.ViewHolder, direction: Int) {}
+
+                override fun isLongPressDragEnabled() = true
+            }
+        )
+        helper.attachToRecyclerView(rv)
+
+        // 恢复默认：清掉拖拽排序与旧的「固定账号」设定，列表回到 store 存储顺序
+        view.findViewById<TextView>(R.id.btnOrderReset).setOnClickListener {
+            gatewayStore.saveAccountOrder(ch, emptyList())
+            gatewayStore.preferUid = null
+            items.clear()
+            items.addAll(accs)
+            adapter.notifyDataSetChanged()
+            Toast.makeText(this, "已恢复默认顺序", Toast.LENGTH_SHORT).show()
+        }
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("网关使用账号（${currentChannelName()}）")
+            .setView(view)
             .setNegativeButton("取消", null)
-            .show()
+            .create()
+
+        view.findViewById<TextView>(R.id.btnOrderDone).setOnClickListener {
+            // 保存拖拽出的顺序；固定账号不参与排序（转发时优先使用固定账号）
+            gatewayStore.saveAccountOrder(ch, items.map { it.second })
+            refreshGatewayPage()
+            dialog.dismiss()
+        }
+
+        dialog.show()
     }
 
     /** ⚙️ 全局设置菜单（卡片式排版） */

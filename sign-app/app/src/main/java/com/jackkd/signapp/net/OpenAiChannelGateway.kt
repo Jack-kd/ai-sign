@@ -48,7 +48,9 @@ data class OpenAiChannelConfig(
 object OpenAiChannelGateway {
 
     /** 一次请求里最多尝试的账号数（含初始账号）。只允许在「未输出任何内容」前换号。 */
-    private const val MAX_ATTEMPTS = 2
+    // 换号不设上限：按照账号顺序依次尝试，有问题的自动跳到下一个，全部试完才算失败
+    // （对齐「模型中转」插件的账号轮换行为）
+    private const val MAX_ATTEMPTS = 64
 
     private val client = okhttp3.OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
@@ -74,6 +76,7 @@ object OpenAiChannelGateway {
         labelOf: (Any) -> String,
         completeOf: (Any) -> Boolean,
         preferUid: String?,
+        accountOrder: List<String> = emptyList(),
         wantStream: Boolean,
         recvChunk: (String) -> Unit,
     ): Boolean {
@@ -92,11 +95,22 @@ object OpenAiChannelGateway {
             return false
         }
 
-        // 候选账号：优先指定 uid（放最前），其余按原顺序
+        // 候选账号排序（像模型中转：先按使用顺序，再按固定账号，其余保持原序）：
+        // 1. preferUid 固定账号最前（保留旧设置兼容）
+        // 2. accountOrder 里排过序的置前（按保存的顺序）
+        // 3. 剩余未排序的按 store 原顺序追加
         var candidates = accounts.filter { completeOf(it) }
-        if (preferUid != null) {
-            candidates = candidates.sortedBy { if (uidOf(it) == preferUid) 0 else 1 }
+        val orderIdx = accountOrder.withIndex().associate { (i, uid) -> uid to i }
+        val sorted = if (orderIdx.isEmpty()) {
+            candidates.sortedBy { if (uidOf(it) == preferUid) 0 else 1 }
+        } else {
+            candidates.sortedWith { a, b ->
+                val pa = if (uidOf(a) == preferUid) -2 else orderIdx[uidOf(a)] ?: (orderIdx.size + 100)
+                val pb = if (uidOf(b) == preferUid) -2 else orderIdx[uidOf(b)] ?: (orderIdx.size + 100)
+                pa.compareTo(pb)
+            }
         }
+        candidates = sorted
         if (candidates.isEmpty()) {
             recvChunk(renderError("没有可用的 ${cfg.ownedBy} 账号，请先在应用里登录", "no_account", wantStream))
             return false

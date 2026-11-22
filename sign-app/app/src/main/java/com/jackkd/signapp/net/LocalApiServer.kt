@@ -41,12 +41,20 @@ class LocalApiServer(
     private val accountStore: AccountStore,
     private val loomyStore: LoomyAccountStore? = null,
     private val workBuddyStore: WorkBuddyAccountStore? = null,
+    private val basePort: Int = 8787,
 ) {
     private val tag = "LocalApiServer"
-    /** 起始端口：被占则自动 +1 重试（8787 → 8788 → …），上限 8796（连试 10 个） */
-    private val PORT_BASE = 8787
-    private val PORT_MAX = 8796
-    private var currentPort = PORT_BASE
+    /** 起始端口：被占则自动 +1 重试（basePort → basePort+1 → …），上限 +9（连试 10 个） */
+    private val portBase: Int = basePort
+
+    /** 端口即渠道：本实例的默认渠道 key（无前缀模型走这里） */
+    private val defaultChannelKey: String = when (basePort) {
+        8788 -> "loomy"
+        8789 -> "buddy"
+        else -> "trae"
+    }
+    private val portMax: Int = basePort + 9
+    private var currentPort = portBase
     private val MAX_BODY_BYTES = 8L * 1024 * 1024
     private val MAX_HEADER_LINE = 8 * 1024
 
@@ -65,7 +73,7 @@ class LocalApiServer(
     fun start(): Boolean {
         if (running.get()) return true
         // 端口占用就自动 +1 重试（连试到 PORT_MAX），被占不改端口要求不成立
-        for (p in PORT_BASE..PORT_MAX) {
+        for (p in portBase..portMax) {
             try {
                 val ss = ServerSocket()
                 ss.reuseAddress = true
@@ -80,7 +88,7 @@ class LocalApiServer(
                 Log.w(tag, "端口 $p 被占，尝试下一端口：${e.message}")
             }
         }
-        Log.e(tag, "网关启动失败：${PORT_BASE}~${PORT_MAX} 全部被占")
+        Log.e(tag, "网关启动失败：$portBase~$portMax 全部被占")
         return false
     }
 
@@ -200,12 +208,17 @@ class LocalApiServer(
         val wantStream = try { JSONObject(body).optBoolean("stream", true) } catch (e: Exception) { true }
 
         try {
-            // 按 model 前缀路由渠道：loomy/xxx → Loomy，buddy/xxx → WorkBuddy 国内版；
-            // 无前缀 → Trae（保持旧客户端配置兼容）
+            // 路由：优先按 model 前缀（loomy/xxx → Loomy）；无前缀 → 当前端口默认渠道
+            // （8787=trae / 8788=loomy / 8789=buddy），端口即渠道，互不串
             val model = try { JSONObject(body).optString("model", "").trim() } catch (e: Exception) { "" }
             val channel = ChannelConfigs.byModel(model)
             if (channel != null) {
                 handleChannelChat(w, channel, body, wantStream, model)
+                return
+            }
+            val fallback = ChannelConfigs.byPrefix(defaultChannelKey)
+            if (fallback != null) {
+                handleChannelChat(w, fallback, body, wantStream, model)
                 return
             }
 
@@ -214,6 +227,7 @@ class LocalApiServer(
                 body = body,
                 accounts = accounts,
                 preferUid = store.preferUid,
+                accountOrder = store.accountOrder("trae"),
                 renewToken = { updated ->
                     // 续期成功落盘：找同 uid 的账号更新凭证
                     accountStore.addOrUpdate(updated)
@@ -269,6 +283,7 @@ class LocalApiServer(
                     labelOf = { (it as LoomyAccount).label },
                     completeOf = { (it as LoomyAccount).credentials.isComplete() },
                     preferUid = store.preferUid,
+                    accountOrder = store.accountOrder("loomy"),
                     wantStream = wantStream,
                     recvChunk = { frame ->
                         if (wantStream) w.sseFrame(frame) else w.json(200, frame)
@@ -288,6 +303,7 @@ class LocalApiServer(
                     labelOf = { (it as WorkBuddyAccount).label },
                     completeOf = { (it as WorkBuddyAccount).credentials.isComplete() },
                     preferUid = store.preferUid,
+                    accountOrder = store.accountOrder("buddy"),
                     wantStream = wantStream,
                     recvChunk = { frame ->
                         if (wantStream) w.sseFrame(frame) else w.json(200, frame)

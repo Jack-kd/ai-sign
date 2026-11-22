@@ -21,10 +21,14 @@ import com.jackkd.signapp.net.LocalApiServer
 import com.jackkd.signapp.ui.MainActivity
 
 /**
- * OpenAI 兼容网关前台服务。
+ * OpenAI 兼容网关前台服务（多渠道版）。
  *
- * 职责：持有唯一的 [LocalApiServer] 实例，用前台服务 + 唤醒锁保证
- * App 退后台、屏幕熄灭后网关仍能响应客户端的 /v1 请求。
+ * 每个渠道一个 [LocalApiServer]，各自独立端口、独立启停：
+ *  - TRAE   : base port 8787（保持与旧版一致，客户端配置零改动）
+ *  - Loomy  : base port 8788
+ *  - WorkBuddy: base port 8789
+ *
+ * 用前台服务 + 唤醒锁保证 App 退后台、屏幕熄灭后网关仍能响应客户端的 /v1 请求。
  *
  * 保活配方（对齐 traework2api GatewayService 的成熟做法）：
  *  - 前台服务（常驻通知，用户看得见所以不算偷偷跑）
@@ -46,20 +50,33 @@ class GatewayService : Service() {
         private const val WATCHDOG_REQUEST = 1
         private const val WAKELOCK_TAG = "gateway:keepalive"
 
-        /** 服务内存态：是否正在跑（供 UI 查询，同进程可直接读） */
-        @Volatile
-        var serverRunning = false
-            private set
+        /** 每渠道起始端口（端口即渠道：占用则自动 +1 到 +9） */
+        const val PORT_TRAE = 8787
+        const val PORT_LOOMY = 8788
+        const val PORT_BUDDY = 8789
 
-        /** 实际监听端口（被占后自动换过会不等于 8787） */
-        @Volatile
-        var serverPort = 8787
-            private set
+        private val CHANNELS = mapOf(
+            GatewayStore.CH_TRAE to PORT_TRAE,
+            GatewayStore.CH_LOOMY to PORT_LOOMY,
+            GatewayStore.CH_BUDDY to PORT_BUDDY,
+        )
 
-        /** 启动网关（服务） */
-        fun start(context: Context) {
-            GatewayStore(context).shouldRun = true
+        /** 渠道名 → 服务状态 */
+        private val runningChannels = mutableMapOf<String, Boolean>()
+        private val channelPorts = mutableMapOf<String, Int>()
+
+        /** 某渠道网关是否在跑 */
+        fun isRunning(channel: String): Boolean = runningChannels[channel] ?: false
+
+        /** 某渠道当前实际端口（未启动时=起始端口） */
+        fun portOf(channel: String): Int = channelPorts[channel] ?: CHANNELS[channel] ?: PORT_TRAE
+
+        /** 启动某渠道网关 */
+        fun start(context: Context, channel: String) {
+            if (channel !in CHANNELS) return
+            GatewayStore(context).setShouldRun(channel, true)
             val intent = Intent(context, GatewayService::class.java)
+                .putExtra("channel", channel)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
@@ -67,15 +84,27 @@ class GatewayService : Service() {
             }
         }
 
-        /** 停止网关（服务）：shouldRun=false，重启后不会自动拉起 */
-        fun stop(context: Context) {
-            GatewayStore(context).shouldRun = false
-            context.stopService(Intent(context, GatewayService::class.java))
+        /** 停止某渠道网关 */
+        fun stop(context: Context, channel: String) {
+            GatewayStore(context).setShouldRun(channel, false)
+            // 通知服务停止指定渠道
+            val intent = Intent(context, GatewayService::class.java)
+                .putExtra("channel", channel)
+                .putExtra("stop", true)
+            context.startService(intent)
+        }
+
+        /** 服务整个重启：恢复所有 shouldRun=true 的渠道 */
+        fun startAllIntended(context: Context) {
+            val store = GatewayStore(context)
+            CHANNELS.keys.forEach { ch ->
+                if (store.shouldRun(ch) && !isRunning(ch)) start(context, ch)
+            }
         }
     }
 
     private var wakeLock: PowerManager.WakeLock? = null
-    private var server: LocalApiServer? = null
+    private val servers = mutableMapOf<String, LocalApiServer>()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -88,46 +117,84 @@ class GatewayService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // 幂等：服务已在跑就直接返回
-        if (server?.isRunning != true) {
+        // 系统因 START_STICKY 拉起（intent=null）：恢复所有用户开过且没跑的渠道
+        if (intent == null) {
             val store = GatewayStore(this)
-            val accountStore = AccountStore(this)
-            val loomyStore = LoomyAccountStore(this)
-            val workBuddyStore = WorkBuddyAccountStore(this)
-            server = LocalApiServer(store, accountStore, loomyStore, workBuddyStore)
-            val ok = server!!.start()
-            serverRunning = ok
-            if (ok) serverPort = server!!.port
-            if (ok) server!!.warmUpModels()   // 预拉模型表（后台线程，失败静默）
-            Log.i(TAG, "网关服务启动: ${if (ok) "成功" else "失败"}（端口 ${serverPort}）")
-            updateNotification(ok)
-            if (!ok) {
-                // 端口被占等启动失败：停止服务，避免前台服务空转
-                stopSelf()
-                return START_NOT_STICKY
+            CHANNELS.keys.forEach { ch ->
+                if (store.shouldRun(ch) && !isRunning(ch)) {
+                    ensureChannel(ch)
+                }
             }
+            return START_STICKY
+        }
+        val channel = intent.getStringExtra("channel") ?: GatewayStore.CH_TRAE
+        val wantStop = intent.getBooleanExtra("stop", false)
+
+        if (wantStop) {
+            stopChannel(channel)
+            return START_STICKY
         }
 
+        ensureChannel(channel)
         // 重启 if killed
         return START_STICKY
     }
 
+    /** 启动/确保某渠道在跑（幂等） */
+    private fun ensureChannel(channel: String) {
+        if (channel !in CHANNELS) return
+        val server = servers[channel]
+        if (server?.isRunning == true) return
+        val store = GatewayStore(this)
+        val accountStore = AccountStore(this)
+        val loomyStore = LoomyAccountStore(this)
+        val workBuddyStore = WorkBuddyAccountStore(this)
+        val basePort = CHANNELS[channel] ?: PORT_TRAE
+        val srv = LocalApiServer(store, accountStore, loomyStore, workBuddyStore, basePort)
+        val ok = srv.start()
+        if (ok) {
+            servers[channel] = srv
+            runningChannels[channel] = true
+            channelPorts[channel] = srv.port
+            srv.warmUpModels()   // 预拉模型表（后台线程，失败静默）
+            Log.i(TAG, "通道 [$channel] 网关启动成功（端口 ${srv.port}）")
+        } else {
+            Log.e(TAG, "通道 [$channel] 网关启动失败（端口被占）")
+        }
+        updateNotification()
+    }
+
+    private fun stopChannel(channel: String) {
+        servers[channel]?.stop()
+        servers.remove(channel)
+        runningChannels[channel] = false
+        channelPorts.remove(channel)
+        Log.i(TAG, "通道 [$channel] 网关已停止")
+        updateNotification()
+        // 全部渠道都停了：撤掉整个前台服务（下次 start() 会重新拉起）
+        if (runningChannels.values.none { it }) {
+            stopForegroundCompat()
+            stopSelf()
+        }
+    }
+
     override fun onDestroy() {
-        serverRunning = false
-        server?.stop()
-        server = null
-        serverPort = 8787
+        runningChannels.clear()
+        channelPorts.clear()
+        servers.values.forEach { it.stop() }
+        servers.clear()
         releaseWakeLock()
         cancelWatchdog()
-        Log.i(TAG, "网关服务已停止")
+        Log.i(TAG, "网关服务已停止（全部通道）")
         super.onDestroy()
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         // 从最近任务划掉：重启服务拉回（用户明确关掉时 shouldRun 已是 false，不会复活）
         super.onTaskRemoved(rootIntent)
-        if (GatewayStore(this).shouldRun) {
-            start(this)
+        val store = GatewayStore(this)
+        if (CHANNELS.keys.any { store.shouldRun(it) }) {
+            startAllIntended(this)
         }
     }
 
@@ -141,7 +208,7 @@ class GatewayService : Service() {
                 "本地 API 网关",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "OpenAI 兼容网关正在运行（端口 $serverPort）"
+                description = "OpenAI 兼容网关正在运行（多渠道）"
                 setShowBadge(false)
             }
             nm.createNotificationChannel(ch)
@@ -149,7 +216,7 @@ class GatewayService : Service() {
     }
 
     private fun startAsForeground() {
-        val n = buildNotification("网关运行中", "端口 $serverPort · 点击回到应用")
+        val n = buildNotification()
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(NOTIFY_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
@@ -157,32 +224,43 @@ class GatewayService : Service() {
                 startForeground(NOTIFY_ID, n)
             }
         } catch (e: Exception) {
-            // Android 14+ 前台服务类型校验不通过（权限缺失/类型不允许）会在此抛异常，
-            // 未捕获会连累整个 App 进程崩掉。捕获后停止服务并撤销用户意图，
-            // 避免「shouldRun=true → 每次启动自动拉起 → 又崩」的死循环。
+            // Android 14+ 前台服务类型校验不通过会在此抛异常，未捕获会连累整个 App 进程崩掉。
             Log.e(TAG, "startForeground 失败: ${e.message}")
-            GatewayStore(this).shouldRun = false
+            GatewayStore(this).setShouldRun(GatewayStore.CH_TRAE, false)
             stopSelf()
         }
     }
 
-    private fun updateNotification(ok: Boolean) {
-        val nm = getSystemService(NotificationManager::class.java)
-        val n = buildNotification(
-            if (ok) "网关运行中" else "网关启动失败",
-            if (ok) "端口 $serverPort · 点击回到应用" else "端口被占用或启动异常，请重试"
-        )
-        nm.notify(NOTIFY_ID, n)
+    private fun stopForegroundCompat() {
+        try { stopForeground(true) } catch (e: Exception) {}
     }
 
-    private fun buildNotification(title: String, text: String): Notification {
+    private fun updateNotification() {
+        val nm = getSystemService(NotificationManager::class.java)
+        nm.notify(NOTIFY_ID, buildNotification())
+    }
+
+    private fun buildNotification(): Notification {
+        val running = runningChannels.filterValues { it }
+        val text = if (running.isEmpty()) {
+            "网关未运行"
+        } else {
+            running.entries.joinToString(" · ") { (ch, _) ->
+                val name = when (ch) {
+                    GatewayStore.CH_LOOMY -> "Loomy"
+                    GatewayStore.CH_BUDDY -> "WorkBuddy"
+                    else -> "TRAE"
+                }
+                "$name:${portOf(ch)}"
+            } + " · 点击回到应用"
+        }
         val contentIntent = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val b = Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle(title)
+            .setContentTitle("本地 API 网关")
             .setContentText(text)
             .setContentIntent(contentIntent)
             .setOngoing(true)
@@ -197,7 +275,6 @@ class GatewayService : Service() {
             val pm = getSystemService(PowerManager::class.java)
             @Suppress("DEPRECATION")
             val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKELOCK_TAG)
-            // 超时设成极大值：唤醒锁永久持有，防止服务在灭屏后掉进 cached 被冻结
             wl.acquire(Long.MAX_VALUE)
             wakeLock = wl
         } catch (e: Exception) {
@@ -221,7 +298,6 @@ class GatewayService : Service() {
                 Intent(this, GatewayService::class.java),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            // setAndAllowWhileIdle：无需精确闹钟权限，Doze 下也能触发（可被稍许延迟，可接受）
             am.setAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
                 System.currentTimeMillis() + WATCHDOG_INTERVAL_MS,

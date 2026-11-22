@@ -83,4 +83,11 @@ object ChannelConfigs {
         model.startsWith("${BUDDY.prefix}/") -> BUDDY
         else -> null
     }
+
+    /** 按端口默认渠道 key 取配置（trae 返回 null=走 Trae 主流程） */
+    fun byPrefix(prefix: String): OpenAiChannelConfig? = when (prefix) {
+        LOOMY.prefix -> LOOMY
+        BUDDY.prefix -> BUDDY
+        else -> null
+    }
 }

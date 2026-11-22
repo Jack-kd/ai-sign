@@ -59,7 +59,8 @@ object TraeGateway {
     private val MODEL_ID_RE = Regex("^[A-Za-z0-9._-]{1,64}$")
 
     /** 一次请求里最多尝试的账号数（含初始账号）。只允许在「未输出任何内容」前换号。 */
-    private const val MAX_ATTEMPTS = 2
+    // 换号不设上限：按账号顺序依次尝试，有问题的自动跳下一个，全部试完才算失败
+    private const val MAX_ATTEMPTS = 64
 
     private val client = okhttp3.OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
@@ -83,6 +84,7 @@ object TraeGateway {
         body: String,
         accounts: List<TraeAccount>,
         preferUid: String?,
+        accountOrder: List<String> = emptyList(),
         renewToken: (TraeAccount) -> Unit,
         wantStream: Boolean,
         recvChunk: (String) -> Unit,
@@ -97,10 +99,17 @@ object TraeGateway {
         // prepareBody 会把 stream 改成 true（上游只认流式），wantStream 是客户端原来的意图
         val prepared = prepareBody(src)
 
-        // 候选账号：优先指定 uid（放在最前），其余按原顺序作为换号候选
+        // 候选账号排序（像模型中转）：固定账号最前 → 拖拽排序的顺序 → 剩余保持原序
         var candidates = accounts.filter { it.credentials.isComplete() }
-        if (preferUid != null) {
-            candidates = candidates.sortedBy { if (it.credentials.uid == preferUid) 0 else 1 }
+        val orderIdx = accountOrder.withIndex().associate { (i, uid) -> uid to i }
+        candidates = if (orderIdx.isEmpty()) {
+            candidates.sortedBy { if (it.credentials.uid == preferUid) 0 else 1 }
+        } else {
+            candidates.sortedWith { a, b ->
+                val pa = if (a.credentials.uid == preferUid) -2 else orderIdx[a.credentials.uid] ?: (orderIdx.size + 100)
+                val pb = if (b.credentials.uid == preferUid) -2 else orderIdx[b.credentials.uid] ?: (orderIdx.size + 100)
+                pa.compareTo(pb)
+            }
         }
         if (candidates.isEmpty()) {
             recvChunk(renderError("没有可用的 Trae 账号，请先添加账号", "no_account", wantStream))

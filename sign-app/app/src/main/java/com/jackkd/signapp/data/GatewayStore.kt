@@ -58,6 +58,18 @@ class GatewayStore(context: Context) {
         get() = sp.getString("prefer_uid", null)?.takeIf { it.isNotEmpty() }
         set(v) { sp.edit().putString("prefer_uid", v ?: "").commit() }
 
+    /**
+     * 模型表磁盘缓存（JSON 字符串）。进程重启后先恢复缓存，客户端立刻有可用清单；
+     * 服务在跑时再由 /v1/models 静默刷新一次保证新鲜。
+     * 只存非空表（cacheModels 内部检查），绝不拿空表冒充清单。
+     */
+    fun cachedModels(): String? = sp.getString("models_cache", null)?.takeIf { it.isNotBlank() }
+
+    fun cacheModels(json: String) {
+        if (json.isBlank()) return
+        sp.edit().putString("models_cache", json).commit()
+    }
+
     private fun newKey(): String {
         val bytes = ByteArray(32)
         SecureRandom().nextBytes(bytes)

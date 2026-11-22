@@ -917,24 +917,99 @@
                         android:textSize="15sp"
                         android:textStyle="bold" />
 
-                    <TextView
-                        android:id="@+id/tvGatewayBaseUrl"
+                    <!-- 本机端点 -->
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:background="@drawable/bg_item_account"
-                        android:padding="10dp"
-                        android:text="http://127.0.0.1:8787/v1"
-                        android:textColor="@color/text_primary"
-                        android:textSize="13sp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="本机"
+                            android:textColor="@color/gray"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:id="@+id/tvGatewayBaseUrlLocal"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_item_account"
+                            android:padding="9dp"
+                            android:text="http://127.0.0.1:8787/v1"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:id="@+id/btnGatewayCopyLocal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:background="@drawable/bg_btn_ghost"
+                            android:paddingLeft="12dp"
+                            android:paddingRight="12dp"
+                            android:paddingTop="7dp"
+                            android:paddingBottom="7dp"
+                            android:text="复制"
+                            android:textColor="?attr/signPrimary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <!-- 局域网端点 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="局域网"
+                            android:textColor="@color/gray"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:id="@+id/tvGatewayBaseUrlLan"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_item_account"
+                            android:padding="9dp"
+                            android:text="http://192.168.1.100:8787/v1"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:id="@+id/btnGatewayCopyLan"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:background="@drawable/bg_btn_ghost"
+                            android:paddingLeft="12dp"
+                            android:paddingRight="12dp"
+                            android:paddingTop="7dp"
+                            android:paddingBottom="7dp"
+                            android:text="复制"
+                            android:textColor="?attr/signPrimary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
 
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:text="Base URL 填上面这个，模型名填 DeepSeek-V4-Flash"
+                        android:layout_marginTop="8dp"
+                        android:text="· 同 Wi-Fi 下电脑/手机填「局域网」端点即可连接
+· 模型可在客户端自动拉取（已支持 /v1/models）"
                         android:textColor="@color/gray"
-                        android:textSize="12sp" />
+                        android:textSize="12sp"
+                        android:lineSpacingExtra="4dp" />
                 </LinearLayout>
 
                 <!-- 提示卡 -->

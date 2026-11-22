@@ -39,7 +39,10 @@ class LocalApiServer(
     private val accountStore: AccountStore,
 ) {
     private val tag = "LocalApiServer"
-    private val PORT = 8787
+    /** 起始端口：被占则自动 +1 重试（8787 → 8788 → …），上限 8796（连试 10 个） */
+    private val PORT_BASE = 8787
+    private val PORT_MAX = 8796
+    private var currentPort = PORT_BASE
     private val MAX_BODY_BYTES = 8L * 1024 * 1024
     private val MAX_HEADER_LINE = 8 * 1024
 
@@ -52,25 +55,29 @@ class LocalApiServer(
     /** 当前运行状态（供 UI 轮询显示） */
     val isRunning: Boolean get() = running.get()
 
-    /** 监听端口（供 UI 展示） */
-    val port: Int get() = PORT
+    /** 监听端口（供 UI 展示）；启动失败时为起始端口 */
+    val port: Int get() = currentPort
 
     fun start(): Boolean {
         if (running.get()) return true
-        return try {
-            // 先 bind 成功再置 running=true，避免「端口被占但显示已开」
-            val ss = ServerSocket()
-            ss.reuseAddress = true
-            ss.bind(java.net.InetSocketAddress(InetAddress.getByName("0.0.0.0"), PORT), 50)
-            serverSocket = ss
-            running.set(true)
-            acceptPool.execute { acceptLoop(ss) }
-            Log.i(tag, "网关已启动 :$PORT")
-            true
-        } catch (e: Exception) {
-            Log.e(tag, "网关启动失败（端口可能被占）: ${e.message}")
-            false
+        // 端口占用就自动 +1 重试（连试到 PORT_MAX），被占不改端口要求不成立
+        for (p in PORT_BASE..PORT_MAX) {
+            try {
+                val ss = ServerSocket()
+                ss.reuseAddress = true
+                ss.bind(java.net.InetSocketAddress(InetAddress.getByName("0.0.0.0"), p), 50)
+                serverSocket = ss
+                currentPort = p
+                running.set(true)
+                acceptPool.execute { acceptLoop(ss) }
+                Log.i(tag, "网关已启动 :$p")
+                return true
+            } catch (e: Exception) {
+                Log.w(tag, "端口 $p 被占，尝试下一端口：${e.message}")
+            }
         }
+        Log.e(tag, "网关启动失败：${PORT_BASE}~${PORT_MAX} 全部被占")
+        return false
     }
 
     fun stop() {
@@ -144,7 +151,8 @@ class LocalApiServer(
             val body = readBody(br, cl)
 
             when (fullPath) {
-                "/v1/models" -> onModels(w, headers)
+                // /models 别名：Chatbox 等客户端拉模型不带 /v1（参考项目处理过）
+                "/v1/models", "/models" -> onModels(w, headers)
                 "/v1/self" -> onSelf(w, headers)
                 "/v1/chat/completions" -> onChat(w, headers, body)
                 "/healthz" -> w.json(200, JSONObject().put("status", "ok"))
@@ -212,21 +220,79 @@ class LocalApiServer(
     }
 
     private fun onModels(w: W, headers: Map<String, String>) {
-        if (!authOk(headers)) {
-            w.json(401, JSONObject().put("error", JSONObject().put("message", "invalid api key").put("type", "invalid_request_error")))
-            return
-        }
-        // 首版静态内置模型表：Trae 实际可用模型以账号额度与上游 availability 为准，
-        // 这里给客户端一个能用的最小清单。后续可接 TraeGateway.fetchModels 动态拉取。
-        val models = JSONArray().put(
-            JSONObject()
-                .put("id", TraeGateway.DEFAULT_MODEL)
-                .put("object", "model")
-                .put("owned_by", "trae")
-                .put("created", 0)
-        )
+        // ⚠️ 免鉴权（对齐参考项目）：/v1/models 只返回模型清单、无敏感数据，
+        // 免鉴权才能被各类客户端在「配置 API 时自动拉取模型」这步正常使用。
+        val models = currentModels()
         w.json(200, JSONObject().put("object", "list").put("data", models))
     }
+
+    // ---------- 动态模型表 ----------
+
+    /** 内存中的模型表；null = 还没拉过/缓存里没有（回退默认模型） */
+    @Volatile
+    private var modelsDynamic: JSONArray? = null
+
+    /** 模型表新鲜度：超过该时长就静默刷新一次（避免每次 /v1/models 都打上游） */
+    private var modelsFetchedAt = 0L
+    private val MODELS_TTL_MS = 30 * 60 * 1000L
+
+    /** 当前生效的模型表：动态 > 磁盘缓存 > 默认模型兜底 */
+    private fun currentModels(): JSONArray {
+        val now = System.currentTimeMillis()
+        if (modelsDynamic == null) {
+            // 冷启动：先吃磁盘缓存（进程重启后客户端立即有清单）。
+            // fetchedAt 置 0：缓存可能是旧进程留下的，首次访问就触发一次刷新保新鲜。
+            store.cachedModels()?.let { raw ->
+                try {
+                    val arr = JSONArray(raw)
+                    if (arr.length() > 0) {
+                        modelsDynamic = arr
+                        modelsFetchedAt = 0L
+                    }
+                } catch (e: Exception) {}
+            }
+        }
+        // 过期或从没拉过 → 后台异步刷一次（不阻塞响应，先回当前表）
+        if (modelsDynamic == null || now - modelsFetchedAt > MODELS_TTL_MS) {
+            refreshModels()
+        }
+        return modelsDynamic ?: defaultModels()
+    }
+
+    private fun defaultModels(): JSONArray = JSONArray().apply {
+        put(JSONObject().put("id", TraeGateway.DEFAULT_MODEL).put("object", "model").put("owned_by", "trae").put("created", 0))
+    }
+
+    /** 服务启动时预拉一次模型表（客户端访问前缓存已就绪）；失败静默 */ 
+    fun warmUpModels() = refreshModels()
+
+    /** 用第一个可用账号拉上游真实模型表；失败/无账号时保留现状 */
+    private fun refreshModels() {
+        if (modelsRefreshing) return
+        modelsRefreshing = true
+        ioPool.execute {
+            try {
+                val accs = accountStore.load().filter { it.credentials.isComplete() }
+                val acc = accs.firstOrNull() ?: return@execute
+                val token = acc.credentials.accessToken
+                if (token.isBlank()) return@execute
+                val arr = TraeGateway.fetchModels(token, acc.credentials.uid)
+                if (arr.length() > 0) {
+                    modelsDynamic = arr
+                    modelsFetchedAt = System.currentTimeMillis()
+                    store.cacheModels(arr.toString())
+                    Log.i(tag, "模型表已刷新: ${arr.length()} 个")
+                }
+            } catch (e: Exception) {
+                Log.w(tag, "模型刷新失败: ${e.message}")
+            } finally {
+                modelsRefreshing = false
+            }
+        }
+    }
+
+    @Volatile
+    private var modelsRefreshing = false
 
     private fun onSelf(w: W, headers: Map<String, String>) {
         if (!authOk(headers)) {

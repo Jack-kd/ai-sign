@@ -49,6 +49,11 @@ class GatewayService : Service() {
         var serverRunning = false
             private set
 
+        /** 实际监听端口（被占后自动换过会不等于 8787） */
+        @Volatile
+        var serverPort = 8787
+            private set
+
         /** 启动网关（服务） */
         fun start(context: Context) {
             GatewayStore(context).shouldRun = true
@@ -88,7 +93,9 @@ class GatewayService : Service() {
             server = LocalApiServer(store, accountStore)
             val ok = server!!.start()
             serverRunning = ok
-            Log.i(TAG, "网关服务启动: ${if (ok) "成功" else "失败"}")
+            if (ok) serverPort = server!!.port
+            if (ok) server!!.warmUpModels()   // 预拉模型表（后台线程，失败静默）
+            Log.i(TAG, "网关服务启动: ${if (ok) "成功" else "失败"}（端口 ${serverPort}）")
             updateNotification(ok)
             if (!ok) {
                 // 端口被占等启动失败：停止服务，避免前台服务空转
@@ -105,6 +112,7 @@ class GatewayService : Service() {
         serverRunning = false
         server?.stop()
         server = null
+        serverPort = 8787
         releaseWakeLock()
         cancelWatchdog()
         Log.i(TAG, "网关服务已停止")
@@ -129,7 +137,7 @@ class GatewayService : Service() {
                 "本地 API 网关",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "OpenAI 兼容网关正在运行（端口 8787）"
+                description = "OpenAI 兼容网关正在运行（端口 $serverPort）"
                 setShowBadge(false)
             }
             nm.createNotificationChannel(ch)
@@ -137,7 +145,7 @@ class GatewayService : Service() {
     }
 
     private fun startAsForeground() {
-        val n = buildNotification("网关运行中", "端口 8787 · 点击回到应用")
+        val n = buildNotification("网关运行中", "端口 $serverPort · 点击回到应用")
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(NOTIFY_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
@@ -158,7 +166,7 @@ class GatewayService : Service() {
         val nm = getSystemService(NotificationManager::class.java)
         val n = buildNotification(
             if (ok) "网关运行中" else "网关启动失败",
-            if (ok) "端口 8787 · 点击回到应用" else "端口被占用或启动异常，请重试"
+            if (ok) "端口 $serverPort · 点击回到应用" else "端口被占用或启动异常，请重试"
         )
         nm.notify(NOTIFY_ID, n)
     }

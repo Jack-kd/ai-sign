@@ -209,7 +209,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnGatewayCopyKey: TextView
     private lateinit var btnGatewayRotateKey: TextView
     private lateinit var tvGatewayAccount: TextView
-    private lateinit var tvGatewayBaseUrl: TextView
+    private lateinit var tvGatewayBaseUrlLocal: TextView
+    private lateinit var btnGatewayCopyLocal: TextView
+    private lateinit var tvGatewayBaseUrlLan: TextView
+    private lateinit var btnGatewayCopyLan: TextView
     private lateinit var pageQc: View
     private lateinit var pageLoomy: View
     private lateinit var homePage: View
@@ -283,7 +286,10 @@ class MainActivity : AppCompatActivity() {
         btnGatewayCopyKey = findViewById(R.id.btnGatewayCopyKey)
         btnGatewayRotateKey = findViewById(R.id.btnGatewayRotateKey)
         tvGatewayAccount = findViewById(R.id.tvGatewayAccount)
-        tvGatewayBaseUrl = findViewById(R.id.tvGatewayBaseUrl)
+        tvGatewayBaseUrlLocal = findViewById(R.id.tvGatewayBaseUrlLocal)
+        btnGatewayCopyLocal = findViewById(R.id.btnGatewayCopyLocal)
+        tvGatewayBaseUrlLan = findViewById(R.id.tvGatewayBaseUrlLan)
+        btnGatewayCopyLan = findViewById(R.id.btnGatewayCopyLan)
         pageWb = findViewById(R.id.pageWorkBuddy)
         pageQc = findViewById(R.id.pageQoderCn)
         homePage = findViewById(R.id.homePage)
@@ -415,10 +421,15 @@ class MainActivity : AppCompatActivity() {
             btnGatewayToggle.postDelayed({ refreshGatewayPage() }, 400)
         }
         // 复制 Key
-        btnGatewayCopyKey.setOnClickListener {
-            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            cm.setPrimaryClip(ClipData.newPlainText("TRAE_GATEWAY_KEY", gatewayStore.apiKey()))
-            Toast.makeText(this, "API Key 已复制", Toast.LENGTH_SHORT).show()
+        btnGatewayCopyKey.setOnClickListener { copyText("TRAE_GATEWAY_KEY", gatewayStore.apiKey(), "API Key 已复制") }
+
+        // 复制本机端点
+        btnGatewayCopyLocal.setOnClickListener {
+            copyText("TRAE_GATEWAY_URL_LOCAL", tvGatewayBaseUrlLocal.text.toString(), "本机端点已复制")
+        }
+        // 复制局域网端点
+        btnGatewayCopyLan.setOnClickListener {
+            copyText("TRAE_GATEWAY_URL_LAN", tvGatewayBaseUrlLan.text.toString(), "局域网端点已复制")
         }
         // 换新 Key
         btnGatewayRotateKey.setOnClickListener {
@@ -545,7 +556,7 @@ class MainActivity : AppCompatActivity() {
         )
         btnGatewayToggle.text = if (running) "停止" else "启动"
 
-        tvGatewayPort.text = "端口: 8787 · 手机与电脑同局域网可连（0.0.0.0）"
+        tvGatewayPort.text = "端口: ${GatewayService.serverPort} · 监听 0.0.0.0（本机 + 局域网）"
 
         // Key：打码显示，点按切换（rotateApiKey 后强制完整显示）
         val fullKey = gatewayStore.apiKey()
@@ -562,7 +573,35 @@ class MainActivity : AppCompatActivity() {
             "暂无账号：先在 TRAE 页添加账号"
         }
 
-        tvGatewayBaseUrl.text = "http://127.0.0.1:8787/v1"
+        val port = GatewayService.serverPort
+        // 本机端点（客户端和网关同一台手机上）
+        tvGatewayBaseUrlLocal.text = "http://127.0.0.1:$port/v1"
+        // 局域网端点（同 Wi-Fi 设备访问，IP 变化自动跟随）
+        tvGatewayBaseUrlLan.text = "http://${lanIpOrDash()}:$port/v1"
+    }
+
+    /** 取局域网 IPv4：优先 WiFi 网段，取不到显示 "--" */
+    private fun lanIpOrDash(): String {
+        try {
+            val nis = java.net.NetworkInterface.getNetworkInterfaces() ?: return "--"
+            while (nis.hasMoreElements()) {
+                val ni = nis.nextElement()
+                if (!ni.isUp || ni.isLoopback) continue
+                // 只取 WiFi/以太网口的 IPv4（跳过 127.0.0.1、IPv6）
+                val addrs = ni.inetAddresses ?: continue
+                while (addrs.hasMoreElements()) {
+                    val a = addrs.nextElement()
+                    if (a.isLoopbackAddress || !(a is java.net.Inet4Address)) continue
+                    val ip = a.hostAddress ?: continue
+                    if (ip.startsWith("192.168.") || ip.startsWith("10.") || ip.startsWith("172.")) {
+                        return ip
+                    }
+                }
+            }
+            return "--"
+        } catch (e: Exception) {
+            return "--"
+        }
     }
 
     /** 打码 Key：只显示头尾（sk- 前缀 + 末 4 位，中间打码） */
@@ -579,6 +618,13 @@ class MainActivity : AppCompatActivity() {
         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         cm.setPrimaryClip(ClipData.newPlainText("TRAE_GATEWAY_KEY", key))
         Toast.makeText(this, "已生成新 Key 并复制（旧 Key 已失效）", Toast.LENGTH_LONG).show()
+    }
+
+    /** 通用复制 */
+    private fun copyText(label: String, text: String, tip: String) {
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText(label, text))
+        Toast.makeText(this, tip, Toast.LENGTH_SHORT).show()
     }
 
     /** 选号：固定用某个账号（preferUid），或恢复自动选择 */

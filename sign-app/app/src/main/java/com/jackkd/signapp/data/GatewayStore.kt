@@ -79,7 +79,6 @@ class GatewayStore(context: Context) {
     private fun saveKey(key: String) {
         sp.edit().putString("api_key", key).commit()
     }
-}
 
     // ---------- 每渠道独立网关（v2：端口即渠道） ----------
 
@@ -117,3 +116,4 @@ class GatewayStore(context: Context) {
     fun saveAccountOrder(channel: String, uids: List<String>) {
         sp.edit().putString("account_order_$channel", uids.joinToString(",")).commit()
     }
+}

@@ -142,22 +142,33 @@ class LocalApiServer(
                 return
             }
 
-            // 读请求体（Content-Length 或 chunked）
+            // 读请求体：只有显式标了 Transfer-Encoding: chunked 才走 chunked 解析，
+            // 其余一律按 Content-Length 读；无 Content-Length（GET 拉模型等）不读 body。
+            // ⚠️ 千万别把「没有 Content-Length」当成 chunked——那样 GET /v1/models
+            // 会在读 chunk 尺寸行时阻塞到客户端超时，表现为「获取模型获取不上」。
             val cl = headers["content-length"]?.toLongOrNull() ?: -1L
-            if (cl > MAX_BODY_BYTES) {
+            val isChunked = headers["transfer-encoding"]?.contains("chunked", true) == true
+            if (!isChunked && cl > MAX_BODY_BYTES) {
                 w.json(413, JSONObject().put("error", JSONObject().put("message", "request body too large").put("type", "invalid_request_error")))
                 return
             }
-            val body = readBody(br, cl)
+            val body = if (isChunked) readChunkedBody(br) else readBody(br, cl)
 
+            // 访问日志：客户端路径五花八门（实测有客户端不带 /v1），
+            // 出问题靠它一眼看出对方请求了哪条路径、我们答了什么，不用靠猜。
+            Log.i(tag, "→ $method $fullPath auth=${headers["authorization"] != null} cl=$cl chunked=$isChunked")
             when (fullPath) {
                 // /models 别名：Chatbox 等客户端拉模型不带 /v1（参考项目处理过）
                 "/v1/models", "/models" -> onModels(w, headers)
                 "/v1/self" -> onSelf(w, headers)
-                "/v1/chat/completions" -> onChat(w, headers, body)
+                // /chat/completions 别名：部分客户端不带 /v1
+                "/v1/chat/completions", "/chat/completions" -> onChat(w, headers, body)
                 "/healthz" -> w.json(200, JSONObject().put("status", "ok"))
-                else -> w.json(404, JSONObject()
-                    .put("error", JSONObject().put("message", "not found: $fullPath").put("type", "invalid_request_error")))
+                else -> {
+                    Log.w(tag, "← 404 未知端点: $method $fullPath")
+                    w.json(404, JSONObject()
+                        .put("error", JSONObject().put("message", "not found: $fullPath").put("type", "invalid_request_error")))
+                }
             }
         } catch (e: SocketException) {
             // 客户端断开（SSE 中途取消）：正常，不报错
@@ -325,19 +336,22 @@ class LocalApiServer(
         }
     }
 
+    /** 按 Content-Length 精确读满 body；无 Content-Length（GET 等）返回空串 */
     private fun readBody(br: BufferedReader, contentLength: Long): String {
-        if (contentLength >= 0) {
-            if (contentLength > MAX_BODY_BYTES) return ""
-            val buf = CharArray(contentLength.toInt())
-            var off = 0
-            while (off < buf.size) {
-                val n = br.read(buf, off, buf.size - off)
-                if (n < 0) break
-                off += n
-            }
-            return String(buf, 0, off)
+        if (contentLength <= 0) return ""
+        if (contentLength > MAX_BODY_BYTES) return ""
+        val buf = CharArray(contentLength.toInt())
+        var off = 0
+        while (off < buf.size) {
+            val n = br.read(buf, off, buf.size - off)
+            if (n < 0) break
+            off += n
         }
-        // chunked（Chatbox 等客户端 POST 用 chunked）
+        return String(buf, 0, off)
+    }
+
+    /** chunked 请求体解析（Chatbox 等客户端 POST 用 chunked） */
+    private fun readChunkedBody(br: BufferedReader): String {
         val sb = StringBuilder()
         while (true) {
             val sizeLine = readHeaderLine(br) ?: break

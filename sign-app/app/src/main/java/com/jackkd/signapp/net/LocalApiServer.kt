@@ -61,7 +61,7 @@ class LocalApiServer(
             // 先 bind 成功再置 running=true，避免「端口被占但显示已开」
             val ss = ServerSocket()
             ss.reuseAddress = true
-            ss.bind(InetAddress.getByName("0.0.0.0"), 50)
+            ss.bind(java.net.InetSocketAddress(InetAddress.getByName("0.0.0.0"), PORT), 50)
             serverSocket = ss
             running.set(true)
             acceptPool.execute { acceptLoop(ss) }
@@ -185,6 +185,7 @@ class LocalApiServer(
                     // 续期成功落盘：找同 uid 的账号更新凭证
                     accountStore.addOrUpdate(updated)
                     Log.i(tag, "账号 token 已续期并落盘: ${updated.label}")
+                    Unit
                 },
                 wantStream = wantStream,
                 recvChunk = { frame ->

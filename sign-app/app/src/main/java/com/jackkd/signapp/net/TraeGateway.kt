@@ -138,6 +138,7 @@ object TraeGateway {
                 } else {
                     frames.append(frame)
                 }
+                Unit
             }
 
             try {
@@ -445,7 +446,7 @@ object TraeGateway {
         var created = 0L
         var finish = "stop"
         var usage: JSONObject? = null
-        val toolCalls = LinkedHashMap<String, JSONObject>()
+        val toolCalls = LinkedHashMap<Int, JSONObject>()
 
         for (frame in frames) {
             val line = frame.trim()

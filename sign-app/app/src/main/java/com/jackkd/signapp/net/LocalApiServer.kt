@@ -6,8 +6,6 @@ import com.jackkd.signapp.data.GatewayStore
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedOutputStream
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -112,15 +110,16 @@ class LocalApiServer(
         try {
             sock.tcpNoDelay = true
             sock.soTimeout = 1000 * 60 * 5 // 单连接 5 分钟超时（覆盖长 SSE 流）
-            val br = BufferedReader(InputStreamReader(sock.getInputStream(), Charsets.UTF_8), 64 * 1024)
+            val input = sock.getInputStream()
             val out = BufferedOutputStream(sock.getOutputStream(), 64 * 1024)
             val w = W(out)
 
-            // 读请求行 + 请求头
+            // 读请求行 + 请求头（逐字节，不预读：BufferedReader 会预读字节进自己的缓冲，
+            // 把 body 开头吃掉；且按字节读才能正确处理带中文的 Content-Length 字节数）
             var requestLine = ""
             val headers = HashMap<String, String>()
             while (true) {
-                val line = readHeaderLine(br) ?: break
+                val line = readHeaderLine(input) ?: break
                 if (line.isEmpty()) break
                 if (requestLine.isEmpty()) requestLine = line
                 val idx = line.indexOf(':')
@@ -152,7 +151,7 @@ class LocalApiServer(
                 w.json(413, JSONObject().put("error", JSONObject().put("message", "request body too large").put("type", "invalid_request_error")))
                 return
             }
-            val body = if (isChunked) readChunkedBody(br) else readBody(br, cl)
+            val body = if (isChunked) readChunkedBody(input) else readBody(input, cl)
 
             // 访问日志：客户端路径五花八门（实测有客户端不带 /v1），
             // 出问题靠它一眼看出对方请求了哪条路径、我们答了什么，不用靠猜。
@@ -322,54 +321,73 @@ class LocalApiServer(
         return store.isKeyValid(token)
     }
 
-    private fun readHeaderLine(br: BufferedReader): String? {
+    /** 逐字节读一行（\n 结尾，去 \r）；不预读、不缓冲（对齐参考项目）。
+     *  超长行按连接结束处理（截断的头比断连更难诊断）。 */
+    private fun readHeaderLine(input: java.io.InputStream): String? {
         val sb = StringBuilder()
         while (true) {
-            val c = br.read()
-            if (c == -1) return null
-            if (c == '\n'.code) {
-                if (sb.isNotEmpty() && sb.last() == '\r') sb.setLength(sb.length - 1)
-                return sb.toString()
-            }
-            if (sb.length >= MAX_HEADER_LINE) return null // 超长 header 直接放弃
+            val c = input.read()
+            if (c == -1) return if (sb.isEmpty()) null else sb.toString()
+            if (c == '\n'.code) return sb.toString().removeSuffix("\r")
+            if (sb.length > MAX_HEADER_LINE) return null // 超长 header 直接放弃
             sb.append(c.toChar())
         }
     }
 
-    /** 按 Content-Length 精确读满 body；无 Content-Length（GET 等）返回空串 */
-    private fun readBody(br: BufferedReader, contentLength: Long): String {
+    /**
+     * 按 Content-Length（**字节**数）精确读满 body。
+     * ⚠️ 必须按字节读：Content-Length 是字节数，含中文的请求字节数 > 字符数，
+     * 按字符读会永远读不满 → 阻塞到客户端超时（表现就是「对话一直转圈」）。
+     * 且不能走 BufferedReader：它会预读字节进自己的缓冲，导致 body 缺一段。
+     * 无 Content-Length（GET 等）返回空串。
+     */
+    private fun readBody(input: java.io.InputStream, contentLength: Long): String {
         if (contentLength <= 0) return ""
         if (contentLength > MAX_BODY_BYTES) return ""
-        val buf = CharArray(contentLength.toInt())
+        val bytes = ByteArray(contentLength.toInt())
         var off = 0
-        while (off < buf.size) {
-            val n = br.read(buf, off, buf.size - off)
+        while (off < bytes.size) {
+            val n = input.read(bytes, off, bytes.size - off)
             if (n < 0) break
             off += n
         }
-        return String(buf, 0, off)
+        return String(bytes, 0, off, Charsets.UTF_8)
     }
 
-    /** chunked 请求体解析（Chatbox 等客户端 POST 用 chunked） */
-    private fun readChunkedBody(br: BufferedReader): String {
-        val sb = StringBuilder()
+    /** chunked 请求体解析（Chatbox 等客户端 POST 用 chunked）；逐字节读，对齐参考项目 */
+    private fun readChunkedBody(input: java.io.InputStream): String {
+        val buf = java.io.ByteArrayOutputStream()
+        var total = 0
+        fun readLine(): String? {
+            val sb = StringBuilder()
+            while (true) {
+                val c = input.read()
+                if (c < 0) return if (sb.isEmpty()) null else sb.toString()
+                if (c == '\n'.code) return sb.toString().removeSuffix("\r")
+                if (sb.length > MAX_HEADER_LINE) return null
+                sb.append(c.toChar())
+            }
+        }
         while (true) {
-            val sizeLine = readHeaderLine(br) ?: break
+            val sizeLine = readLine() ?: break
             val sizeHex = sizeLine.trim().substringBefore(';')
             val size = try { sizeHex.toLong(16) } catch (e: Exception) { break }
-            if (size == 0L) break
-            if (sb.length + size > MAX_BODY_BYTES) break
-            val buf = CharArray(size.toInt())
+            if (size <= 0L) break
+            // 大小上限必须在分配前卡（size 直接来自报文，超大值会 OOM）
+            if (size > MAX_BODY_BYTES || total + size > MAX_BODY_BYTES) break
+            total += size.toInt()
+            val chunk = ByteArray(size.toInt())
             var off = 0
-            while (off < buf.size) {
-                val n = br.read(buf, off, buf.size - off)
+            while (off < chunk.size) {
+                val n = input.read(chunk, off, chunk.size - off)
                 if (n < 0) break
                 off += n
             }
-            sb.append(buf, 0, off)
-            readHeaderLine(br) // 吃 chunk 后的 CRLF
+            buf.write(chunk, 0, off)
+            readLine() // 吃 chunk 后的 CRLF
+            if (off < chunk.size) break // 连接提前断开
         }
-        return sb.toString()
+        return String(buf.toByteArray(), Charsets.UTF_8)
     }
 
     // ---------- 响应写入 ----------
@@ -388,7 +406,12 @@ class LocalApiServer(
                 append("HTTP/1.1 $code ${reason(code)}\r\n")
                 append("Content-Type: application/json; charset=utf-8\r\n")
                 append("Content-Length: ${bytes.size}\r\n")
+                // CORS：每个响应都带全套（对齐参考项目 writeRaw）。
+                // WebView 系客户端拉模型前会发 OPTIONS 预检，缺头跨站拦截。
                 append("Access-Control-Allow-Origin: *\r\n")
+                append("Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n")
+                append("Access-Control-Allow-Headers: Authorization, Content-Type\r\n")
+                append("Access-Control-Max-Age: 86400\r\n")
                 append("Connection: close\r\n")
                 append("\r\n")
             }
@@ -413,10 +436,16 @@ class LocalApiServer(
         fun sseStart() {
             if (sseStarted) return
             sseStarted = true
+            // 流式响应头 CORS 必须带全（对齐参考项目 streamingChat 注释）：
+            // 缺 Access-Control-Allow-Headers 时 WebView 系客户端流式响应会被判跨站拦截，
+            // 现象正是「能拉到模型、却发不出对话（一直转圈）」。
             val head = ("HTTP/1.1 200 OK\r\n" +
                 "Content-Type: text/event-stream; charset=utf-8\r\n" +
                 "Cache-Control: no-cache\r\n" +
                 "Access-Control-Allow-Origin: *\r\n" +
+                "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n" +
+                "Access-Control-Allow-Headers: Authorization, Content-Type\r\n" +
+                "Access-Control-Max-Age: 86400\r\n" +
                 "Transfer-Encoding: chunked\r\n" +
                 "Connection: keep-alive\r\n\r\n")
             out.write(head.toByteArray(Charsets.UTF_8))

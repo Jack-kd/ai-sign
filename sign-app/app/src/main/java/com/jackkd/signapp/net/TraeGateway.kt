@@ -585,28 +585,72 @@ object TraeGateway {
     /** 拉取模型清单：失败返回空表（客户端会显示"无模型"，可手动重试） */
     fun fetchModels(token: String, uid: String): JSONArray {
         return try {
+            // ⚠️ body 必须是完整参数（实测只有 body={} 时上游返回空 config_info_list）：
+            // 对齐 traework2api TraeUpstream.fetchModels 的实测参数表。
+            val reqBody = JSONObject()
+                .put("function", FUNCTION)
+                .put("config_names", JSONObject.NULL)
+                .put("need_prompt", false)
+                .put("current_config_info", JSONObject.NULL)
+                .put("poly_prompt", true)
+                .put("mode_type", JSONObject.NULL)
+                .put("agent_type", JSONObject.NULL)
             val req = okhttp3.Request.Builder()
                 .url(AGENT_HOST + EP_MODELS)
-                .post("{}".toRequestBody("application/json".toMediaType()))
+                .post(reqBody.toString().toRequestBody("application/json".toMediaType()))
                 .solo(token, uid = uid)
+                // 参考项目 fetchModels 用 solo(stream=false)：Accept 必须是 application/json
+                //（solo 默认恒发 text/event-stream，覆盖为 json 对齐参考实测）
+                .header("Accept", "application/json")
                 .build()
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return JSONArray()
                 val obj = JSONObject(resp.body!!.string())
-                val arr = obj.optJSONArray("model_list") ?: obj.optJSONArray("data") ?: JSONArray()
+                // 上游真实表在 config_info_list，不是 model_list/data（旧解析永远空表）
+                val arr = obj.optJSONArray("config_info_list") ?: JSONArray()
                 val out = JSONArray()
                 for (i in 0 until arr.length()) {
                     val m = arr.optJSONObject(i) ?: continue
-                    val id = m.optString("model_name", "").ifBlank { m.optString("config_name", "") }
-                    if (id.isNotBlank() && MODEL_ID_RE.matches(id)) {
-                        out.put(JSONObject().put("id", id).put("object", "model").put("owned_by", "trae"))
-                    }
+                    val id = m.optString("config_name", "").trim()
+                    if (id.isBlank()) continue
+                    if (!isChatModel(m)) continue // 过滤内部 agent/占位项，避免客户端选到 4001
+                    if (!MODEL_ID_RE.matches(id)) continue
+                    val dc = m.optJSONObject("display_config")
+                    // optLong 返回非空 long，不能用 ?:；先取 updated_at，非 0 用之，否则 created_at
+                    val created = m.optLong("updated_at", 0L).let { if (it != 0L) it else m.optLong("created_at", 0L) }
+                    out.put(JSONObject()
+                        .put("id", id)
+                        .put("object", "model")
+                        .put("owned_by", "trae")
+                        .put("created", created)
+                        .apply {
+                            val name = dc?.optString("display_name", "")?.trim().orEmpty()
+                            if (name.isNotEmpty()) put("name", name)
+                        })
                 }
                 out
             }
         } catch (e: Exception) {
             JSONArray()
         }
+    }
+
+    /**
+     * 是否是可聊天的真模型（对齐 traework2api isChatModel）：
+     * config_source == 1 且非自定义模型、非隐藏、有 display_config、名字不像内部 agent。
+     */
+    private fun isChatModel(cfg: JSONObject): Boolean {
+        if (cfg.optInt("config_source", 0) != 1) return false
+        val dc = cfg.optJSONObject("display_config") ?: return false
+        if (dc.optBoolean("is_custom_model", false)) return false
+        if (cfg.optBoolean("is_invisible_to_user", false)) return false
+        val id = cfg.optString("config_name", "").trim().lowercase()
+        if (id.startsWith("custom_model")) return false
+        val blocked = listOf(
+            "agent", "subagent", "summary", "sagitta", "aquila",
+            "file_search", "explore_", "computer_use", "browser_use",
+        )
+        return blocked.none { id.contains(it) }
     }
 
     // ---------- SSE 状态机 ----------

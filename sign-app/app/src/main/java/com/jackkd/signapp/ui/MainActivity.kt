@@ -518,32 +518,35 @@ class MainActivity : AppCompatActivity() {
             "QoderCn" -> "Qoder 中国版"
             else -> "Loomy"
         }
-        if (tab == "TRAE") {
-            btnGatewayEntry.visibility = View.VISIBLE
-        } else {
-            btnGatewayEntry.visibility = View.GONE
-        }
+        // 有网关能力的渠道（TRAE / WorkBuddy / Loomy）详情页顶栏都显示「API」入口；
+        // QoderCn 网关未接入（WASM 加密信封），不显示入口
+        btnGatewayEntry.visibility =
+            if (tab == "TRAE" || tab == "WorkBuddy" || tab == "Loomy") View.VISIBLE else View.GONE
     }
 
     /** 详情页回车：分层返回（网关子页 → 渠道详情 → 首页） */
     private fun goBackFromDetail() {
         if (gatewayPageActive) {
-            // 回到 TRAE 签到页（网关子页盖在上面）
+            // 回到当前渠道签到页（网关子页盖在上面）
             gatewayPageActive = false
             pageTraeGateway.visibility = View.GONE
-            pageTrae.visibility = View.VISIBLE
+            pageTrae.visibility = if (currentTab == "TRAE") View.VISIBLE else View.GONE
+            pageWb.visibility = if (currentTab == "WorkBuddy") View.VISIBLE else View.GONE
+            pageLoomy.visibility = if (currentTab == "Loomy") View.VISIBLE else View.GONE
         } else {
             showHome()
         }
     }
 
-    /** 从 TRAE 详情页顶栏「API」进入网关子页 */
+    /** 从渠道详情页顶栏「API」进入网关子页（TRAE / WorkBuddy / Loomy 通用） */
     private fun showGatewayPage() {
-        if (currentTab != "TRAE") return
+        if (currentTab != "TRAE" && currentTab != "WorkBuddy" && currentTab != "Loomy") return
         gatewayPageActive = true
         refreshGatewayPage()
-        // 同层叠放：盖住签到页
+        // 同层叠放：盖住当前渠道签到页
         pageTrae.visibility = View.GONE
+        pageWb.visibility = View.GONE
+        pageLoomy.visibility = View.GONE
         pageTraeGateway.visibility = View.VISIBLE
     }
 
@@ -562,15 +565,22 @@ class MainActivity : AppCompatActivity() {
         val fullKey = gatewayStore.apiKey()
         tvGatewayKey.text = if (gatewayKeyRevealed) fullKey else maskKey(fullKey)
 
-        // 账号：优先显示固定选号
-        val accs = accountStore.load().filter { it.credentials.isComplete() }
-        val prefer = gatewayStore.preferUid?.let { uid -> accs.firstOrNull { it.credentials.uid == uid } }
+        // 账号：按当前渠道取对应 Store（TRAE / WorkBuddy / Loomy），preferUid 跨渠道统一匹配
+        val accs: List<Pair<String, String>> = when (currentTab) {
+            "WorkBuddy" -> wbAccountStore.load().filter { it.credentials.isComplete() }
+                .map { it.label to it.credentials.uid }
+            "Loomy" -> loomyAccountStore.load().filter { it.credentials.isComplete() }
+                .map { it.label to it.credentials.userId }
+            else -> accountStore.load().filter { it.credentials.isComplete() }
+                .map { it.label to it.credentials.uid }
+        }
+        val prefer = gatewayStore.preferUid?.let { uid -> accs.firstOrNull { it.second == uid } }
         tvGatewayAccount.text = if (prefer != null) {
-            "固定账号：${prefer.label}"
+            "固定账号：${prefer.first}"
         } else if (accs.isNotEmpty()) {
             "自动选择（共 ${accs.size} 个账号，额度不足自动换号）"
         } else {
-            "暂无账号：先在 TRAE 页添加账号"
+            "暂无账号：先在 ${when (currentTab) { "WorkBuddy" -> "WorkBuddy 页"; "Loomy" -> "Loomy 页"; else -> "TRAE 页" }}添加账号"
         }
 
         val port = GatewayService.serverPort
@@ -627,24 +637,31 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, tip, Toast.LENGTH_SHORT).show()
     }
 
-    /** 选号：固定用某个账号（preferUid），或恢复自动选择 */
+    /** 选号：固定用某个账号（preferUid），或恢复自动选择（按当前渠道取账号） */
     private fun showGatewayAccountPicker() {
-        val accs = accountStore.load().filter { it.credentials.isComplete() }
+        val accs: List<Pair<String, String>> = when (currentTab) {
+            "WorkBuddy" -> wbAccountStore.load().filter { it.credentials.isComplete() }
+                .map { it.label to it.credentials.uid }
+            "Loomy" -> loomyAccountStore.load().filter { it.credentials.isComplete() }
+                .map { it.label to it.credentials.userId }
+            else -> accountStore.load().filter { it.credentials.isComplete() }
+                .map { it.label to it.credentials.uid }
+        }
         val names = mutableListOf("自动选择（额度不足自动换号）")
-        names.addAll(accs.map { it.label })
+        names.addAll(accs.map { it.first })
         val preferred = gatewayStore.preferUid
         var checked = 0
         if (preferred != null) {
-            val idx = accs.indexOfFirst { it.credentials.uid == preferred }
+            val idx = accs.indexOfFirst { it.second == preferred }
             if (idx >= 0) checked = idx + 1
         }
         MaterialAlertDialogBuilder(this)
-            .setTitle("网关使用账号")
+            .setTitle("网关使用账号（${detailChannelName.text}）")
             .setSingleChoiceItems(names.toTypedArray(), checked) { d, which ->
                 if (which == 0) {
                     gatewayStore.preferUid = null
                 } else {
-                    gatewayStore.preferUid = accs[which - 1].credentials.uid
+                    gatewayStore.preferUid = accs[which - 1].second
                 }
                 d.dismiss()
                 refreshGatewayPage()

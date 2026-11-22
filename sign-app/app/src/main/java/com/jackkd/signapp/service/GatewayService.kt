@@ -15,6 +15,8 @@ import android.os.PowerManager
 import android.util.Log
 import com.jackkd.signapp.data.AccountStore
 import com.jackkd.signapp.data.GatewayStore
+import com.jackkd.signapp.data.LoomyAccountStore
+import com.jackkd.signapp.data.WorkBuddyAccountStore
 import com.jackkd.signapp.net.LocalApiServer
 import com.jackkd.signapp.ui.MainActivity
 
@@ -90,7 +92,9 @@ class GatewayService : Service() {
         if (server?.isRunning != true) {
             val store = GatewayStore(this)
             val accountStore = AccountStore(this)
-            server = LocalApiServer(store, accountStore)
+            val loomyStore = LoomyAccountStore(this)
+            val workBuddyStore = WorkBuddyAccountStore(this)
+            server = LocalApiServer(store, accountStore, loomyStore, workBuddyStore)
             val ok = server!!.start()
             serverRunning = ok
             if (ok) serverPort = server!!.port

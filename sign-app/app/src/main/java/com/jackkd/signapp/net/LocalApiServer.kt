@@ -3,6 +3,10 @@ package com.jackkd.signapp.net
 import android.util.Log
 import com.jackkd.signapp.data.AccountStore
 import com.jackkd.signapp.data.GatewayStore
+import com.jackkd.signapp.data.LoomyAccount
+import com.jackkd.signapp.data.LoomyAccountStore
+import com.jackkd.signapp.data.WorkBuddyAccount
+import com.jackkd.signapp.data.WorkBuddyAccountStore
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedOutputStream
@@ -35,6 +39,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 class LocalApiServer(
     private val store: GatewayStore,
     private val accountStore: AccountStore,
+    private val loomyStore: LoomyAccountStore? = null,
+    private val workBuddyStore: WorkBuddyAccountStore? = null,
 ) {
     private val tag = "LocalApiServer"
     /** 起始端口：被占则自动 +1 重试（8787 → 8788 → …），上限 8796（连试 10 个） */
@@ -194,6 +200,15 @@ class LocalApiServer(
         val wantStream = try { JSONObject(body).optBoolean("stream", true) } catch (e: Exception) { true }
 
         try {
+            // 按 model 前缀路由渠道：loomy/xxx → Loomy，buddy/xxx → WorkBuddy 国内版；
+            // 无前缀 → Trae（保持旧客户端配置兼容）
+            val model = try { JSONObject(body).optString("model", "").trim() } catch (e: Exception) { "" }
+            val channel = ChannelConfigs.byModel(model)
+            if (channel != null) {
+                handleChannelChat(w, channel, body, wantStream, model)
+                return
+            }
+
             val accounts = accountStore.load()
             val ok = TraeGateway.chatStream(
                 body = body,
@@ -229,6 +244,81 @@ class LocalApiServer(
         }
     }
 
+    /**
+     * 渠道对话路由（Loomy / WorkBuddy 国内版）：从对应 Store 取账号转发。
+     */
+    private fun handleChannelChat(
+        w: W,
+        cfg: OpenAiChannelConfig,
+        body: String,
+        wantStream: Boolean,
+        model: String,
+    ) {
+        val loomy = loomyStore?.load().orEmpty()
+        val buddy = workBuddyStore?.load().orEmpty()
+        when (cfg.prefix) {
+            "loomy" -> {
+                if (loomy.isEmpty()) {
+                    failChannel(w, "没有可用的 Loomy 账号，请先在应用里登录", wantStream)
+                    return
+                }
+                val ok = OpenAiChannelGateway.chatStream(
+                    cfg = cfg, body = body, accounts = loomy,
+                    tokenOf = { (it as LoomyAccount).credentials.accessToken },
+                    uidOf = { (it as LoomyAccount).credentials.userId },
+                    labelOf = { (it as LoomyAccount).label },
+                    completeOf = { (it as LoomyAccount).credentials.isComplete() },
+                    preferUid = store.preferUid,
+                    wantStream = wantStream,
+                    recvChunk = { frame ->
+                        if (wantStream) w.sseFrame(frame) else w.json(200, frame)
+                    }
+                )
+                finishChannel(w, wantStream, ok)
+            }
+            "buddy" -> {
+                if (buddy.isEmpty()) {
+                    failChannel(w, "没有可用的 WorkBuddy 账号，请先在应用里登录", wantStream)
+                    return
+                }
+                val ok = OpenAiChannelGateway.chatStream(
+                    cfg = cfg, body = body, accounts = buddy,
+                    tokenOf = { (it as WorkBuddyAccount).credentials.accessToken },
+                    uidOf = { (it as WorkBuddyAccount).credentials.uid },
+                    labelOf = { (it as WorkBuddyAccount).label },
+                    completeOf = { (it as WorkBuddyAccount).credentials.isComplete() },
+                    preferUid = store.preferUid,
+                    wantStream = wantStream,
+                    recvChunk = { frame ->
+                        if (wantStream) w.sseFrame(frame) else w.json(200, frame)
+                    }
+                )
+                finishChannel(w, wantStream, ok)
+            }
+            else -> {
+                // 未知前缀（理论不可达：byModel 已过滤）
+                failChannel(w, "未知渠道：$model", wantStream)
+            }
+        }
+    }
+
+    private fun failChannel(w: W, msg: String, wantStream: Boolean) {
+        if (wantStream) {
+            w.sseFrame(TraeGateway.errorFrame(msg, "no_account"))
+            w.sseEnd()
+        } else {
+            w.json(400, JSONObject().put("error", JSONObject().put("message", msg).put("type", "invalid_request_error")))
+        }
+    }
+
+    private fun finishChannel(w: W, wantStream: Boolean, ok: Boolean) {
+        if (wantStream) {
+            w.sseEnd()
+        } else if (!ok) {
+            Log.w(tag, "非流式渠道转发失败（错误已通过响应体返回）")
+        }
+    }
+
     private fun onModels(w: W, headers: Map<String, String>) {
         // ⚠️ 免鉴权（对齐参考项目）：/v1/models 只返回模型清单、无敏感数据，
         // 免鉴权才能被各类客户端在「配置 API 时自动拉取模型」这步正常使用。
@@ -246,7 +336,7 @@ class LocalApiServer(
     private var modelsFetchedAt = 0L
     private val MODELS_TTL_MS = 30 * 60 * 1000L
 
-    /** 当前生效的模型表：动态 > 磁盘缓存 > 默认模型兜底 */
+    /** 当前生效的模型表：Trae 动态/缓存/默认 + 渠道静态表（渠道表始终展示，无账号也用得上） */
     private fun currentModels(): JSONArray {
         val now = System.currentTimeMillis()
         if (modelsDynamic == null) {
@@ -266,10 +356,16 @@ class LocalApiServer(
         if (modelsDynamic == null || now - modelsFetchedAt > MODELS_TTL_MS) {
             refreshModels()
         }
-        return modelsDynamic ?: defaultModels()
+        val trae = modelsDynamic ?: defaultTraeModels()
+        // Trae + 渠道静态模型合并（去重：渠道里不会出现 trae 的 id，直接拼接）
+        val merged = JSONArray()
+        for (i in 0 until trae.length()) merged.put(trae.optJSONObject(i))
+        ChannelConfigs.LOOMY.toModelsArray().let { for (i in 0 until it.length()) merged.put(it.optJSONObject(i)) }
+        ChannelConfigs.BUDDY.toModelsArray().let { for (i in 0 until it.length()) merged.put(it.optJSONObject(i)) }
+        return merged
     }
 
-    private fun defaultModels(): JSONArray = JSONArray().apply {
+    private fun defaultTraeModels(): JSONArray = JSONArray().apply {
         put(JSONObject().put("id", TraeGateway.DEFAULT_MODEL).put("object", "model").put("owned_by", "trae").put("created", 0))
     }
 

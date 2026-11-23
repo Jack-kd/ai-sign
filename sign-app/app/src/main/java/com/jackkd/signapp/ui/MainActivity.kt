@@ -3205,23 +3205,17 @@ private fun showGithubDialog() {
         fun render() {
             val logs = callLogStore.load()
             if (logs.isEmpty()) {
-                tv.text = info("$ 暂无调用记录
-
-# 客户端连上网关发消息后自动记录
-# （模型 / 账号 / 耗时 / Token 用量）")
+                tv.text = info("\$ 暂无调用记录\n\n# 客户端连上网关发消息后自动记录\n# （模型 / 账号 / 耗时 / Token 用量）")
                 return
             }
             val sb = SpannableStringBuilder()
-            sb.append(section("# 调用记录 (" + logs.size + " 条)
-"))
+            sb.append(section("# 调用记录 (" + logs.size + " 条)\n"))
             var lastDay = ""
             for (log in logs) {
                 val day = java.text.SimpleDateFormat("MM-dd", java.util.Locale.getDefault()).format(java.util.Date(log.time))
                 if (day != lastDay) {
                     lastDay = day
-                    sb.append(section("
-== " + day + " ==
-"))
+                    sb.append(section("\n== " + day + " ==\n"))
                 }
                 // ● [时间] 渠道·模型 (账号) 手段 成功/失败
                 val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(log.time))
@@ -3237,8 +3231,7 @@ private fun showGithubDialog() {
                     else -> "Trae"
                 }
                 val bodyColor = if (log.ok) cCyan else cRed
-                val body = SpannableString("${chName} · ${log.model}
-")
+                val body = SpannableString("${chName} · ${log.model}\n")
                 body.setSpan(ForegroundColorSpan(bodyColor), 0, body.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 sb.append(body)
 
@@ -3260,13 +3253,11 @@ private fun showGithubDialog() {
                             setSpan(ForegroundColorSpan(cPurple), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                         })
                     }
-                    meta.append("
-")
+                    meta.append("\n")
                     sb.append(meta)
                 }
                 if (!log.ok && log.error.isNotEmpty()) {
-                    val err = SpannableString("  错误: " + log.error + "
-")
+                    val err = SpannableString("  错误: " + log.error + "\n")
                     err.setSpan(ForegroundColorSpan(cRed), 0, err.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     sb.append(err)
                 }

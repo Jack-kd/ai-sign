@@ -352,8 +352,20 @@ class LocalApiServer(
     private var modelsFetchedAt = 0L
     private val MODELS_TTL_MS = 30 * 60 * 1000L
 
-    /** 当前生效的模型表：Trae 动态/缓存/默认 + 渠道静态表（渠道表始终展示，无账号也用得上） */
-    private fun currentModels(): JSONArray {
+    /**
+     * 当前生效的模型表：**按端口渠道隔离** —— 开哪个渠道的网关，就能搜到哪个渠道的模型。
+     *  - 8787（trae）：Trae 动态/缓存模型，无账号时回退默认
+     *  - 8788（loomy）：仅 Loomy 静态模型表（loomy/ 前缀）
+     *  - 8789（buddy）：仅 Buddy 静态模型表（buddy/ 前缀）
+     */
+    private fun currentModels(): JSONArray = when (defaultChannelKey) {
+        GatewayStore.CH_LOOMY -> ChannelConfigs.LOOMY.toModelsArray()
+        GatewayStore.CH_BUDDY -> ChannelConfigs.BUDDY.toModelsArray()
+        else -> currentTraeModels()
+    }
+
+    /** Trae 渠道的模型表：动态/缓存，没有则回退默认 */
+    private fun currentTraeModels(): JSONArray {
         val now = System.currentTimeMillis()
         if (modelsDynamic == null) {
             // 冷启动：先吃磁盘缓存（进程重启后客户端立即有清单）。
@@ -372,13 +384,7 @@ class LocalApiServer(
         if (modelsDynamic == null || now - modelsFetchedAt > MODELS_TTL_MS) {
             refreshModels()
         }
-        val trae = modelsDynamic ?: defaultTraeModels()
-        // Trae + 渠道静态模型合并（去重：渠道里不会出现 trae 的 id，直接拼接）
-        val merged = JSONArray()
-        for (i in 0 until trae.length()) merged.put(trae.optJSONObject(i))
-        ChannelConfigs.LOOMY.toModelsArray().let { for (i in 0 until it.length()) merged.put(it.optJSONObject(i)) }
-        ChannelConfigs.BUDDY.toModelsArray().let { for (i in 0 until it.length()) merged.put(it.optJSONObject(i)) }
-        return merged
+        return modelsDynamic ?: defaultTraeModels()
     }
 
     private fun defaultTraeModels(): JSONArray = JSONArray().apply {

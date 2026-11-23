@@ -34,4 +34,20 @@ class CallLogStore(context: Context) {
     fun clear() {
         sp.edit().remove("logs").apply()
     }
+
+    /** 全量聚合：按「渠道 → 模型」统计调用数/成败/Token 用量（含总量） */
+    @Synchronized
+    fun stats(): Map<String, LinkedHashMap<String, ModelStat>> {
+        val out = LinkedHashMap<String, LinkedHashMap<String, ModelStat>>()
+        for (log in load()) {
+            val ch = log.channel.ifBlank { "trae" }
+            val byModel = out.getOrPut(ch) { LinkedHashMap() }
+            val st = byModel.getOrPut(log.model.ifBlank { "(无模型)" }) { ModelStat() }
+            st.calls++
+            if (log.ok) st.ok++ else st.fail++
+            st.inTokens += log.inputTokens.toLong()
+            st.outTokens += log.outputTokens.toLong()
+        }
+        return out
+    }
 }

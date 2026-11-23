@@ -13,3 +13,14 @@ data class GatewayCallLog(
     val outputTokens: Int = 0, // 用量：输出
     val ttftMs: Long = 0       // 首个内容块耗时（首块延迟）
 )
+
+/** 单个「渠道 · 模型」的调用聚合统计（展示用，累计不清零，除非用户清空） */
+data class ModelStat(
+    var calls: Int = 0,
+    var ok: Int = 0,
+    var fail: Int = 0,
+    var inTokens: Long = 0,
+    var outTokens: Long = 0,
+) {
+    val totalTokens: Long get() = inTokens + outTokens
+}

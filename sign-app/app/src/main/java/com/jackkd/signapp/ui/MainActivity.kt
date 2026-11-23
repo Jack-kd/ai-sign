@@ -447,6 +447,8 @@ class MainActivity : AppCompatActivity() {
         }
         // 点账号行：选择固定账号（或恢复自动选择）
         tvGatewayAccount.setOnClickListener { showGatewayAccountPicker() }
+        // 调用记录：按渠道/模型聚合统计（终端口径：模型 · Token 用量 · 成败）
+        findViewById<View>(R.id.btnGatewayCallLogs).setOnClickListener { showCallLogsDialog() }
 
         // ⚙️ 设置菜单（仿微信"+"弹出）
         findViewById<TextView>(R.id.btnSettings).setOnClickListener { showSettingsMenu() }
@@ -788,9 +790,6 @@ class MainActivity : AppCompatActivity() {
         }
         view.findViewById<View>(R.id.btnLogsEntry).setOnClickListener {
             dialog.dismiss(); showLogsDialog()
-        }
-        view.findViewById<View>(R.id.btnCallLogsEntry).setOnClickListener {
-            dialog.dismiss(); showCallLogsDialog()
         }
         view.findViewById<View>(R.id.btnStatsEntry).setOnClickListener {
             dialog.dismiss(); showStatsDialog()
@@ -3188,6 +3187,8 @@ private fun showGithubDialog() {
         dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
         applyDialogBlur(dlg)
 
+        val chNames = mapOf("trae" to "Trae", "loomy" to "Loomy", "buddy" to "WorkBuddy")
+
         /** 状态行（黄色） */
         fun info(text: String): CharSequence {
             val sp = SpannableString(text)
@@ -3202,65 +3203,113 @@ private fun showGithubDialog() {
             return sp
         }
 
+        /** 模型名（白色） */
+        fun modelName(name: String): CharSequence {
+            val sp = SpannableString(name)
+            sp.setSpan(ForegroundColorSpan(cWhite), 0, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            return sp
+        }
+
+        /** 数字着色：token 紫 / 成功绿 / 失败红 / 中性灰 */
+        fun token(n: Long): CharSequence {
+            val sp = SpannableString(if (n >= 1000) String.format(java.util.Locale.getDefault(), "%,d", n) else n.toString())
+            sp.setSpan(ForegroundColorSpan(cPurple), 0, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            return sp
+        }
+
         fun render() {
-            val logs = callLogStore.load()
-            if (logs.isEmpty()) {
-                tv.text = info("\$ 暂无调用记录\n\n# 客户端连上网关发消息后自动记录\n# （模型 / 账号 / 耗时 / Token 用量）")
+            val stats = callLogStore.stats()
+            if (stats.isEmpty()) {
+                tv.text = info("\$ 暂无调用记录\n\n# 客户端连上网关发消息后自动记录\n# 每个渠道按模型聚合：调用次数 · Token 用量 · 成功/失败")
                 return
             }
             val sb = SpannableStringBuilder()
-            sb.append(section("# 调用记录 (" + logs.size + " 条)\n"))
-            var lastDay = ""
-            for (log in logs) {
-                val day = java.text.SimpleDateFormat("MM-dd", java.util.Locale.getDefault()).format(java.util.Date(log.time))
-                if (day != lastDay) {
-                    lastDay = day
-                    sb.append(section("\n== " + day + " ==\n"))
+
+            // ===== 顶行汇总：总调用 · 总 token =====
+            var totalCalls = 0; var totalOk = 0; var totalFail = 0; var totalTokens = 0L
+            for (byCh in stats.values) {
+                for (st in byCh.values) {
+                    totalCalls += st.calls; totalOk += st.ok; totalFail += st.fail
+                    totalTokens += st.totalTokens
                 }
-                // ● [时间] 渠道·模型 (账号) 手段 成功/失败
+            }
+            sb.append(section("# 网关调用记录\n"))
+            val totalLine = SpannableStringBuilder()
+            totalLine.append(SpannableString("  总调用 ").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+            totalLine.append(SpannableString(totalCalls.toString()).apply { setSpan(ForegroundColorSpan(cWhite), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+            totalLine.append(SpannableString(" 次   ✅ ").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+            totalLine.append(SpannableString(totalOk.toString()).apply { setSpan(ForegroundColorSpan(cGreen), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+            totalLine.append(SpannableString("   ❌ ").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+            if (totalFail > 0) {
+                totalLine.append(SpannableString(totalFail.toString()).apply { setSpan(ForegroundColorSpan(cRed), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+            } else {
+                totalLine.append(SpannableString("0").apply { setSpan(ForegroundColorSpan(cGreen), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+            }
+            totalLine.append(SpannableString("   总 Token ").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+            totalLine.append(token(totalTokens))
+            sb.append(totalLine)
+            sb.append("\n")
+
+            // ===== 分渠道 =====
+            for ((ch, byModel) in stats) {
+                val chName = chNames[ch] ?: ch
+                var chCalls = 0; var chOk = 0; var chFail = 0; var chTokens = 0L
+                for (st in byModel.values) {
+                    chCalls += st.calls; chOk += st.ok; chFail += st.fail; chTokens += st.totalTokens
+                }
+                sb.append(section("\n== ${chName}  ${chCalls} 次 · 成功 ${chOk} 失败 ${chFail} · ${chTokens} token ==\n"))
+                for ((m, st) in byModel) {
+                    // [模型] 调用 n | 成功 x 失败 y | ↑in ↓out | 总 t
+                    sb.append("  ")
+                    sb.append(modelName(m))
+                    sb.append(SpannableString("  ×").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+                    sb.append(SpannableString(st.calls.toString()).apply { setSpan(ForegroundColorSpan(cWhite), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+                    sb.append(SpannableString("  ✅").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+                    sb.append(SpannableString(st.ok.toString()).apply { setSpan(ForegroundColorSpan(cGreen), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+                    sb.append(SpannableString("  ❌").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+                    sb.append(SpannableString(st.fail.toString()).apply { setSpan(ForegroundColorSpan(if (st.fail > 0) cRed else cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+                    sb.append(SpannableString("  ↑").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+                    sb.append(token(st.inTokens.toLong()))
+                    sb.append(SpannableString(" ↓").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+                    sb.append(token(st.outTokens.toLong()))
+                    sb.append(SpannableString("  总 ").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+                    sb.append(token(st.totalTokens))
+                    sb.append("\n")
+                }
+            }
+
+            // ===== 最近明细（最近 20 条）=====
+            val logs = callLogStore.load()
+            sb.append(section("\n# 最近明细\n"))
+            for (log in logs.take(20)) {
                 val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(log.time))
+                val chName = chNames[log.channel] ?: log.channel
                 val dotColor = if (log.ok) cGreen else cRed
-                val head = SpannableString("● [$time] ")
+                val head = SpannableString("● [$time] ${chName} ${log.model} ")
                 head.setSpan(ForegroundColorSpan(dotColor), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 head.setSpan(ForegroundColorSpan(cGray), 3, 3 + time.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                head.setSpan(ForegroundColorSpan(if (log.ok) cCyan else cRed), 5 + time.length, head.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 sb.append(head)
-
-                val chName = when (log.channel) {
-                    "loomy" -> "Loomy"
-                    "buddy" -> "WorkBuddy"
-                    else -> "Trae"
-                }
-                val bodyColor = if (log.ok) cCyan else cRed
-                val body = SpannableString("${chName} · ${log.model}\n")
-                body.setSpan(ForegroundColorSpan(bodyColor), 0, body.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                sb.append(body)
-
                 val meta = SpannableStringBuilder()
                 if (log.account.isNotEmpty()) {
-                    meta.append(SpannableString("  账号: " + log.account).apply {
-                        setSpan(ForegroundColorSpan(cWhite), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    })
-                    meta.append(SpannableString("  用时: " + log.totalMs + "ms").apply {
-                        setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    })
-                    if (log.ttftMs > 0) {
-                        meta.append(SpannableString("  首块: " + log.ttftMs + "ms").apply {
-                            setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                        })
-                    }
-                    if (log.inputTokens > 0 || log.outputTokens > 0) {
-                        meta.append(SpannableString("  tokens: ↑" + log.inputTokens + " ↓" + log.outputTokens).apply {
-                            setSpan(ForegroundColorSpan(cPurple), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                        })
-                    }
-                    meta.append("\n")
-                    sb.append(meta)
+                    meta.append(SpannableString(log.account).apply { setSpan(ForegroundColorSpan(cWhite), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
                 }
+                if (log.totalMs > 0) {
+                    meta.append(SpannableString(" ${log.totalMs}ms").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+                }
+                if (log.inputTokens > 0 || log.outputTokens > 0) {
+                    meta.append(SpannableString(" ↑${log.inputTokens}↓${log.outputTokens}").apply { setSpan(ForegroundColorSpan(cPurple), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
+                }
+                meta.append(SpannableString(if (log.ok) " ✓" else " ✗").apply {
+                    setSpan(ForegroundColorSpan(if (log.ok) cGreen else cRed), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                })
+                sb.append(meta)
                 if (!log.ok && log.error.isNotEmpty()) {
-                    val err = SpannableString("  错误: " + log.error + "\n")
+                    val err = SpannableString("  ← ${log.error}")
                     err.setSpan(ForegroundColorSpan(cRed), 0, err.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     sb.append(err)
                 }
+                sb.append("\n")
             }
             tv.text = sb
         }
@@ -3275,10 +3324,6 @@ private fun showGithubDialog() {
         dlg.show()
     }
 
-    /**
-     * 手动触发签到工作流（立即签到）。通过 GitHub Actions workflow_dispatch 触发。
-     * @param platform "TRAE" 或 "WorkBuddy"
-     */
     private fun triggerNow(platform: String) {
         if (!config.verified) {
             Toast.makeText(this, "请先完成 GitHub 授权", Toast.LENGTH_SHORT).show()

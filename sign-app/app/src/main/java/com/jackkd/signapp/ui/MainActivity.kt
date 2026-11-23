@@ -216,6 +216,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnGatewayCopyLocal: TextView
     private lateinit var tvGatewayBaseUrlLan: TextView
     private lateinit var btnGatewayCopyLan: TextView
+    // 内嵌调用记录区（网关页，只显示当前渠道）
+    private lateinit var llGatewayCallLogs: View
+    private lateinit var tvGatewayCallStatBrief: TextView
+    private lateinit var tvCallStatTokens: TextView
+    private lateinit var tvCallStatCount: TextView
+    private lateinit var tvCallStatRate: TextView
+    private lateinit var gatewayCallModels: LinearLayout
+    private lateinit var gatewayCallRecent: LinearLayout
     private lateinit var pageQc: View
     private lateinit var pageLoomy: View
     private lateinit var homePage: View
@@ -725,9 +733,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 重绘最近记录（最近 10 条）
+        // 重绘最近记录（最近 10 条，新在前：records 已是最新在前，直接 take）
         gatewayCallRecent.removeAllViews()
-        val recent = records.takeLast(10).reversed()
+        val recent = records.take(10)
         if (recent.isEmpty()) {
             gatewayCallRecent.addView(TextView(this).apply {
                 text = "暂无记录"

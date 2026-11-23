@@ -254,6 +254,18 @@ class MainActivity : AppCompatActivity() {
     private var pullRefreshStarted = false              // 本次松手是否已触发下拉刷新（用于修复圈圈残留）
     private var gatewayKeyRevealed = false              // 网关 Key 是否显示完整（默认打码）
     private var gatewayPageActive = false               // 当前是否停在网关子页（返回键分层用）
+    // 调用记录自动刷新：网关页激活期间轻量轮询，数据变了才重绘（离开页面即停）
+    private val gatewayPollHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var gatewayPolling = false
+    private var gatewayLastLogSignature = ""            // 上次渲染的调用记录签名，无变化跳过重绘
+
+    private val gatewayPollRunnable = object : Runnable {
+        override fun run() {
+            if (!gatewayPageActive) { gatewayPolling = false; return }
+            renderGatewayCallLogsIfChanged()
+            gatewayPollHandler.postDelayed(this, 2000)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         config = GithubConfig(this)
@@ -516,6 +528,8 @@ class MainActivity : AppCompatActivity() {
     /** 回到首页：卡片大厅 */
     private fun showHome() {
         gatewayPageActive = false
+        gatewayPolling = false
+        gatewayPollHandler.removeCallbacks(gatewayPollRunnable)
         pageTraeGateway.visibility = View.GONE
         detailContainer.visibility = View.GONE
         homePage.visibility = View.VISIBLE
@@ -559,6 +573,8 @@ class MainActivity : AppCompatActivity() {
         mainTopBar.visibility = View.GONE
         loginAlertBanner.visibility = View.GONE
         gatewayPageActive = false
+        gatewayPolling = false
+        gatewayPollHandler.removeCallbacks(gatewayPollRunnable)
         pageTraeGateway.visibility = View.GONE
         pageTrae.visibility = if (tab == "TRAE") View.VISIBLE else View.GONE
         pageWb.visibility = if (tab == "WorkBuddy") View.VISIBLE else View.GONE
@@ -581,6 +597,8 @@ class MainActivity : AppCompatActivity() {
         if (gatewayPageActive) {
             // 回到当前渠道签到页（网关子页盖在上面）
             gatewayPageActive = false
+            gatewayPolling = false
+            gatewayPollHandler.removeCallbacks(gatewayPollRunnable)
             pageTraeGateway.visibility = View.GONE
             pageTrae.visibility = if (currentTab == "TRAE") View.VISIBLE else View.GONE
             pageWb.visibility = if (currentTab == "WorkBuddy") View.VISIBLE else View.GONE
@@ -594,6 +612,10 @@ class MainActivity : AppCompatActivity() {
     private fun showGatewayPage() {
         if (currentTab != "TRAE" && currentTab != "WorkBuddy" && currentTab != "Loomy") return
         gatewayPageActive = true
+        gatewayPolling = true
+        gatewayLastLogSignature = ""
+        gatewayPollHandler.removeCallbacks(gatewayPollRunnable)
+        gatewayPollHandler.post(gatewayPollRunnable)
         refreshGatewayPage()
         // 同层叠放：盖住当前渠道签到页
         pageTrae.visibility = View.GONE
@@ -780,6 +802,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
+    /** 轮询版渲染：调用记录签名（时间戳+token+模型+成败）变了才重绘，避免无更新时闪烁 */
+    private fun renderGatewayCallLogsIfChanged() {
+        val ch = currentChannelKey()
+        if (ch.isEmpty()) return
+        val records = callLogStore.load().filter { it.channel == ch }
+        // 签名 = 最近 20 条的关键信息 + 记录总数；调用记录的"token 更新"也反映在签名里
+        val sig = buildString {
+            append(ch).append('#').append(records.size).append('#')
+            for (r in records.take(20)) {
+                append(r.time).append(',').append(r.model).append(',').append(r.inputTokens)
+                append(',').append(r.outputTokens).append(',').append(if (r.ok) 1 else 0).append('|')
+            }
+        }
+        if (sig == gatewayLastLogSignature) return
+        gatewayLastLogSignature = sig
+        renderGatewayCallLogs(ch)
+    }
 
     /** 取局域网 IPv4：优先 WiFi 网段，取不到显示 "--" */
     private fun lanIpOrDash(): String {
@@ -1149,8 +1189,20 @@ class MainActivity : AppCompatActivity() {
         triggerNow("Loomy")
     }
 
+    override fun onPause() {
+        super.onPause()
+        // 离开界面（切后台/跳其它页）停止调用记录轮询，回到界面由 onResume 续启
+        gatewayPolling = false
+        gatewayPollHandler.removeCallbacks(gatewayPollRunnable)
+    }
+
     override fun onResume() {
         super.onResume()
+        if (gatewayPageActive && !gatewayPolling) {
+            // 从后台/其他页回到 App 且还停在网关子页：恢复调用记录自动刷新
+            gatewayPolling = true
+            gatewayPollHandler.postDelayed(gatewayPollRunnable, 500)
+        }
         refresh()
         if (onResumeCalledForThemeRestart) {
             // 主题/深色切换重建：不重新拉云端，快照已恢复（积分/总览/失效标记原样保留）

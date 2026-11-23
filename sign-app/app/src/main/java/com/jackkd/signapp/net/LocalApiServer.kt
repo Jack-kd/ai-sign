@@ -216,15 +216,29 @@ class LocalApiServer(
             val now = System.currentTimeMillis()
             if (ttftMs == 0L && frame.contains("\"choices\"")) ttftMs = now - startedAt
             // usage 帧：{"usage":{"prompt_tokens":N,"completion_tokens":N}}（OpenAI 规范）
+            // 帧形态有三种，都要兜住：
+            //  1) 单帧透传："data: {json}\n\n"（OpenAiChannelGateway）
+            //  2) 缓冲拼串："data: {json}\n\ndata: {json}\n\n..."（TraeGateway 首次提交时
+            //     frames.toString() 把多帧直接拼成一串，整个 JSONObject 解析必失败）
+            //  3) 非流式聚合 JSON："{...}"（aggregateChunks 产物，无 data: 前缀）
+            // 处理：按空行拆帧，逐段剥 data: 前缀再解析
             if (frame.contains("\"usage\"")) {
-                try {
-                    val obj = JSONObject(frame)
-                    val usage = obj.optJSONObject("usage")
-                    if (usage != null) {
-                        if (usage.has("prompt_tokens")) inputTokens = usage.optInt("prompt_tokens", 0)
-                        if (usage.has("completion_tokens")) outputTokens = usage.optInt("completion_tokens", 0)
-                    }
-                } catch (e: Exception) {}
+                for (seg in frame.split("\n\n")) {
+                    if (seg.isBlank() || !seg.contains("\"usage\"")) continue
+                    try {
+                        var payload = seg.trim()
+                        if (payload.startsWith("data:")) payload = payload.removePrefix("data:").trim()
+                        if (payload.isBlank()) continue
+                        val obj = JSONObject(payload)
+                        val usage = obj.optJSONObject("usage")
+                        if (usage != null) {
+                            if (usage.has("prompt_tokens")) inputTokens = usage.optInt("prompt_tokens", 0)
+                            if (usage.has("completion_tokens")) outputTokens = usage.optInt("completion_tokens", 0)
+                            if (usage.has("input_tokens")) inputTokens = usage.optInt("input_tokens", inputTokens)
+                            if (usage.has("output_tokens")) outputTokens = usage.optInt("output_tokens", outputTokens)
+                        }
+                    } catch (e: Exception) {}
+                }
             }
             recvChunk(frame)
         }

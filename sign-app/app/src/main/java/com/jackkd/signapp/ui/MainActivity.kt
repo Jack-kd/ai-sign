@@ -294,6 +294,21 @@ class MainActivity : AppCompatActivity() {
         btnGatewayCopyLocal = findViewById(R.id.btnGatewayCopyLocal)
         tvGatewayBaseUrlLan = findViewById(R.id.tvGatewayBaseUrlLan)
         btnGatewayCopyLan = findViewById(R.id.btnGatewayCopyLan)
+        llGatewayCallLogs = findViewById(R.id.llGatewayCallLogs)
+        tvGatewayCallStatBrief = findViewById(R.id.tvGatewayCallStatBrief)
+        tvCallStatTokens = findViewById(R.id.tvCallStatTokens)
+        tvCallStatCount = findViewById(R.id.tvCallStatCount)
+        tvCallStatRate = findViewById(R.id.tvCallStatRate)
+        gatewayCallModels = findViewById(R.id.gatewayCallModels)
+        gatewayCallRecent = findViewById(R.id.gatewayCallRecent)
+        findViewById<View>(R.id.btnGatewayCallClear).setOnClickListener {
+            callLogStore.clear()
+            renderGatewayCallLogs(currentChannelKey())
+            Toast.makeText(this, "已清空调用记录", Toast.LENGTH_SHORT).show()
+        }
+        findViewById<View>(R.id.btnGatewayCallRefresh).setOnClickListener {
+            renderGatewayCallLogs(currentChannelKey())
+        }
         pageWb = findViewById(R.id.pageWorkBuddy)
         pageQc = findViewById(R.id.pageQoderCn)
         homePage = findViewById(R.id.homePage)
@@ -447,8 +462,6 @@ class MainActivity : AppCompatActivity() {
         }
         // 点账号行：选择固定账号（或恢复自动选择）
         tvGatewayAccount.setOnClickListener { showGatewayAccountPicker() }
-        // 调用记录：按渠道/模型聚合统计（终端口径：模型 · Token 用量 · 成败）
-        findViewById<View>(R.id.btnGatewayCallLogs).setOnClickListener { showCallLogsDialog() }
 
         // ⚙️ 设置菜单（仿微信"+"弹出）
         findViewById<TextView>(R.id.btnSettings).setOnClickListener { showSettingsMenu() }
@@ -616,7 +629,149 @@ class MainActivity : AppCompatActivity() {
         tvGatewayBaseUrlLocal.text = "http://127.0.0.1:$port/v1"
         // 局域网端点（同 Wi-Fi 设备访问，IP 变化自动跟随）
         tvGatewayBaseUrlLan.text = "http://${lanIpOrDash()}:$port/v1"
+
+        // 内嵌调用记录（只渲染当前渠道的记录）
+        renderGatewayCallLogs(ch)
     }
+
+    // ---------- 网关内嵌调用记录 ----------
+
+    private fun formatTokens(v: Long): String = when {
+        v >= 1_000_000 -> String.format(java.util.Locale.getDefault(), "%.1fM", v / 1_000_000f)
+        v >= 1_000 -> String.format(java.util.Locale.getDefault(), "%.1fk", v / 1000f)
+        else -> v.toString()
+    }
+
+    /** 渲染当前渠道的调用记录区（汇总 + 分模型 + 最近流水） */
+    private fun renderGatewayCallLogs(ch: String) {
+        val records = callLogStore.load().filter { it.channel == ch }.reversed()
+        // 区块常驻：下滑即可看到（无记录时显示空态）
+        llGatewayCallLogs.visibility = View.VISIBLE
+
+        // 汇总数据
+        val totalTokens = records.sumOf { it.inputTokens.toLong() + it.outputTokens.toLong() }
+        val okCount = records.count { it.ok }
+        val rate = if (records.isEmpty()) "—" else "${okCount * 100 / records.size}%"
+        tvCallStatTokens.text = formatTokens(totalTokens)
+        tvCallStatCount.text = records.size.toString()
+        tvCallStatRate.text = rate
+        tvCallStatRate.setTextColor(
+            ContextCompat.getColor(this, if (okCount == records.size && records.isNotEmpty()) R.color.success_green else R.color.error_red)
+        )
+        tvGatewayCallStatBrief.text = "${records.size} 次 · 成功 $okCount · 失败 ${records.size - okCount}"
+
+        // 分模型聚合（按 token 降序）
+        val byModel = LinkedHashMap<String, Triple<Int, Int, Long>>()  // model -> (calls, ok, tokens)
+        for (r in records) {
+            val prev = byModel.getOrPut(r.model.ifBlank { "?" }) { Triple(0, 0, 0L) }
+            byModel[r.model.ifBlank { "?" }] = Triple(prev.first + 1, prev.second + if (r.ok) 1 else 0, prev.third + r.inputTokens.toLong() + r.outputTokens.toLong())
+        }
+        val sorted = byModel.entries.sortedByDescending { it.value.third }
+        val max = sorted.maxOfOrNull { it.value.third } ?: 0L
+
+        // 重绘分模型列表
+        gatewayCallModels.removeAllViews()
+        if (sorted.isEmpty()) {
+            gatewayCallModels.addView(TextView(this).apply {
+                text = "还没有调用记录\n客户端连上网关发消息后，这里会按模型汇总调用次数与 Token 用量。"
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.gray))
+                textSize = 12f
+            })
+        } else {
+            var first = true
+            for ((m, v) in sorted) {
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    if (!first) setPadding(0, dp(10), 0, 0)
+                }
+                first = false
+                val head = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                }
+                head.addView(TextView(this).apply {
+                    text = m
+                    setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+                    textSize = 14f
+                }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                val detail = buildString {
+                    append("${formatTokens(v.third)} 总")
+                    if (v.second > 0) append(" · ✅${v.second}")
+                    if (v.first - v.second > 0) append(" · ❌${v.first - v.second}")
+                    if (v.first > 0) append(" · ${v.first}次")
+                }
+                head.addView(TextView(this).apply {
+                    text = detail
+                    setTextColor(ContextCompat.getColor(this@MainActivity, R.color.gray))
+                    textSize = 12f
+                })
+                row.addView(head)
+                // token 条形：轨道 + 按占比填充
+                val track = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setBackgroundResource(R.drawable.bg_progress_track)
+                    val lpTrack = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(4))
+                    lpTrack.topMargin = dp(5)
+                    layoutParams = lpTrack
+                }
+                track.addView(View(this).apply {
+                    setBackgroundResource(R.drawable.bg_progress_success)
+                    val lpFill = LinearLayout.LayoutParams(0, dp(4))
+                    lpFill.weight = if (max > 0) (v.third.toFloat() / max.toFloat()) else 0f
+                    layoutParams = lpFill
+                })
+                row.addView(track)
+                gatewayCallModels.addView(row)
+            }
+        }
+
+        // 重绘最近记录（最近 10 条）
+        gatewayCallRecent.removeAllViews()
+        val recent = records.takeLast(10).reversed()
+        if (recent.isEmpty()) {
+            gatewayCallRecent.addView(TextView(this).apply {
+                text = "暂无记录"
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.gray))
+                textSize = 12f
+            })
+        } else {
+            var firstRow = true
+            for (r in recent) {
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    if (!firstRow) setPadding(0, dp(8), 0, 0)
+                }
+                firstRow = false
+                val timeStr = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(r.time))
+                val dotColor = ContextCompat.getColor(this, if (r.ok) R.color.success_green else R.color.error_red)
+                row.addView(TextView(this).apply {
+                    text = if (r.ok) "●" else "✕"
+                    setTextColor(dotColor)
+                    textSize = 11f
+                })
+                row.addView(TextView(this).apply {
+                    text = "  $timeStr  ${r.model.ifBlank { "?" }}"
+                    setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+                    textSize = 13f
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                val detail = buildString {
+                    append("${formatTokens(r.inputTokens.toLong() + r.outputTokens.toLong())} tok")
+                    if (r.totalMs > 0) append(" · ${r.totalMs}ms")
+                    if (r.account.isNotEmpty()) append(" · ${r.account}")
+                    if (!r.ok && r.error.isNotEmpty()) append(" · ${r.error.take(20)}")
+                }
+                row.addView(TextView(this).apply {
+                    text = detail
+                    setTextColor(ContextCompat.getColor(this@MainActivity, R.color.gray))
+                    textSize = 11f
+                })
+                gatewayCallRecent.addView(row)
+            }
+        }
+    }
+
 
     /** 取局域网 IPv4：优先 WiFi 网段，取不到显示 "--" */
     private fun lanIpOrDash(): String {
@@ -3163,164 +3318,6 @@ private fun showGithubDialog() {
         btnClose.setOnClickListener { dlg.dismiss() }
         view.findViewById<View>(R.id.btnLogsCloseX)?.setOnClickListener { dlg.dismiss() }
         dlg.setOnShowListener { renderLocal() }
-        dlg.show()
-    }
-
-    /** 网关调用记录（终端风格弹窗） */
-    private fun showCallLogsDialog() {
-        val view = LayoutInflater.from(this).inflate(R.layout.dialog_call_logs, null)
-        val tv = view.findViewById<TextView>(R.id.tvCallLogsContent)
-        val btnClose = view.findViewById<TextView>(R.id.btnCallLogsClose)
-        val btnClear = view.findViewById<TextView>(R.id.btnCallLogsClear)
-
-        val cGreen = ContextCompat.getColor(this, R.color.terminal_green)
-        val cYellow = ContextCompat.getColor(this, R.color.terminal_yellow)
-        val cRed = ContextCompat.getColor(this, R.color.error_red)
-        val cGray = ContextCompat.getColor(this, R.color.terminal_gray)
-        val cWhite = ContextCompat.getColor(this, R.color.terminal_white)
-        val cCyan = ContextCompat.getColor(this, R.color.terminal_cyan)
-        val cPurple = ContextCompat.getColor(this, R.color.terminal_purple)
-
-        val dlg = MaterialAlertDialogBuilder(this)
-            .setView(view)
-            .create()
-        dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
-        applyDialogBlur(dlg)
-
-        val chNames = mapOf("trae" to "Trae", "loomy" to "Loomy", "buddy" to "WorkBuddy")
-
-        /** 状态行（黄色） */
-        fun info(text: String): CharSequence {
-            val sp = SpannableString(text)
-            sp.setSpan(ForegroundColorSpan(cYellow), 0, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            return sp
-        }
-
-        /** 分组标题（青色） */
-        fun section(title: String): CharSequence {
-            val sp = SpannableString(title)
-            sp.setSpan(ForegroundColorSpan(cCyan), 0, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            return sp
-        }
-
-        /** 模型名（白色） */
-        fun modelName(name: String): CharSequence {
-            val sp = SpannableString(name)
-            sp.setSpan(ForegroundColorSpan(cWhite), 0, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            return sp
-        }
-
-        /** 数字着色：token 紫 / 成功绿 / 失败红 / 中性灰 */
-        fun token(n: Long): CharSequence {
-            val sp = SpannableString(if (n >= 1000) String.format(java.util.Locale.getDefault(), "%,d", n) else n.toString())
-            sp.setSpan(ForegroundColorSpan(cPurple), 0, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            return sp
-        }
-
-        fun render() {
-            val stats = callLogStore.stats()
-            if (stats.isEmpty()) {
-                tv.text = info("\$ 暂无调用记录\n\n# 客户端连上网关发消息后自动记录\n# 每个渠道按模型聚合：调用次数 · Token 用量 · 成功/失败")
-                return
-            }
-            val sb = SpannableStringBuilder()
-
-            // ===== 顶行汇总：总调用 · 总 token =====
-            var totalCalls = 0; var totalOk = 0; var totalFail = 0; var totalTokens = 0L
-            for (byCh in stats.values) {
-                for (st in byCh.values) {
-                    totalCalls += st.calls; totalOk += st.ok; totalFail += st.fail
-                    totalTokens += st.totalTokens
-                }
-            }
-            sb.append(section("# 网关调用记录\n"))
-            val totalLine = SpannableStringBuilder()
-            totalLine.append(SpannableString("  总调用 ").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-            totalLine.append(SpannableString(totalCalls.toString()).apply { setSpan(ForegroundColorSpan(cWhite), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-            totalLine.append(SpannableString(" 次   ✅ ").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-            totalLine.append(SpannableString(totalOk.toString()).apply { setSpan(ForegroundColorSpan(cGreen), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-            totalLine.append(SpannableString("   ❌ ").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-            if (totalFail > 0) {
-                totalLine.append(SpannableString(totalFail.toString()).apply { setSpan(ForegroundColorSpan(cRed), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-            } else {
-                totalLine.append(SpannableString("0").apply { setSpan(ForegroundColorSpan(cGreen), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-            }
-            totalLine.append(SpannableString("   总 Token ").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-            totalLine.append(token(totalTokens))
-            sb.append(totalLine)
-            sb.append("\n")
-
-            // ===== 分渠道 =====
-            for ((ch, byModel) in stats) {
-                val chName = chNames[ch] ?: ch
-                var chCalls = 0; var chOk = 0; var chFail = 0; var chTokens = 0L
-                for (st in byModel.values) {
-                    chCalls += st.calls; chOk += st.ok; chFail += st.fail; chTokens += st.totalTokens
-                }
-                sb.append(section("\n== ${chName}  ${chCalls} 次 · 成功 ${chOk} 失败 ${chFail} · ${chTokens} token ==\n"))
-                for ((m, st) in byModel) {
-                    // [模型] 调用 n | 成功 x 失败 y | ↑in ↓out | 总 t
-                    sb.append("  ")
-                    sb.append(modelName(m))
-                    sb.append(SpannableString("  ×").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-                    sb.append(SpannableString(st.calls.toString()).apply { setSpan(ForegroundColorSpan(cWhite), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-                    sb.append(SpannableString("  ✅").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-                    sb.append(SpannableString(st.ok.toString()).apply { setSpan(ForegroundColorSpan(cGreen), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-                    sb.append(SpannableString("  ❌").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-                    sb.append(SpannableString(st.fail.toString()).apply { setSpan(ForegroundColorSpan(if (st.fail > 0) cRed else cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-                    sb.append(SpannableString("  ↑").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-                    sb.append(token(st.inTokens.toLong()))
-                    sb.append(SpannableString(" ↓").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-                    sb.append(token(st.outTokens.toLong()))
-                    sb.append(SpannableString("  总 ").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-                    sb.append(token(st.totalTokens))
-                    sb.append("\n")
-                }
-            }
-
-            // ===== 最近明细（最近 20 条）=====
-            val logs = callLogStore.load()
-            sb.append(section("\n# 最近明细\n"))
-            for (log in logs.take(20)) {
-                val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(log.time))
-                val chName = chNames[log.channel] ?: log.channel
-                val dotColor = if (log.ok) cGreen else cRed
-                val head = SpannableString("● [$time] ${chName} ${log.model} ")
-                head.setSpan(ForegroundColorSpan(dotColor), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                head.setSpan(ForegroundColorSpan(cGray), 3, 3 + time.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                head.setSpan(ForegroundColorSpan(if (log.ok) cCyan else cRed), 5 + time.length, head.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                sb.append(head)
-                val meta = SpannableStringBuilder()
-                if (log.account.isNotEmpty()) {
-                    meta.append(SpannableString(log.account).apply { setSpan(ForegroundColorSpan(cWhite), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-                }
-                if (log.totalMs > 0) {
-                    meta.append(SpannableString(" ${log.totalMs}ms").apply { setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-                }
-                if (log.inputTokens > 0 || log.outputTokens > 0) {
-                    meta.append(SpannableString(" ↑${log.inputTokens}↓${log.outputTokens}").apply { setSpan(ForegroundColorSpan(cPurple), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-                }
-                meta.append(SpannableString(if (log.ok) " ✓" else " ✗").apply {
-                    setSpan(ForegroundColorSpan(if (log.ok) cGreen else cRed), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                })
-                sb.append(meta)
-                if (!log.ok && log.error.isNotEmpty()) {
-                    val err = SpannableString("  ← ${log.error}")
-                    err.setSpan(ForegroundColorSpan(cRed), 0, err.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    sb.append(err)
-                }
-                sb.append("\n")
-            }
-            tv.text = sb
-        }
-
-        btnClose.setOnClickListener { dlg.dismiss() }
-        view.findViewById<View>(R.id.btnCallLogsCloseX)?.setOnClickListener { dlg.dismiss() }
-        btnClear.setOnClickListener {
-            callLogStore.clear()
-            render()
-        }
-        dlg.setOnShowListener { render() }
         dlg.show()
     }
 

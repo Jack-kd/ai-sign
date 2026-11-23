@@ -14,6 +14,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
 import com.jackkd.signapp.data.AccountStore
+import com.jackkd.signapp.data.CallLogStore
 import com.jackkd.signapp.data.GatewayStore
 import com.jackkd.signapp.data.LoomyAccountStore
 import com.jackkd.signapp.data.WorkBuddyAccountStore
@@ -151,6 +152,7 @@ class GatewayService : Service() {
         val workBuddyStore = WorkBuddyAccountStore(this)
         val basePort = CHANNELS[channel] ?: PORT_TRAE
         val srv = LocalApiServer(store, accountStore, loomyStore, workBuddyStore, basePort)
+        srv.callLogStore = CallLogStore(this)
         val ok = srv.start()
         if (ok) {
             servers[channel] = srv

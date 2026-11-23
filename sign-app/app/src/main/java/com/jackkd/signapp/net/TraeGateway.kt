@@ -88,6 +88,7 @@ object TraeGateway {
         renewToken: (TraeAccount) -> Unit,
         wantStream: Boolean,
         recvChunk: (String) -> Unit,
+        onAttempt: ((String) -> Unit)? = null,
     ): Boolean {
         // 请求体是信任边界：空体/非法 JSON 直接拒绝
         val src = try {
@@ -119,6 +120,7 @@ object TraeGateway {
         val attemptCount = minOf(MAX_ATTEMPTS, candidates.size)
         for (idx in 0 until attemptCount) {
             val acc = candidates[idx]
+            onAttempt?.invoke(acc.label)
             val token = ensureValidToken(acc, renewToken)
             if (token == null) {
                 if (attemptCount > 1) continue

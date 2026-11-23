@@ -2,6 +2,8 @@ package com.jackkd.signapp.net
 
 import android.util.Log
 import com.jackkd.signapp.data.AccountStore
+import com.jackkd.signapp.data.CallLogStore
+import com.jackkd.signapp.data.GatewayCallLog
 import com.jackkd.signapp.data.GatewayStore
 import com.jackkd.signapp.data.LoomyAccount
 import com.jackkd.signapp.data.LoomyAccountStore
@@ -44,6 +46,9 @@ class LocalApiServer(
     private val basePort: Int = 8787,
 ) {
     private val tag = "LocalApiServer"
+
+    /** 调用记录存储（null = 未注入，跳过记录；记录失败绝不影响转发） */
+    var callLogStore: CallLogStore? = null
     /** 起始端口：被占则自动 +1 重试（basePort → basePort+1 → …），上限 +9（连试 10 个） */
     private val portBase: Int = basePort
 
@@ -195,6 +200,58 @@ class LocalApiServer(
 
     // ---------- 路由 ----------
 
+    // ---------- 调用记录 ----------
+
+    /** 单次转发调用的统计埋点（包装 recvChunk 读 usage；onAttempt 记最终账号） */
+    private inner class CallRecorder(var channel: String, val model: String) {
+        val startedAt = System.currentTimeMillis()
+        var ttftMs = 0L
+        var inputTokens = 0
+        var outputTokens = 0
+        var lastAccount: String = ""
+        var error: String = ""
+
+        /** 包一层 recvChunk：第一个真实 chunk 记 ttft，usage 帧提取 token 数 */
+        fun wrap(recvChunk: (String) -> Unit): (String) -> Unit = { frame ->
+            val now = System.currentTimeMillis()
+            if (ttftMs == 0L && frame.contains("\"choices\"")) ttftMs = now - startedAt
+            // usage 帧：{"usage":{"prompt_tokens":N,"completion_tokens":N}}（OpenAI 规范）
+            if (frame.contains("\"usage\"")) {
+                try {
+                    val obj = JSONObject(frame)
+                    val usage = obj.optJSONObject("usage")
+                    if (usage != null) {
+                        if (usage.has("prompt_tokens")) inputTokens = usage.optInt("prompt_tokens", 0)
+                        if (usage.has("completion_tokens")) outputTokens = usage.optInt("completion_tokens", 0)
+                    }
+                } catch (e: Exception) {}
+            }
+            recvChunk(frame)
+        }
+
+        /** 写一条记录；记录失败绝不影响转发 */
+        fun finish(ok: Boolean, errorMsg: String = "") {
+            val store = callLogStore ?: return
+            try {
+                if (errorMsg.isNotEmpty()) error = errorMsg.take(120)
+                store.add(GatewayCallLog(
+                    time = startedAt,
+                    channel = channel,
+                    model = model,
+                    account = lastAccount,
+                    ok = ok,
+                    error = error,
+                    totalMs = System.currentTimeMillis() - startedAt,
+                    inputTokens = inputTokens,
+                    outputTokens = outputTokens,
+                    ttftMs = ttftMs
+                ))
+            } catch (e: Exception) {
+                Log.w(tag, "调用记录写入失败（忽略）: ${e.message}")
+            }
+        }
+    }
+
     private fun onChat(w: W, headers: Map<String, String>, body: String) {
         if (!authOk(headers)) {
             w.json(401, JSONObject().put("error", JSONObject().put("message", "invalid api key").put("type", "invalid_request_error")))
@@ -207,18 +264,21 @@ class LocalApiServer(
 
         val wantStream = try { JSONObject(body).optBoolean("stream", true) } catch (e: Exception) { true }
 
+        // 调用记录（backend 注入时才记；记录失败绝不影响转发）
+        val model = try { JSONObject(body).optString("model", "").trim() } catch (e: Exception) { "" }
+        val recorder = CallRecorder(defaultChannelKey, model)
+
         try {
             // 路由：优先按 model 前缀（loomy/xxx → Loomy）；无前缀 → 当前端口默认渠道
             // （8787=trae / 8788=loomy / 8789=buddy），端口即渠道，互不串
-            val model = try { JSONObject(body).optString("model", "").trim() } catch (e: Exception) { "" }
             val channel = ChannelConfigs.byModel(model)
             if (channel != null) {
-                handleChannelChat(w, channel, body, wantStream, model)
+                handleChannelChat(w, channel, body, wantStream, model, recorder)
                 return
             }
             val fallback = ChannelConfigs.byPrefix(defaultChannelKey)
             if (fallback != null) {
-                handleChannelChat(w, fallback, body, wantStream, model)
+                handleChannelChat(w, fallback, body, wantStream, model, recorder)
                 return
             }
 
@@ -235,10 +295,11 @@ class LocalApiServer(
                     Unit
                 },
                 wantStream = wantStream,
-                recvChunk = { frame ->
+                recvChunk = recorder.wrap { frame ->
                     if (wantStream) w.sseFrame(frame)
                     else w.json(200, frame)
-                }
+                },
+                onAttempt = { recorder.lastAccount = it }
             )
             // chatStream 失败时已通过 recvChunk 发出带 [DONE] 的错误帧或错误 JSON，
             // 这里只需收尾通道（sseEnd 写 0\r\n\r\n）。
@@ -247,6 +308,7 @@ class LocalApiServer(
             } else if (!ok) {
                 Log.w(tag, "非流式转发失败（错误已通过响应体返回）")
             }
+            recorder.finish(ok)
         } catch (e: Exception) {
             Log.w(tag, "转发异常: ${e.message}")
             if (wantStream) {
@@ -255,6 +317,7 @@ class LocalApiServer(
             } else {
                 w.json(500, JSONObject().put("error", JSONObject().put("message", "gateway error: ${e.message}").put("type", "server_error")))
             }
+            recorder.finish(false, e.message ?: "local_error")
         }
     }
 
@@ -267,13 +330,16 @@ class LocalApiServer(
         body: String,
         wantStream: Boolean,
         model: String,
+        recorder: CallRecorder? = null,
     ) {
+        recorder?.channel = cfg.prefix   // 前缀路由（8787 端口发 loomy/xxx）时按实际渠道记账
         val loomy = loomyStore?.load().orEmpty()
         val buddy = workBuddyStore?.load().orEmpty()
         when (cfg.prefix) {
             "loomy" -> {
                 if (loomy.isEmpty()) {
                     failChannel(w, "没有可用的 Loomy 账号，请先在应用里登录", wantStream)
+                    recorder?.finish(false, "没有可用的 Loomy 账号")
                     return
                 }
                 val ok = OpenAiChannelGateway.chatStream(
@@ -285,15 +351,18 @@ class LocalApiServer(
                     preferUid = store.preferUid,
                     accountOrder = store.accountOrder("loomy"),
                     wantStream = wantStream,
-                    recvChunk = { frame ->
+                    recvChunk = recorder?.wrap { frame ->
                         if (wantStream) w.sseFrame(frame) else w.json(200, frame)
-                    }
+                    } ?: { frame -> if (wantStream) w.sseFrame(frame) else w.json(200, frame) },
+                    onAttempt = { recorder?.lastAccount = it }
                 )
                 finishChannel(w, wantStream, ok)
+                recorder?.finish(ok)
             }
             "buddy" -> {
                 if (buddy.isEmpty()) {
                     failChannel(w, "没有可用的 WorkBuddy 账号，请先在应用里登录", wantStream)
+                    recorder?.finish(false, "没有可用的 WorkBuddy 账号")
                     return
                 }
                 val ok = OpenAiChannelGateway.chatStream(
@@ -305,15 +374,18 @@ class LocalApiServer(
                     preferUid = store.preferUid,
                     accountOrder = store.accountOrder("buddy"),
                     wantStream = wantStream,
-                    recvChunk = { frame ->
+                    recvChunk = recorder?.wrap { frame ->
                         if (wantStream) w.sseFrame(frame) else w.json(200, frame)
-                    }
+                    } ?: { frame -> if (wantStream) w.sseFrame(frame) else w.json(200, frame) },
+                    onAttempt = { recorder?.lastAccount = it }
                 )
                 finishChannel(w, wantStream, ok)
+                recorder?.finish(ok)
             }
             else -> {
                 // 未知前缀（理论不可达：byModel 已过滤）
                 failChannel(w, "未知渠道：$model", wantStream)
+                recorder?.finish(false, "未知渠道：$model")
             }
         }
     }

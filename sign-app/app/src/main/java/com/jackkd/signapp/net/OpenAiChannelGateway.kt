@@ -80,6 +80,7 @@ object OpenAiChannelGateway {
         accountOrder: List<String> = emptyList(),
         wantStream: Boolean,
         recvChunk: (String) -> Unit,
+        onAttempt: ((String) -> Unit)? = null,
     ): Boolean {
         // 请求体是信任边界：空体/非法 JSON 直接拒绝
         val src = try {
@@ -120,6 +121,7 @@ object OpenAiChannelGateway {
         val attemptCount = minOf(MAX_ATTEMPTS, candidates.size)
         for (idx in 0 until attemptCount) {
             val acc = candidates[idx]
+            onAttempt?.invoke(labelOf(acc))
             val token = tokenOf(acc)
             if (token.isBlank()) continue
 

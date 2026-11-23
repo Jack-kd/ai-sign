@@ -3,21 +3,42 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:background="@drawable/bg_dialog_glass"
+    android:paddingTop="20dp"
+    android:paddingBottom="8dp">
+
+    <!-- 标题（图标 + 主标题 + 副标题，对齐其他美化弹窗） -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_icon_circle"
+            android:gravity="center"
+            android:text="🔀"
+            android:textSize="20sp" />
+    </LinearLayout>
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="账号使用顺序（拖动排序）"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:text="网关使用账号"
         android:textColor="@color/text_primary"
-        android:textSize="16sp"
+        android:textSize="18sp"
         android:textStyle="bold" />
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="排在前面的先使用；遇到有问题的账号自动跳到下一个。"
+        android:layout_marginTop="3dp"
+        android:gravity="center"
+        android:text="拖动排序 · 排前面的先使用 · 有问题的自动跳过"
         android:textColor="@color/gray"
         android:textSize="12sp" />
 
@@ -25,34 +46,29 @@
         android:id="@+id/rvAccountOrder"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
         android:layout_marginTop="10dp"
+        android:layout_marginEnd="16dp"
+        android:maxHeight="280dp"
         android:overScrollMode="never" />
 
+    <!-- 底部：恢复默认 + 完成（去掉多余的「取消」） -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginLeft="16dp"
+        android:layout_marginRight="16dp"
+        android:layout_marginTop="6dp"
         android:orientation="horizontal">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:background="?attr/selectableItemBackground"
-            android:gravity="center"
-            android:padding="12dp"
-            android:text="取消"
-            android:textColor="@color/gray"
-            android:textSize="14sp" />
 
         <TextView
             android:id="@+id/btnOrderReset"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:background="?attr/selectableItemBackground"
+            android:background="@drawable/bg_badge"
             android:gravity="center"
-            android:padding="12dp"
+            android:padding="11dp"
             android:text="恢复默认"
             android:textColor="?attr/signPrimary"
             android:textSize="14sp"
@@ -63,9 +79,10 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:background="?attr/selectableItemBackground"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/bg_badge"
             android:gravity="center"
-            android:padding="12dp"
+            android:padding="11dp"
             android:text="完成"
             android:textColor="?attr/signPrimary"
             android:textSize="14sp"

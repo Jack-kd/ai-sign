@@ -31,6 +31,7 @@ import com.google.android.material.textfield.TextInputLayout
 import com.google.gson.Gson
 import com.jackkd.signapp.R
 import com.jackkd.signapp.data.AccountStore
+import com.jackkd.signapp.data.CallLogStore
 import com.jackkd.signapp.data.CloudSignLog
 import com.jackkd.signapp.data.parseSignLogs
 import com.jackkd.signapp.data.GatewayStore
@@ -181,6 +182,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var qcAccountStore: QoderCnAccountStore
     private lateinit var loomyAccountStore: LoomyAccountStore
     private lateinit var logStore: LogStore
+    private lateinit var callLogStore: CallLogStore
     private lateinit var accountAdapter: AccountAdapter
     private lateinit var wbAccountAdapter: WorkBuddyAccountAdapter
     private lateinit var qcAccountAdapter: QoderCnAccountAdapter
@@ -262,6 +264,7 @@ class MainActivity : AppCompatActivity() {
         qcAccountStore = QoderCnAccountStore(this)
         loomyAccountStore = LoomyAccountStore(this)
         logStore = LogStore(this)
+        callLogStore = CallLogStore(this)
 
         tvUser = findViewById(R.id.tvUser)
         tvSchedule = findViewById(R.id.tvSchedule)
@@ -514,14 +517,14 @@ class MainActivity : AppCompatActivity() {
         else -> ""
     }
 
-    /** 当前渠道完整账号列表（label to uid） */
-    private fun currentChannelAccounts(): List<Pair<String, String>> = when (currentTab) {
+    /** 当前渠道完整账号列表（label, 渠道内标识, adapter 用的 accountId） */
+    private fun currentChannelAccounts(): List<Triple<String, String, String>> = when (currentTab) {
         "WorkBuddy" -> wbAccountStore.load().filter { it.credentials.isComplete() }
-            .map { it.label to it.credentials.uid }
+            .map { Triple(it.label, it.credentials.uid, it.id) }
         "Loomy" -> loomyAccountStore.load().filter { it.credentials.isComplete() }
-            .map { it.label to it.credentials.userId }
+            .map { Triple(it.label, it.credentials.userId, it.id) }
         else -> accountStore.load().filter { it.credentials.isComplete() }
-            .map { it.label to it.credentials.uid }
+            .map { Triple(it.label, it.credentials.uid, it.id) }
     }
 
     /** 进入某渠道详情（方案 A：MainActivity 内视图切换，云端逻辑原地不动） */
@@ -683,9 +686,16 @@ class MainActivity : AppCompatActivity() {
         rv.layoutManager = LinearLayoutManager(this)
 
         // 展示列表：按 accountOrder 重排（排过的置前按顺序；没排过的按 store 原顺序附加）
-        val items = mutableListOf<Pair<String, String>>()
+        val items = mutableListOf<Triple<String, String, String>>()
         order.forEach { uid -> accs.firstOrNull { it.second == uid }?.let { items.add(it) } }
         accs.forEach { if (!order.contains(it.second)) items.add(it) }
+
+        // 各渠道 adapter（取已查好的积分文本）；只读 creditsOf，不动查询逻辑
+        val creditSource: (String) -> String? = when (currentTab) {
+            "WorkBuddy" -> { id -> wbAccountAdapter.creditsOf(id) }
+            "Loomy" -> { id -> loomyAccountAdapter.creditsOf(id) }
+            else -> { id -> accountAdapter.creditsOf(id) }
+        }
 
         val adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             override fun getItemCount() = items.size
@@ -695,9 +705,13 @@ class MainActivity : AppCompatActivity() {
                 return object : RecyclerView.ViewHolder(v) {}
             }
             override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-                val (label, _) = items[position]
+                val (label, _, accountId) = items[position]
                 holder.itemView.findViewById<TextView>(R.id.tvOrderIndex).text = (position + 1).toString()
                 holder.itemView.findViewById<TextView>(R.id.tvOrderLabel).text = label
+                val credits = creditSource(accountId)
+                val tvCredits = holder.itemView.findViewById<TextView>(R.id.tvOrderCredits)
+                if (credits != null) tvCredits.text = credits
+                else tvCredits.text = "积分 --"
             }
         }
         rv.adapter = adapter
@@ -739,11 +753,12 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "已恢复默认顺序", Toast.LENGTH_SHORT).show()
         }
 
+        // 美化弹窗：透明背景 + 毛玻璃（与设置/签到弹窗一致）
         val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle("网关使用账号（${currentChannelName()}）")
             .setView(view)
-            .setNegativeButton("取消", null)
             .create()
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        applyDialogBlur(dialog)
 
         view.findViewById<TextView>(R.id.btnOrderDone).setOnClickListener {
             // 保存拖拽出的顺序；固定账号不参与排序（转发时优先使用固定账号）
@@ -773,6 +788,9 @@ class MainActivity : AppCompatActivity() {
         }
         view.findViewById<View>(R.id.btnLogsEntry).setOnClickListener {
             dialog.dismiss(); showLogsDialog()
+        }
+        view.findViewById<View>(R.id.btnCallLogsEntry).setOnClickListener {
+            dialog.dismiss(); showCallLogsDialog()
         }
         view.findViewById<View>(R.id.btnStatsEntry).setOnClickListener {
             dialog.dismiss(); showStatsDialog()
@@ -3149,6 +3167,123 @@ private fun showGithubDialog() {
         dlg.show()
     }
 
+    /** 网关调用记录（终端风格弹窗） */
+    private fun showCallLogsDialog() {
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_call_logs, null)
+        val tv = view.findViewById<TextView>(R.id.tvCallLogsContent)
+        val btnClose = view.findViewById<TextView>(R.id.btnCallLogsClose)
+        val btnClear = view.findViewById<TextView>(R.id.btnCallLogsClear)
+
+        val cGreen = ContextCompat.getColor(this, R.color.terminal_green)
+        val cYellow = ContextCompat.getColor(this, R.color.terminal_yellow)
+        val cRed = ContextCompat.getColor(this, R.color.error_red)
+        val cGray = ContextCompat.getColor(this, R.color.terminal_gray)
+        val cWhite = ContextCompat.getColor(this, R.color.terminal_white)
+        val cCyan = ContextCompat.getColor(this, R.color.terminal_cyan)
+        val cPurple = ContextCompat.getColor(this, R.color.terminal_purple)
+
+        val dlg = MaterialAlertDialogBuilder(this)
+            .setView(view)
+            .create()
+        dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        applyDialogBlur(dlg)
+
+        /** 状态行（黄色） */
+        fun info(text: String): CharSequence {
+            val sp = SpannableString(text)
+            sp.setSpan(ForegroundColorSpan(cYellow), 0, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            return sp
+        }
+
+        /** 分组标题（青色） */
+        fun section(title: String): CharSequence {
+            val sp = SpannableString(title)
+            sp.setSpan(ForegroundColorSpan(cCyan), 0, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            return sp
+        }
+
+        fun render() {
+            val logs = callLogStore.load()
+            if (logs.isEmpty()) {
+                tv.text = info("$ 暂无调用记录
+
+# 客户端连上网关发消息后自动记录
+# （模型 / 账号 / 耗时 / Token 用量）")
+                return
+            }
+            val sb = SpannableStringBuilder()
+            sb.append(section("# 调用记录 (" + logs.size + " 条)
+"))
+            var lastDay = ""
+            for (log in logs) {
+                val day = java.text.SimpleDateFormat("MM-dd", java.util.Locale.getDefault()).format(java.util.Date(log.time))
+                if (day != lastDay) {
+                    lastDay = day
+                    sb.append(section("
+== " + day + " ==
+"))
+                }
+                // ● [时间] 渠道·模型 (账号) 手段 成功/失败
+                val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(log.time))
+                val dotColor = if (log.ok) cGreen else cRed
+                val head = SpannableString("● [$time] ")
+                head.setSpan(ForegroundColorSpan(dotColor), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                head.setSpan(ForegroundColorSpan(cGray), 3, 3 + time.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sb.append(head)
+
+                val chName = when (log.channel) {
+                    "loomy" -> "Loomy"
+                    "buddy" -> "WorkBuddy"
+                    else -> "Trae"
+                }
+                val bodyColor = if (log.ok) cCyan else cRed
+                val body = SpannableString("${chName} · ${log.model}
+")
+                body.setSpan(ForegroundColorSpan(bodyColor), 0, body.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sb.append(body)
+
+                val meta = SpannableStringBuilder()
+                if (log.account.isNotEmpty()) {
+                    meta.append(SpannableString("  账号: " + log.account).apply {
+                        setSpan(ForegroundColorSpan(cWhite), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    })
+                    meta.append(SpannableString("  用时: " + log.totalMs + "ms").apply {
+                        setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    })
+                    if (log.ttftMs > 0) {
+                        meta.append(SpannableString("  首块: " + log.ttftMs + "ms").apply {
+                            setSpan(ForegroundColorSpan(cGray), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        })
+                    }
+                    if (log.inputTokens > 0 || log.outputTokens > 0) {
+                        meta.append(SpannableString("  tokens: ↑" + log.inputTokens + " ↓" + log.outputTokens).apply {
+                            setSpan(ForegroundColorSpan(cPurple), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        })
+                    }
+                    meta.append("
+")
+                    sb.append(meta)
+                }
+                if (!log.ok && log.error.isNotEmpty()) {
+                    val err = SpannableString("  错误: " + log.error + "
+")
+                    err.setSpan(ForegroundColorSpan(cRed), 0, err.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    sb.append(err)
+                }
+            }
+            tv.text = sb
+        }
+
+        btnClose.setOnClickListener { dlg.dismiss() }
+        view.findViewById<View>(R.id.btnCallLogsCloseX)?.setOnClickListener { dlg.dismiss() }
+        btnClear.setOnClickListener {
+            callLogStore.clear()
+            render()
+        }
+        dlg.setOnShowListener { render() }
+        dlg.show()
+    }
+
     /**
      * 手动触发签到工作流（立即签到）。通过 GitHub Actions workflow_dispatch 触发。
      * @param platform "TRAE" 或 "WorkBuddy"
@@ -3397,6 +3532,9 @@ class AccountAdapter(
     /** 首页卡片汇总：过期（凭证失效）账号数 */
     fun expiredCount(): Int = expired.values.count { it }
 
+    /** 弹窗展示用：某账号当前积分文本（null = 还没查到） */
+    fun creditsOf(accountId: String): String? = credits[accountId]
+
     fun submit(list: List<TraeAccount>) {
         items = list
         // 注意：不清空已获取的积分，列表重载时保留旧值，只有拿到新结果才更新（避免闪动）
@@ -3490,6 +3628,9 @@ class WorkBuddyAccountAdapter(
 
     /** 首页卡片汇总：过期（凭证失效）账号数 */
     fun expiredCount(): Int = expired.values.count { it }
+
+    /** 弹窗展示用：某账号当前额度文本（null = 还没查到） */
+    fun creditsOf(accountId: String): String? = credits[accountId]
 
     fun submit(list: List<WorkBuddyAccount>) {
         items = list
@@ -3586,6 +3727,9 @@ class QoderCnAccountAdapter(
     /** 首页卡片汇总：过期（凭证失效）账号数 */
     fun expiredCount(): Int = expired.values.count { it }
 
+    /** 弹窗展示用：某账号当前余额文本（null = 还没查到） */
+    fun creditsOf(accountId: String): String? = credits[accountId]
+
     fun submit(list: List<QoderCnAccount>) {
         items = list
         notifyDataSetChanged()
@@ -3674,6 +3818,9 @@ class LoomyAccountAdapter(
         items = list
         notifyDataSetChanged()
     }
+
+    /** 弹窗展示用：某账号当前积分文本（null = 还没查到） */
+    fun creditsOf(accountId: String): String? = credits[accountId]
 
     fun setCredits(accountId: String, text: String, colorRes: Int = 0, tokenExpired: Boolean = false) {
         credits[accountId] = text

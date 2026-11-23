@@ -1,5 +1,6 @@
 package com.jackkd.signapp.net
 
+import android.util.Log
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
@@ -286,4 +287,123 @@ object OpenAiChannelGateway {
         else JSONObject()
             .put("error", JSONObject().put("message", msg).put("type", "api_error").put("code", code))
             .toString()
+
+    // ---------- 上游模型表拉取（渠道独立，保证最新；失败返回空表由调用方回退静态表） ----------
+
+    /**
+     * Loomy 上游模型表：GET {baseUrl}/models，用 **token 头**（不是 Bearer）。
+     *
+     * 对齐 channel-pack / dsh-account-models 实测：
+     *  - 头只带 Accept: application/json + token: <access_token>
+     *  - 响应 `data[]`（也可能直接是数组），过滤 type=="chat"
+     *  - name 可能带倍率（"DeepSeek V4 Flash 0731 · x3.0"），保留原名
+     */
+    fun fetchLoomyModels(token: String): JSONArray {
+        val out = JSONArray()
+        try {
+            val req = okhttp3.Request.Builder()
+                .url("${ChannelConfigs.LOOMY.baseUrl}/models")
+                .header("Accept", "application/json")
+                .header("token", token)
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return out
+                val obj = JSONObject(resp.body!!.string())
+                // 响应 data 可能是数组（也兼容直接是数组）
+                val arr = when {
+                    obj.optJSONArray("data") != null -> obj.optJSONArray("data")
+                    else -> null
+                } ?: JSONArray()
+                for (i in 0 until arr.length()) {
+                    val m = arr.optJSONObject(i) ?: continue
+                    val id = m.optString("id", "").trim()
+                    if (id.isBlank()) continue
+                    // 只收 chat 模型（对齐 channel-pack isLoomyChatModel）
+                    val type = m.optString("type", "")
+                    if (type.isNotEmpty() && type != "chat") continue
+                    val name = m.optString("name", "").trim().ifEmpty { id }
+                    out.put(JSONObject()
+                        .put("id", id)
+                        .put("object", "model")
+                        .put("owned_by", "loomy")
+                        .put("created", 0)
+                        .put("name", name))
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("OpenAiChannelGateway", "loomy 模型拉取失败: ${e.message}")
+        }
+        return out
+    }
+
+    /**
+     * WorkBuddy 国内版（buddy）上游模型表：GET {baseUrl}/v3/config。
+     *
+     * 对齐 dsh-account-models discoverWorkbuddyModels 实测：
+     *  - 头：Bearer + accept: application/json + origin/referer/x-requested-with/
+     *    x-product/user-agent + x-user-id（uid）
+     *  - 解析：data.agents[] 里 name=="cli" 的 models[] 决定顺序；
+     *    data.models[] 明细（disabled / maxInputTokens / maxOutputTokens<=0 的跳过）
+     */
+    fun fetchBuddyModels(token: String, uid: String): JSONArray {
+        val out = JSONArray()
+        try {
+            val reqBuilder = okhttp3.Request.Builder()
+                .url("${ChannelConfigs.BUDDY.baseUrl}/v3/config")
+                .header("Authorization", "Bearer $token")
+                .header("Accept", "application/json")
+                .header("Origin", "https://www.codebuddy.cn")
+                .header("Referer", "https://www.codebuddy.cn/")
+                .header("X-Requested-With", "XMLHttpRequest")
+                .header("X-Product", "SaaS")
+                .header("User-Agent", "WorkBuddy/5.6.2 WorkBuddy/5.6.2 CLI/2.63.2")
+            if (uid.isNotBlank()) reqBuilder.header("X-User-Id", uid)
+            val req = reqBuilder.build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return out
+                val obj = JSONObject(resp.body!!.string())
+                val code = obj.optInt("code", 0)
+                if (code != 0) return out
+                val data = obj.optJSONObject("data") ?: return out
+                // cli agent 声明的可用模型顺序（找不到 cli 就退回明细表顺序）
+                val rawAgents = data.optJSONArray("agents") ?: JSONArray()
+                val cliIds = linkedSetOf<String>()
+                for (i in 0 until rawAgents.length()) {
+                    val agent = rawAgents.optJSONObject(i) ?: continue
+                    if (agent.optString("name", "") != "cli") continue
+                    val list = agent.optJSONArray("models") ?: JSONArray()
+                    for (j in 0 until list.length()) {
+                        list.optString(j)?.trim()?.takeIf { it.isNotEmpty() }?.let { cliIds.add(it) }
+                    }
+                    break
+                }
+                // 明细表：id → (name, 有效窗口)。disabled 或窗口缺失的跳过。
+                val byId = linkedMapOf<String, Pair<String, Long>>()
+                val rawModels = data.optJSONArray("models") ?: JSONArray()
+                for (i in 0 until rawModels.length()) {
+                    val m = rawModels.optJSONObject(i) ?: continue
+                    val id = m.optString("id", "").trim()
+                    if (id.isEmpty() || m.optBoolean("disabled", false)) continue
+                    val input = m.optLong("maxInputTokens", 0L)
+                    val output = m.optLong("maxOutputTokens", 0L)
+                    if (input <= 0 || output <= 0) continue
+                    val name = m.optString("name", "").trim().ifEmpty { id }
+                    byId[id] = name to input
+                }
+                val ids = if (cliIds.isNotEmpty()) cliIds else byId.keys
+                for (id in ids) {
+                    val meta = byId[id] ?: continue
+                    out.put(JSONObject()
+                        .put("id", id)
+                        .put("object", "model")
+                        .put("owned_by", "workbuddy")
+                        .put("created", 0)
+                        .put("name", meta.first))
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("OpenAiChannelGateway", "buddy 模型拉取失败: ${e.message}")
+        }
+        return out
+    }
 }

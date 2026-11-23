@@ -353,24 +353,17 @@ class LocalApiServer(
     private val MODELS_TTL_MS = 30 * 60 * 1000L
 
     /**
-     * 当前生效的模型表：**按端口渠道隔离** —— 开哪个渠道的网关，就能搜到哪个渠道的模型。
-     *  - 8787（trae）：Trae 动态/缓存模型，无账号时回退默认
-     *  - 8788（loomy）：仅 Loomy 静态模型表（loomy/ 前缀）
-     *  - 8789（buddy）：仅 Buddy 静态模型表（buddy/ 前缀）
+     * 当前生效的模型表：**按端口渠道隔离** —— 开哪个渠道的网关，就能搜到哪个渠道的模型，
+     * 且各渠道都优先用**上游实时拉取**的模型表（保证最新），失败才回退缓存/静态表。
+     *  - 8787（trae）：Trae 动态模型（无前缀）
+     *  - 8788（loomy）：Loomy 动态模型（loomy/ 前缀），失败回退 Loomy 静态表
+     *  - 8789（buddy）：Buddy 动态模型（buddy/ 前缀），失败回退 Buddy 静态表
      */
-    private fun currentModels(): JSONArray = when (defaultChannelKey) {
-        GatewayStore.CH_LOOMY -> ChannelConfigs.LOOMY.toModelsArray()
-        GatewayStore.CH_BUDDY -> ChannelConfigs.BUDDY.toModelsArray()
-        else -> currentTraeModels()
-    }
-
-    /** Trae 渠道的模型表：动态/缓存，没有则回退默认 */
-    private fun currentTraeModels(): JSONArray {
+    private fun currentModels(): JSONArray {
         val now = System.currentTimeMillis()
+        // 冷启动：先吃本渠道磁盘缓存（进程重启后客户端立即有清单）。
         if (modelsDynamic == null) {
-            // 冷启动：先吃磁盘缓存（进程重启后客户端立即有清单）。
-            // fetchedAt 置 0：缓存可能是旧进程留下的，首次访问就触发一次刷新保新鲜。
-            store.cachedModels()?.let { raw ->
+            store.cachedModels(defaultChannelKey)?.let { raw ->
                 try {
                     val arr = JSONArray(raw)
                     if (arr.length() > 0) {
@@ -384,39 +377,67 @@ class LocalApiServer(
         if (modelsDynamic == null || now - modelsFetchedAt > MODELS_TTL_MS) {
             refreshModels()
         }
-        return modelsDynamic ?: defaultTraeModels()
+        // 动态表拿到就用；没有则按渠道回退：
+        // Loomy/Buddy 回退静态表（保证客户端始终有模型可搜），Trae 回退默认单模型
+        return modelsDynamic ?: when (defaultChannelKey) {
+            GatewayStore.CH_LOOMY -> ChannelConfigs.LOOMY.toModelsArray()
+            GatewayStore.CH_BUDDY -> ChannelConfigs.BUDDY.toModelsArray()
+            else -> defaultTraeModels()
+        }
     }
 
     private fun defaultTraeModels(): JSONArray = JSONArray().apply {
         put(JSONObject().put("id", TraeGateway.DEFAULT_MODEL).put("object", "model").put("owned_by", "trae").put("created", 0))
     }
 
-    /** 服务启动时预拉一次模型表（客户端访问前缓存已就绪）；失败静默 */ 
+    /** 服务启动时预拉一次模型表（客户端访问前缓存已就绪）；失败静默 */
     fun warmUpModels() = refreshModels()
 
-    /** 用第一个可用账号拉上游真实模型表；失败/无账号时保留现状 */
+    /** 按本渠道用第一个可用账号拉上游真实模型表；失败/无账号时保留现状（下次再试） */
     private fun refreshModels() {
         if (modelsRefreshing) return
         modelsRefreshing = true
         ioPool.execute {
             try {
-                val accs = accountStore.load().filter { it.credentials.isComplete() }
-                val acc = accs.firstOrNull() ?: return@execute
-                val token = acc.credentials.accessToken
-                if (token.isBlank()) return@execute
-                val arr = TraeGateway.fetchModels(token, acc.credentials.uid)
+                val arr = when (defaultChannelKey) {
+                    GatewayStore.CH_LOOMY -> fetchLoomyModelsFromAccount()
+                    GatewayStore.CH_BUDDY -> fetchBuddyModelsFromAccount()
+                    else -> fetchTraeModelsFromAccount()
+                }
                 if (arr.length() > 0) {
                     modelsDynamic = arr
                     modelsFetchedAt = System.currentTimeMillis()
-                    store.cacheModels(arr.toString())
-                    Log.i(tag, "模型表已刷新: ${arr.length()} 个")
+                    store.cacheModels(defaultChannelKey, arr.toString())
+                    Log.i(tag, "[$defaultChannelKey] 模型表已刷新: ${arr.length()} 个")
                 }
             } catch (e: Exception) {
-                Log.w(tag, "模型刷新失败: ${e.message}")
+                Log.w(tag, "[$defaultChannelKey] 模型刷新失败: ${e.message}")
             } finally {
                 modelsRefreshing = false
             }
         }
+    }
+
+    private fun fetchTraeModelsFromAccount(): JSONArray {
+        val accs = accountStore.load().filter { it.credentials.isComplete() }
+        val acc = accs.firstOrNull() ?: return JSONArray()
+        val token = acc.credentials.accessToken
+        if (token.isBlank()) return JSONArray()
+        return TraeGateway.fetchModels(token, acc.credentials.uid)
+    }
+
+    private fun fetchLoomyModelsFromAccount(): JSONArray {
+        val store2 = loomyStore ?: return JSONArray()
+        val accs = store2.load().filter { it.credentials.isComplete() }
+        val acc = accs.firstOrNull() ?: return JSONArray()
+        return OpenAiChannelGateway.fetchLoomyModels(acc.credentials.token())
+    }
+
+    private fun fetchBuddyModelsFromAccount(): JSONArray {
+        val store2 = workBuddyStore ?: return JSONArray()
+        val accs = store2.load().filter { it.credentials.isComplete() }
+        val acc = accs.firstOrNull() ?: return JSONArray()
+        return OpenAiChannelGateway.fetchBuddyModels(acc.credentials.accessToken, acc.credentials.uid)
     }
 
     @Volatile

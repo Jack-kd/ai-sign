@@ -156,7 +156,7 @@ class GatewayService : Service() {
             servers[channel] = srv
             runningChannels[channel] = true
             channelPorts[channel] = srv.port
-            srv.warmUpModels()   // 预拉模型表（后台线程，失败静默；Loomy/Buddy 静态表无实际影响）
+            srv.warmUpModels()   // 预拉本渠道模型表（后台线程，失败静默；各渠道各自拉上游）
             Log.i(TAG, "通道 [$channel] 网关启动成功（端口 ${srv.port}）")
         } else {
             Log.e(TAG, "通道 [$channel] 网关启动失败（端口被占）")

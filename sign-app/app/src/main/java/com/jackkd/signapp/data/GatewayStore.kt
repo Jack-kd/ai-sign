@@ -59,15 +59,22 @@ class GatewayStore(context: Context) {
         set(v) { sp.edit().putString("prefer_uid", v ?: "").commit() }
 
     /**
-     * 模型表磁盘缓存（JSON 字符串）。进程重启后先恢复缓存，客户端立刻有可用清单；
-     * 服务在跑时再由 /v1/models 静默刷新一次保证新鲜。
-     * 只存非空表（cacheModels 内部检查），绝不拿空表冒充清单。
+     * 模型表磁盘缓存（JSON 字符串），**按渠道分开存**（models_cache_$channel）。
+     * 进程重启后先恢复缓存，客户端立刻有可用清单；服务在跑时再由 /v1/models
+     * 静默刷新一次保证新鲜。只存非空表（cacheModels 内部检查），绝不拿空表冒充清单。
+     * trae 渠道兼容旧版单渠道 key（models_cache）。
      */
-    fun cachedModels(): String? = sp.getString("models_cache", null)?.takeIf { it.isNotBlank() }
+    fun cachedModels(channel: String): String? {
+        val raw = sp.getString("models_cache_$channel", null)
+        if (!raw.isNullOrBlank()) return raw
+        if (channel == CH_TRAE) return sp.getString("models_cache", null)?.takeIf { it.isNotBlank() }
+        return null
+    }
 
-    fun cacheModels(json: String) {
+    fun cacheModels(channel: String, json: String) {
         if (json.isBlank()) return
-        sp.edit().putString("models_cache", json).commit()
+        sp.edit().putString("models_cache_$channel", json).commit()
+        if (channel == CH_TRAE) sp.edit().putString("models_cache", json).commit()
     }
 
     private fun newKey(): String {

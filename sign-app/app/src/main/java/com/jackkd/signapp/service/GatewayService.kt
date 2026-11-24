@@ -17,6 +17,7 @@ import com.jackkd.signapp.data.AccountStore
 import com.jackkd.signapp.data.CallLogStore
 import com.jackkd.signapp.data.GatewayStore
 import com.jackkd.signapp.data.LoomyAccountStore
+import com.jackkd.signapp.data.QoderCnAccountStore
 import com.jackkd.signapp.data.WorkBuddyAccountStore
 import com.jackkd.signapp.net.LocalApiServer
 import com.jackkd.signapp.ui.MainActivity
@@ -55,11 +56,13 @@ class GatewayService : Service() {
         const val PORT_TRAE = 8787
         const val PORT_LOOMY = 8788
         const val PORT_BUDDY = 8789
+        const val PORT_QODERCN = 8790
 
         private val CHANNELS = mapOf(
             GatewayStore.CH_TRAE to PORT_TRAE,
             GatewayStore.CH_LOOMY to PORT_LOOMY,
             GatewayStore.CH_BUDDY to PORT_BUDDY,
+            GatewayStore.CH_QODERCN to PORT_QODERCN,
         )
 
         /** 渠道名 → 服务状态 */
@@ -151,7 +154,10 @@ class GatewayService : Service() {
         val loomyStore = LoomyAccountStore(this)
         val workBuddyStore = WorkBuddyAccountStore(this)
         val basePort = CHANNELS[channel] ?: PORT_TRAE
-        val srv = LocalApiServer(store, accountStore, loomyStore, workBuddyStore, basePort)
+        val qoderCnStore = QoderCnAccountStore(this)
+        // Qoder 中国版签名 WASM 只在 8790 端口加载（其它渠道不占这 292KB 内存）
+        val qoderCnWasm = if (channel == GatewayStore.CH_QODERCN) loadQoderCnWasm() else null
+        val srv = LocalApiServer(store, accountStore, loomyStore, workBuddyStore, basePort, qoderCnStore, qoderCnWasm)
         srv.callLogStore = CallLogStore(this)
         val ok = srv.start()
         if (ok) {
@@ -164,6 +170,14 @@ class GatewayService : Service() {
             Log.e(TAG, "通道 [$channel] 网关启动失败（端口被占）")
         }
         updateNotification()
+    }
+
+    /** 读签名 WASM（assets 里打包的官方模块）；失败返回 null，网关会明确报错而不是静默无模型 */
+    private fun loadQoderCnWasm(): ByteArray? = try {
+        assets.open("qoder-auth-wasm.wasm").use { it.readBytes() }
+    } catch (e: Exception) {
+        Log.e(TAG, "Qoder 中国版签名模块加载失败: ${e.message}")
+        null
     }
 
     private fun stopChannel(channel: String) {
@@ -251,6 +265,7 @@ class GatewayService : Service() {
                 val name = when (ch) {
                     GatewayStore.CH_LOOMY -> "Loomy"
                     GatewayStore.CH_BUDDY -> "WorkBuddy"
+                    GatewayStore.CH_QODERCN -> "Qoder中国版"
                     else -> "TRAE"
                 }
                 "$name:${portOf(ch)}"

@@ -42,4 +42,7 @@ dependencies {
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'com.google.code.gson:gson:2.10.1'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    // Qoder 中国版签名：纯 Java WASM 运行时（1.5.0 钉版，默认路径不触碰 VarHandle）
+    implementation 'com.dylibso.chicory:runtime:1.5.0'
+    implementation 'com.dylibso.chicory:wasm:1.5.0'
 }

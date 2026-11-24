@@ -77,10 +77,50 @@ object ChannelConfigs {
         ),
     )
 
+    // ---------- Qoder 中国版（qoder.cn） ----------
+
+    /**
+     * Qoder 中国版没有可用的公开 OpenAI 兼容端点：
+     * gateway.qoder.com.cn/model/v1/chat/completions 与 openapi.qoder.com.cn/model/v1/chat/completions
+     * 都实测 503。唯一可用路径是官方客户端的加密链路：
+     *   POST https://gateway.qoder.com.cn/algo/api/v2/service/pro/sse/agent_chat_generation
+     * 请求体是 WASM 加密后的 VkDO.* 文本，鉴权头是 WASM 现签的 Bearer COSY.*。
+     *
+     * 因此这个渠道的 baseUrl/chatPath 只是占位（真实 URL 由签名器返回），
+     * 真正发送走 QoderCnGateway，不复用 OpenAiChannelGateway。
+     *
+     * 模型名成本倍率以 q37fmodel 为 1.0 基准（实测 credits/1k tokens 折算）。
+     */
+    val QODERCN: OpenAiChannelConfig = OpenAiChannelConfig(
+        prefix = "qodercn",
+        ownedBy = "qodercn",
+        baseUrl = "https://gateway.qoder.com.cn",
+        chatPath = "/algo/api/v2/service/pro/sse/agent_chat_generation",
+        extraHeaders = emptyMap(),
+        // 显示名后的 xN 是**实测**相对成本倍率（基准 q37fmodel = x1.0，
+        // 按各模型真实返回的 credits / total_tokens 折算成每千 token 单价后相比）
+        models = listOf(
+            "mmodel" to "MiniMax-M2.7 · x0.3",
+            "q37fmodel" to "Qwen3.7-Flash · x1.0",
+            "auto" to "Auto 自动选择 · x1.8",
+            "gfmodel" to "GLM-5.3-Flash · x3.6",
+            "dfmodel" to "DeepSeek-Flash · x4.0",
+            "qmodel_38max" to "Qwen3.8-Max · x11",
+            "dmodel" to "DeepSeek-V4-Pro · x11",
+            "gmodel" to "GLM-5.3 · x16",
+            "gm51model" to "GLM-5.2 · x41",
+            "kmodel" to "Kimi-K2.8-Preview · x41",
+            "kmodel_latest" to "Kimi-K3 · x81",
+        ),
+        // 8790 端口只服务本渠道：模型 id 用裸 key（q37fmodel / dmodel…），不加 qodercn/ 前缀
+        prefixModelIds = false,
+    )
+
     /** 按模型 id 识别渠道前缀（返回渠道配置；null = 走 Trae 默认） */
     fun byModel(model: String): OpenAiChannelConfig? = when {
         model.startsWith("${LOOMY.prefix}/") -> LOOMY
         model.startsWith("${BUDDY.prefix}/") -> BUDDY
+        model.startsWith("${QODERCN.prefix}/") -> QODERCN
         else -> null
     }
 
@@ -88,6 +128,7 @@ object ChannelConfigs {
     fun byPrefix(prefix: String): OpenAiChannelConfig? = when (prefix) {
         LOOMY.prefix -> LOOMY
         BUDDY.prefix -> BUDDY
+        QODERCN.prefix -> QODERCN
         else -> null
     }
 }

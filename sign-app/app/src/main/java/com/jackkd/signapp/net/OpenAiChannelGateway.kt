@@ -32,12 +32,20 @@ data class OpenAiChannelConfig(
     val extraHeaders: Map<String, String>, // 渠道专属静态头（Authorization / Accept / Content-Type 由网关补）
     val tokenHeaderName: String? = null,   // 非空：把当前账号 token 额外塞进这个名字的头（Loomy 的 token 头）
     val models: List<Pair<String, String>>,// 静态模型表：(上游模型 id, 显示名)
+    /**
+     * /v1/models 是否给模型 id 加渠道前缀。
+     *
+     * Loomy / Buddy 的模型名在跨渠道时可能撞名，所以默认带前缀；
+     * Qoder 中国版的模型 key 是它自己的私有命名（q37fmodel / dmodel…），
+     * 在 8790 端口上只暴露本渠道模型，不加前缀。
+     */
+    val prefixModelIds: Boolean = true,
 ) {
-    /** 模型表转 /v1/models 条目（id 带渠道前缀） */
+    /** 模型表转 /v1/models 条目 */
     fun toModelsArray(): JSONArray = JSONArray().apply {
         for ((id, name) in models) {
             put(JSONObject()
-                .put("id", "$prefix/$id")
+                .put("id", if (prefixModelIds) "$prefix/$id" else id)
                 .put("object", "model")
                 .put("owned_by", ownedBy)
                 .put("created", 0)

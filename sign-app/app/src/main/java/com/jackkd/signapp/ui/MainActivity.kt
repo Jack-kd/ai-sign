@@ -543,6 +543,7 @@ class MainActivity : AppCompatActivity() {
         "TRAE" -> GatewayStore.CH_TRAE
         "WorkBuddy" -> GatewayStore.CH_BUDDY
         "Loomy" -> GatewayStore.CH_LOOMY
+        "QoderCn" -> GatewayStore.CH_QODERCN
         else -> ""
     }
 
@@ -551,6 +552,7 @@ class MainActivity : AppCompatActivity() {
         "TRAE" -> "TRAE"
         "WorkBuddy" -> "WorkBuddy"
         "Loomy" -> "Loomy"
+        "QoderCn" -> "Qoder 中国版"
         else -> ""
     }
 
@@ -560,6 +562,8 @@ class MainActivity : AppCompatActivity() {
             .map { Triple(it.label, it.credentials.uid, it.id) }
         "Loomy" -> loomyAccountStore.load().filter { it.credentials.isComplete() }
             .map { Triple(it.label, it.credentials.userId, it.id) }
+        "QoderCn" -> qcAccountStore.load().filter { it.credentials.isComplete() }
+            .map { Triple(it.label, it.credentials.uid, it.id) }
         else -> accountStore.load().filter { it.credentials.isComplete() }
             .map { Triple(it.label, it.credentials.uid, it.id) }
     }
@@ -586,10 +590,10 @@ class MainActivity : AppCompatActivity() {
             "QoderCn" -> "Qoder 中国版"
             else -> "Loomy"
         }
-        // 有网关能力的渠道（TRAE / WorkBuddy / Loomy）详情页顶栏都显示「API」入口；
-        // QoderCn 网关未接入（WASM 加密信封），不显示入口
+        // 有网关能力的渠道（TRAE / WorkBuddy / Loomy / Qoder 中国版）详情页顶栏都显示「API」入口
         btnGatewayEntry.visibility =
-            if (tab == "TRAE" || tab == "WorkBuddy" || tab == "Loomy") View.VISIBLE else View.GONE
+            if (tab == "TRAE" || tab == "WorkBuddy" || tab == "Loomy" || tab == "QoderCn") View.VISIBLE
+            else View.GONE
     }
 
     /** 详情页回车：分层返回（网关子页 → 渠道详情 → 首页） */
@@ -602,6 +606,7 @@ class MainActivity : AppCompatActivity() {
             pageTraeGateway.visibility = View.GONE
             pageTrae.visibility = if (currentTab == "TRAE") View.VISIBLE else View.GONE
             pageWb.visibility = if (currentTab == "WorkBuddy") View.VISIBLE else View.GONE
+            pageQc.visibility = if (currentTab == "QoderCn") View.VISIBLE else View.GONE
             pageLoomy.visibility = if (currentTab == "Loomy") View.VISIBLE else View.GONE
         } else {
             showHome()
@@ -610,7 +615,7 @@ class MainActivity : AppCompatActivity() {
 
     /** 从渠道详情页顶栏「API」进入网关子页（TRAE / WorkBuddy / Loomy 通用） */
     private fun showGatewayPage() {
-        if (currentTab != "TRAE" && currentTab != "WorkBuddy" && currentTab != "Loomy") return
+        if (currentTab != "TRAE" && currentTab != "WorkBuddy" && currentTab != "Loomy" && currentTab != "QoderCn") return
         gatewayPageActive = true
         gatewayPolling = true
         gatewayLastLogSignature = ""
@@ -620,6 +625,7 @@ class MainActivity : AppCompatActivity() {
         // 同层叠放：盖住当前渠道签到页
         pageTrae.visibility = View.GONE
         pageWb.visibility = View.GONE
+        pageQc.visibility = View.GONE
         pageLoomy.visibility = View.GONE
         pageTraeGateway.visibility = View.VISIBLE
     }
@@ -652,7 +658,12 @@ class MainActivity : AppCompatActivity() {
         } else if (accs.isNotEmpty()) {
             "自动选择（共 ${accs.size} 个账号，已排 $orderCount 个 · 有问题的自动跳下一个）"
         } else {
-            "暂无账号：先在 ${when (currentTab) { "WorkBuddy" -> "WorkBuddy 页"; "Loomy" -> "Loomy 页"; else -> "TRAE 页" }}添加账号"
+            "暂无账号：先在 ${when (currentTab) {
+                "WorkBuddy" -> "WorkBuddy 页"
+                "Loomy" -> "Loomy 页"
+                "QoderCn" -> "Qoder 中国版页"
+                else -> "TRAE 页"
+            }}添加账号"
         }
 
         // 本机端点（客户端和网关同一台手机上）

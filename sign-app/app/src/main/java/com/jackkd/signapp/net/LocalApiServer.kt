@@ -7,6 +7,8 @@ import com.jackkd.signapp.data.GatewayCallLog
 import com.jackkd.signapp.data.GatewayStore
 import com.jackkd.signapp.data.LoomyAccount
 import com.jackkd.signapp.data.LoomyAccountStore
+import com.jackkd.signapp.data.QoderCnAccount
+import com.jackkd.signapp.data.QoderCnAccountStore
 import com.jackkd.signapp.data.WorkBuddyAccount
 import com.jackkd.signapp.data.WorkBuddyAccountStore
 import org.json.JSONArray
@@ -44,6 +46,9 @@ class LocalApiServer(
     private val loomyStore: LoomyAccountStore? = null,
     private val workBuddyStore: WorkBuddyAccountStore? = null,
     private val basePort: Int = 8787,
+    private val qoderCnStore: QoderCnAccountStore? = null,
+    /** Qoder 中国版签名用的 WASM 字节（null = 本端口不是 qodercn，或资源读取失败） */
+    private val qoderCnWasm: ByteArray? = null,
 ) {
     private val tag = "LocalApiServer"
 
@@ -56,6 +61,7 @@ class LocalApiServer(
     private val defaultChannelKey: String = when (basePort) {
         8788 -> "loomy"
         8789 -> "buddy"
+        8790 -> "qodercn"
         else -> "trae"
     }
     private val portMax: Int = basePort + 9
@@ -396,12 +402,93 @@ class LocalApiServer(
                 finishChannel(w, wantStream, ok)
                 recorder?.finish(ok)
             }
+            "qodercn" -> {
+                handleQoderCnChat(w, body, wantStream, recorder)
+            }
             else -> {
                 // 未知前缀（理论不可达：byModel 已过滤）
                 failChannel(w, "未知渠道：$model", wantStream)
                 recorder?.finish(false, "未知渠道：$model")
             }
         }
+    }
+
+    /**
+     * Qoder 中国版对话转发。
+     *
+     * 与 Loomy / Buddy 的「近透传」不同：这个渠道每条请求都要现算签名
+     * （WASM 加密 + Bearer COSY），且签名一次性、每次重试必须重签。
+     * 细节全在 [QoderCnGateway]，这里只负责账号取值和输出写回。
+     */
+    private fun handleQoderCnChat(
+        w: W,
+        body: String,
+        wantStream: Boolean,
+        recorder: CallRecorder?,
+    ) {
+        val store2 = qoderCnStore
+        if (store2 == null) {
+            failChannel(w, "Qoder 中国版账号存储未初始化", wantStream)
+            recorder?.finish(false, "账号存储未初始化")
+            return
+        }
+        val wasm = qoderCnWasm
+        if (wasm == null || wasm.isEmpty()) {
+            failChannel(w, "Qoder 中国版签名模块缺失（assets/qoder-auth-wasm.wasm）", wantStream)
+            recorder?.finish(false, "签名模块缺失")
+            return
+        }
+        val accounts = store2.load()
+        if (accounts.isEmpty()) {
+            failChannel(w, "没有可用的 Qoder 中国版账号，请先在应用里登录", wantStream)
+            recorder?.finish(false, "没有可用的 Qoder 中国版账号")
+            return
+        }
+
+        // 签名器按请求新建：WASM 实例内部有可变状态，跨请求复用会串号。
+        // 解析结果（WasmModule）是静态缓存的，所以新建成本只有实例化，约几十毫秒。
+        val gateway = QoderCnGateway(wasm)
+        val sink: (String) -> Unit = recorder?.wrap { frame ->
+            if (wantStream) w.sseFrame(frame) else w.json(200, frame)
+        } ?: { frame -> if (wantStream) w.sseFrame(frame) else w.json(200, frame) }
+
+        // ⚠️ QoderCnGateway 是 Java 类：Kotlin 调 Java 方法**不能用具名参数**，只能按位置传。
+        // 参数顺序：body, accounts, acc, preferUid, accountOrder, wantStream, sink, onAttempt
+        val ok = gateway.chatStream(
+            body,
+            accounts,
+            QODERCN_ACCESSORS,
+            store.preferUid,
+            store.accountOrder(GatewayStore.CH_QODERCN),
+            wantStream,
+            { chunk -> sink(chunk) },
+            { label -> recorder?.lastAccount = label }
+        )
+        finishChannel(w, wantStream, ok)
+        if (ok) {
+            recorder?.finish(true)
+        } else {
+            // 失败时网关已把错误写进 sink；记录里补一句便于排查
+            recorder?.finish(false, if (recorder.error.isEmpty()) "qodercn 转发失败" else recorder.error)
+        }
+    }
+
+    /** QoderCnAccount → 网关需要的四个字段（避免网关依赖具体账号类型） */
+    private val QODERCN_ACCESSORS = object : QoderCnGateway.AccountAccessors {
+        override fun token(account: Any?): String =
+            (account as? QoderCnAccount)?.credentials?.token().orEmpty()
+
+        override fun uid(account: Any?): String =
+            (account as? QoderCnAccount)?.credentials?.uid.orEmpty()
+
+        override fun machineId(account: Any?): String =
+            (account as? QoderCnAccount)?.credentials?.machineId.orEmpty()
+
+        override fun label(account: Any?): String =
+            (account as? QoderCnAccount)?.label.orEmpty()
+
+        override fun complete(account: Any?): Boolean =
+            (account as? QoderCnAccount)?.credentials?.isComplete() == true
     }
 
     private fun failChannel(w: W, msg: String, wantStream: Boolean) {
@@ -468,6 +555,9 @@ class LocalApiServer(
         return modelsDynamic ?: when (defaultChannelKey) {
             GatewayStore.CH_LOOMY -> ChannelConfigs.LOOMY.toModelsArray()
             GatewayStore.CH_BUDDY -> ChannelConfigs.BUDDY.toModelsArray()
+            // Qoder 中国版没有公开的模型清单接口（模型 key 是私有命名，固定 11 个），
+            // 直接用静态表 —— 也是唯一能保证「8790 上只出现本渠道模型」的做法
+            GatewayStore.CH_QODERCN -> ChannelConfigs.QODERCN.toModelsArray()
             else -> defaultTraeModels()
         }
     }
@@ -488,6 +578,8 @@ class LocalApiServer(
                 val arr = when (defaultChannelKey) {
                     GatewayStore.CH_LOOMY -> fetchLoomyModelsFromAccount()
                     GatewayStore.CH_BUDDY -> fetchBuddyModelsFromAccount()
+                    // Qoder 中国版模型 key 固定（无清单接口），不走上游拉取
+                    GatewayStore.CH_QODERCN -> ChannelConfigs.QODERCN.toModelsArray()
                     else -> fetchTraeModelsFromAccount()
                 }
                 if (arr.length() > 0) {

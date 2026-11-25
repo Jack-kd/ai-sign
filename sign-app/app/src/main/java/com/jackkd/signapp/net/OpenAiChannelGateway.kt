@@ -308,8 +308,18 @@ object OpenAiChannelGateway {
      *  - 响应 `data[]`（也可能直接是数组），过滤 type=="chat"
      *  - name 可能带倍率（"DeepSeek V4 Flash 0731 · x3.0"），保留原名
      */
+    /**
+     * Loomy 上游模型表：GET {baseUrl}/models。
+     *
+     * 解析对齐 channel-pack 的 parseLoomyRemoteModels，但**放宽**了几处，
+     * 避免上游字段微调导致模型列表变少（实测曾只解析出 2 个）：
+     *  - 响应既可能是 {data:[...]} 也可能是裸数组，还可能是 {models:[...]}
+     *  - type 字段缺失时**当作 chat 收下**（旧逻辑只跳过明确非 chat 的）
+     *  - 名称优先 name / display_name，都没有才用 id
+     */
     fun fetchLoomyModels(token: String): JSONArray {
         val out = JSONArray()
+        if (token.isBlank()) return out
         try {
             val req = okhttp3.Request.Builder()
                 .url("${ChannelConfigs.LOOMY.baseUrl}/models")
@@ -317,21 +327,30 @@ object OpenAiChannelGateway {
                 .header("token", token)
                 .build()
             client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) return out
-                val obj = JSONObject(resp.body!!.string())
-                // 响应 data 可能是数组（也兼容直接是数组）
-                val arr = when {
-                    obj.optJSONArray("data") != null -> obj.optJSONArray("data")
-                    else -> null
-                } ?: JSONArray()
+                if (!resp.isSuccessful) {
+                    Log.w("OpenAiChannelGateway", "loomy 模型拉取 HTTP ${resp.code}")
+                    return out
+                }
+                val text = resp.body?.string().orEmpty()
+                val payload = try { org.json.JSONTokener(text).nextValue() } catch (e: Exception) { null }
+                val arr: JSONArray = when (payload) {
+                    is JSONArray -> payload
+                    is JSONObject -> payload.optJSONArray("data")
+                        ?: payload.optJSONArray("models")
+                        ?: JSONArray()
+                    else -> JSONArray()
+                }
+                Log.i("OpenAiChannelGateway", "loomy /models 返回 ${arr.length()} 条")
                 for (i in 0 until arr.length()) {
                     val m = arr.optJSONObject(i) ?: continue
                     val id = m.optString("id", "").trim()
                     if (id.isBlank()) continue
-                    // 只收 chat 模型（对齐 channel-pack isLoomyChatModel）
-                    val type = m.optString("type", "")
+                    // type 缺失也收（上游字段可能改名/省略）；只有明确非 chat 才跳过
+                    val type = m.optString("type", "").trim().lowercase()
                     if (type.isNotEmpty() && type != "chat") continue
-                    val name = m.optString("name", "").trim().ifEmpty { id }
+                    val name = m.optString("name", "").trim()
+                        .ifEmpty { m.optString("display_name", "").trim() }
+                        .ifEmpty { id }
                     out.put(JSONObject()
                         .put("id", id)
                         .put("object", "model")

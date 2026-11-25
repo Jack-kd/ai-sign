@@ -546,9 +546,11 @@ class LocalApiServer(
                 } catch (e: Exception) {}
             }
         }
-        // 过期或从没拉过 → 后台异步刷一次（不阻塞响应，先回当前表）
-        if (modelsDynamic == null || now - modelsFetchedAt > MODELS_TTL_MS) {
-            refreshModels()
+        // 从没拉过 → 同步拉一次（Harness 首次扫描就要拿到完整表，不能先给空/旧表）；
+        // 只是过期 → 后台异步刷（不阻塞响应，先回当前表让对话不卡）。
+        val neverFetched = modelsDynamic == null
+        if (neverFetched || now - modelsFetchedAt > MODELS_TTL_MS) {
+            if (neverFetched) refreshModelsBlocking() else refreshModels()
         }
         // 动态表拿到就用；没有则按渠道回退：
         // Loomy/Buddy 回退静态表（保证客户端始终有模型可搜），Trae 回退默认单模型
@@ -568,6 +570,36 @@ class LocalApiServer(
 
     /** 服务启动时预拉一次模型表（客户端访问前缓存已就绪）；失败静默 */
     fun warmUpModels() = refreshModels()
+
+    /**
+     * 同步拉取模型表（首次 /v1/models 用）。
+     * 冷启动时客户端（如 Harness）扫模型，异步刷新会先返回空表或旧缓存，
+     * 导致「只扫到 2 个模型」这类问题 —— 这里最多等 8 秒拿真实结果。
+     */
+    private fun refreshModelsBlocking() {
+        if (modelsRefreshing) return
+        modelsRefreshing = true
+        try {
+            val arr = when (defaultChannelKey) {
+                GatewayStore.CH_LOOMY -> fetchLoomyModelsFromAccount()
+                GatewayStore.CH_BUDDY -> fetchBuddyModelsFromAccount()
+                GatewayStore.CH_QODERCN -> ChannelConfigs.QODERCN.toModelsArray()
+                else -> fetchTraeModelsFromAccount()
+            }
+            if (arr.length() > 0) {
+                modelsDynamic = arr
+                modelsFetchedAt = System.currentTimeMillis()
+                store.cacheModels(defaultChannelKey, arr.toString())
+                Log.i(tag, "[$defaultChannelKey] 模型表已同步刷新: ${arr.length()} 个")
+            } else {
+                Log.w(tag, "[$defaultChannelKey] 同步刷新拿到空表，回退静态表")
+            }
+        } catch (e: Exception) {
+            Log.w(tag, "[$defaultChannelKey] 同步刷新失败: ${e.message}")
+        } finally {
+            modelsRefreshing = false
+        }
+    }
 
     /** 按本渠道用第一个可用账号拉上游真实模型表；失败/无账号时保留现状（下次再试） */
     private fun refreshModels() {
@@ -604,18 +636,52 @@ class LocalApiServer(
         return TraeGateway.fetchModels(token, acc.credentials.uid)
     }
 
+    /**
+     * Loomy 上游模型：**依次试所有可用账号**（对齐其它渠道的换号重试），
+     * 第一个能拉到非空表就用它。单个账号 token 过期不会让整个渠道没有模型。
+     * 另外把静态兜底表里「上游没报但确实存在」的模型补回去，防止上游少返回导致列表缩水。
+     */
     private fun fetchLoomyModelsFromAccount(): JSONArray {
         val store2 = loomyStore ?: return JSONArray()
         val accs = store2.load().filter { it.credentials.isComplete() }
-        val acc = accs.firstOrNull() ?: return JSONArray()
-        return OpenAiChannelGateway.fetchLoomyModels(acc.credentials.token())
+        if (accs.isEmpty()) return JSONArray()
+        for (acc in accs) {
+            val arr = OpenAiChannelGateway.fetchLoomyModels(acc.credentials.token())
+            if (arr.length() > 0) return mergeWithStaticModels(arr, ChannelConfigs.LOOMY.toModelsArray())
+            Log.w(tag, "[loomy] 账号 ${acc.label} 未拉到模型，换下一个")
+        }
+        return JSONArray()
     }
 
     private fun fetchBuddyModelsFromAccount(): JSONArray {
         val store2 = workBuddyStore ?: return JSONArray()
         val accs = store2.load().filter { it.credentials.isComplete() }
-        val acc = accs.firstOrNull() ?: return JSONArray()
-        return OpenAiChannelGateway.fetchBuddyModels(acc.credentials.accessToken, acc.credentials.uid)
+        if (accs.isEmpty()) return JSONArray()
+        for (acc in accs) {
+            val arr = OpenAiChannelGateway.fetchBuddyModels(acc.credentials.accessToken, acc.credentials.uid)
+            if (arr.length() > 0) return mergeWithStaticModels(arr, ChannelConfigs.BUDDY.toModelsArray())
+            Log.w(tag, "[buddy] 账号 ${acc.label} 未拉到模型，换下一个")
+        }
+        return JSONArray()
+    }
+
+    /**
+     * 上游实时表 + 静态兜底表合并：以上游为准（顺序、名称都用上游的），
+     * 静态表里上游没提到的模型补到末尾 —— 宁可多给客户端几个，
+     * 也不要让上游少返回一条就把可用模型弄丢。
+     */
+    private fun mergeWithStaticModels(live: JSONArray, fallback: JSONArray): JSONArray {
+        val have = HashSet<String>()
+        for (i in 0 until live.length()) {
+            live.optJSONObject(i)?.optString("id", "")?.let { if (it.isNotBlank()) have.add(it) }
+        }
+        val out = JSONArray()
+        for (i in 0 until live.length()) live.optJSONObject(i)?.let { out.put(it) }
+        for (i in 0 until fallback.length()) {
+            val m = fallback.optJSONObject(i) ?: continue
+            if (!have.contains(m.optString("id", ""))) out.put(m)
+        }
+        return out
     }
 
     @Volatile

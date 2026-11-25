@@ -909,6 +909,7 @@ class MainActivity : AppCompatActivity() {
         // 各渠道 adapter（取已查好的积分文本）；只读 creditsOf，不动查询逻辑
         val creditSource: (String) -> String? = when (currentTab) {
             "WorkBuddy" -> { id -> wbAccountAdapter.creditsOf(id) }
+            "QoderCn" -> { id -> qcAccountAdapter.creditsOf(id) }
             "Loomy" -> { id -> loomyAccountAdapter.creditsOf(id) }
             else -> { id -> accountAdapter.creditsOf(id) }
         }

@@ -549,8 +549,10 @@ class LocalApiServer(
         // 从没拉过 → 同步拉一次（Harness 首次扫描就要拿到完整表，不能先给空/旧表）；
         // 只是过期 → 后台异步刷（不阻塞响应，先回当前表让对话不卡）。
         val neverFetched = modelsDynamic == null
-        if (neverFetched || now - modelsFetchedAt > MODELS_TTL_MS) {
-            if (neverFetched) refreshModelsBlocking() else refreshModels()
+        // 跨天也视同「需要刷新」，且同步拉一次：保证新的一天打开就是最新表
+        val newDay = store.shouldRefreshModelsToday(defaultChannelKey)
+        if (neverFetched || newDay || now - modelsFetchedAt > MODELS_TTL_MS) {
+            if (neverFetched || newDay) refreshModelsBlocking() else refreshModels()
         }
         // 动态表拿到就用；没有则按渠道回退：
         // Loomy/Buddy 回退静态表（保证客户端始终有模型可搜），Trae 回退默认单模型
@@ -568,8 +570,35 @@ class LocalApiServer(
         put(JSONObject().put("id", TraeGateway.DEFAULT_MODEL).put("object", "model").put("owned_by", "trae").put("created", 0))
     }
 
+    private fun todayKey(): String =
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+
     /** 服务启动时预拉一次模型表（客户端访问前缓存已就绪）；失败静默 */
     fun warmUpModels() = refreshModels()
+
+    /**
+     * 供 UI 读取当前渠道的模型表（不含上游请求）。
+     * 返回的是网关内部真实生效的表——和客户端 /v1/models 看到的完全一致。
+     */
+    fun peekModels(): JSONArray = currentModels()
+
+    /**
+     * UI 手动刷新：同步打上游拿最新模型表。
+     * 拿不到非空表时保持原样（不把已有列表刷成空）。
+     */
+    fun refreshModelsNow(): JSONArray {
+        refreshModelsBlocking()
+        return currentModels()
+    }
+
+    /**
+     * 跨天自动刷新：今天还没刷过就刷一次。
+     * 规则是「每天过了 12 点，再打开就自动刷新」，所以判断依据是日历日期而非间隔。
+     */
+    fun refreshModelsIfNewDay() {
+        if (!store.shouldRefreshModelsToday(defaultChannelKey)) return
+        ioPool.execute { refreshModelsBlocking() }
+    }
 
     /**
      * 同步拉取模型表（首次 /v1/models 用）。
@@ -590,6 +619,7 @@ class LocalApiServer(
                 modelsDynamic = arr
                 modelsFetchedAt = System.currentTimeMillis()
                 store.cacheModels(defaultChannelKey, arr.toString())
+                store.saveModelsRefreshDay(defaultChannelKey, todayKey())
                 Log.i(tag, "[$defaultChannelKey] 模型表已同步刷新: ${arr.length()} 个")
             } else {
                 Log.w(tag, "[$defaultChannelKey] 同步刷新拿到空表，回退静态表")
@@ -618,6 +648,7 @@ class LocalApiServer(
                     modelsDynamic = arr
                     modelsFetchedAt = System.currentTimeMillis()
                     store.cacheModels(defaultChannelKey, arr.toString())
+                    store.saveModelsRefreshDay(defaultChannelKey, todayKey())
                     Log.i(tag, "[$defaultChannelKey] 模型表已刷新: ${arr.length()} 个")
                 }
             } catch (e: Exception) {

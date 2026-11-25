@@ -98,6 +98,23 @@ class GatewayService : Service() {
             context.startService(intent)
         }
 
+        /** 各渠道的 LocalApiServer 实例（UI 用来读模型表；未启动的渠道没有实例） */
+        private val liveServers = mutableMapOf<String, LocalApiServer>()
+
+        /**
+         * 某渠道当前生效的模型表（JSON 数组字符串）。
+         * 网关没跑时返回 null —— 由调用方回退到静态表。
+         */
+        fun modelsJsonOf(channel: String): String? =
+            liveServers[channel]?.let { runCatching { it.peekModels().toString() }.getOrNull() }
+
+        /**
+         * 手动刷新某渠道的模型表（打上游），返回刷新后的 JSON 数组字符串。
+         * 网关没跑时返回 null。
+         */
+        fun refreshModels(channel: String): String? =
+            liveServers[channel]?.let { runCatching { it.refreshModelsNow().toString() }.getOrNull() }
+
         /** 服务整个重启：恢复所有 shouldRun=true 的渠道 */
         fun startAllIntended(context: Context) {
             val store = GatewayStore(context)
@@ -158,6 +175,7 @@ class GatewayService : Service() {
         // Qoder 中国版签名 WASM 只在 8790 端口加载（其它渠道不占这 292KB 内存）
         val qoderCnWasm = if (channel == GatewayStore.CH_QODERCN) loadQoderCnWasm() else null
         val srv = LocalApiServer(store, accountStore, loomyStore, workBuddyStore, basePort, qoderCnStore, qoderCnWasm)
+        liveServers[channel] = srv
         srv.callLogStore = CallLogStore(this)
         val ok = srv.start()
         if (ok) {

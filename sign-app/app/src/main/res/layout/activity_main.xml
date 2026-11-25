@@ -1512,6 +1512,118 @@
                         android:textSize="12sp" />
                 </LinearLayout>
 
+                <!-- 可用模型（按当前渠道显示；二级展开：先几个，再全部） -->
+                <LinearLayout
+                    android:id="@+id/llModelCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:background="@drawable/bg_card"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <!-- 标题行：名称 + 数量 + 刷新 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="可用模型"
+                            android:textColor="@color/text_primary"
+                            android:textSize="15sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvModelCount"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="10dp"
+                            android:text="--"
+                            android:textColor="@color/gray"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/btnModelRefresh"
+                            android:layout_width="wrap_content"
+                            android:layout_height="26dp"
+                            android:background="@drawable/bg_api_chip"
+                            android:gravity="center"
+                            android:paddingLeft="10dp"
+                            android:paddingRight="10dp"
+                            android:text="刷新"
+                            android:textColor="?attr/signPrimary"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- 一级展开按钮（默认收起，点开显示前几个） -->
+                    <LinearLayout
+                        android:id="@+id/rowModelToggle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:id="@+id/tvModelHint"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="点击展开模型列表"
+                            android:textColor="@color/gray"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:id="@+id/tvModelArrow"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="▼"
+                            android:textColor="@color/gray"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
+                    <!-- 模型列表容器（代码动态填充） -->
+                    <LinearLayout
+                        android:id="@+id/llModelList"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:orientation="vertical"
+                        android:visibility="gone" />
+
+                    <!-- 长按复制提示（全局一条，避免每行重复） -->
+                    <TextView
+                        android:id="@+id/tvModelTip"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="长按任意模型可复制模型名"
+                        android:textColor="@color/gray"
+                        android:textSize="11sp"
+                        android:visibility="gone" />
+
+                    <!-- 二级展开：显示全部 -->
+                    <TextView
+                        android:id="@+id/btnModelMore"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:gravity="center"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"
+                        android:text="显示全部"
+                        android:textColor="?attr/signPrimary"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
+                </LinearLayout>
+
                 <!-- 调用记录（内嵌 · 只显示当前渠道；对齐 traework2api 的卡片式汇总+流水） -->
                 <LinearLayout
                     android:id="@+id/llGatewayCallLogs"

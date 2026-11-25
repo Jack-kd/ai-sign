@@ -30,6 +30,7 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.google.gson.Gson
 import com.jackkd.signapp.R
+import com.jackkd.signapp.net.ChannelConfigs
 import com.jackkd.signapp.data.AccountStore
 import com.jackkd.signapp.data.CallLogStore
 import com.jackkd.signapp.data.CloudSignLog
@@ -431,6 +432,7 @@ class MainActivity : AppCompatActivity() {
 
         // ── API 快捷开启（C 状态灯 + A 折叠条）──
         bindHomeApiCards()
+        bindModelCard()
 
         // 详情页返回：分层返回（网关页→渠道详情→首页）
         findViewById<View>(R.id.btnBackHome).setOnClickListener { goBackFromDetail() }
@@ -676,9 +678,229 @@ class MainActivity : AppCompatActivity() {
         // 局域网端点（同 Wi-Fi 设备访问，IP 变化自动跟随）
         tvGatewayBaseUrlLan.text = "http://${lanIpOrDash()}:$port/v1"
 
+        // 可用模型卡片（只显示当前渠道；跨天自动刷新由 currentModels 负责）
+        renderModelCard()
+
         // 内嵌调用记录（只渲染当前渠道的记录）
         renderGatewayCallLogs(ch)
     }
+
+    // ---------- 网关「可用模型」卡片 ----------
+
+    /** 一级展开：是否已展开模型列表 */
+    private var modelListExpanded = false
+    /** 二级展开：是否显示全部模型（false = 只显示前几个） */
+    private var modelShowAll = false
+    private val MODEL_PREVIEW_COUNT = 4
+
+    /** 绑定模型卡片（只在网关页创建时调一次） */
+    private fun bindModelCard() {
+        findViewById<View>(R.id.rowModelToggle).setOnClickListener {
+            modelListExpanded = !modelListExpanded
+            if (!modelListExpanded) modelShowAll = false
+            renderModelCard()
+        }
+        findViewById<View>(R.id.btnModelMore).setOnClickListener {
+            modelShowAll = !modelShowAll
+            renderModelCard()
+        }
+        findViewById<View>(R.id.btnModelRefresh).setOnClickListener { forceRefreshModels() }
+    }
+
+    /** 手动刷新：打上游拿最新模型表 */
+    private fun forceRefreshModels() {
+        val ch = currentChannelKey()
+        val btn = findViewById<TextView>(R.id.btnModelRefresh)
+        btn.text = "刷新中"
+        btn.isEnabled = false
+        lifecycleScope.launch {
+            val json = withContext(Dispatchers.IO) { GatewayService.refreshModels(ch) }
+            btn.text = "刷新"
+            btn.isEnabled = true
+            if (json == null) {
+                Toast.makeText(this@MainActivity, "网关未启动，无法刷新", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this@MainActivity, "模型表已更新", Toast.LENGTH_SHORT).show()
+            }
+            renderModelCard()
+        }
+    }
+
+    /** 渲染模型卡片（当前渠道） */
+    private fun renderModelCard() {
+        val ch = currentChannelKey()
+        val models = loadChannelModels(ch)
+
+        val countTv = findViewById<TextView>(R.id.tvModelCount)
+        val listLl = findViewById<LinearLayout>(R.id.llModelList)
+        val moreTv = findViewById<TextView>(R.id.btnModelMore)
+        val hintTv = findViewById<TextView>(R.id.tvModelHint)
+        val arrowTv = findViewById<TextView>(R.id.tvModelArrow)
+
+        countTv.text = if (models.isEmpty()) "暂无" else "${models.size} 个"
+
+        if (!modelListExpanded) {
+            listLl.visibility = View.GONE
+            moreTv.visibility = View.GONE
+            findViewById<View>(R.id.tvModelTip).visibility = View.GONE
+            hintTv.text = "点击展开模型列表"
+            arrowTv.text = "▼"
+            return
+        }
+
+        listLl.visibility = View.VISIBLE
+        arrowTv.text = "▲"
+        hintTv.text = "按单价从低到高"
+        listLl.removeAllViews()
+
+        val shown = if (modelShowAll) models else models.take(MODEL_PREVIEW_COUNT)
+        for (m in shown) listLl.addView(buildModelRow(m))
+
+        if (models.size > MODEL_PREVIEW_COUNT) {
+            moreTv.visibility = View.VISIBLE
+            moreTv.text = if (modelShowAll) "收起" else "显示全部 ${models.size} 个"
+        } else {
+            moreTv.visibility = View.GONE
+        }
+
+        // 展开后提示可长按复制（收起时不占位置）
+        findViewById<View>(R.id.tvModelTip).visibility =
+            if (models.isEmpty()) View.GONE else View.VISIBLE
+    }
+
+    /** 单个模型行：名称 + 倍率/上下文/能力 */
+    private data class ModelRow(
+        val id: String,
+        val name: String,
+        val meta: String,
+        val rate: Double?,      // 用于排序；null = 无倍率信息
+    )
+
+    /**
+     * 取当前渠道的模型表。
+     *  - TRAE / WorkBuddy / Loomy：读网关内存里已经拉到的动态表（和客户端看到的一致）
+     *  - Qoder 中国版：官方无清单接口，用静态表（含实测成本倍率）
+     * 网关没跑时回退到静态表，保证卡片始终有内容。
+     */
+    private fun loadChannelModels(channel: String): List<ModelRow> {
+        val json = GatewayService.modelsJsonOf(channel)
+        if (json != null) {
+            try {
+                val arr = org.json.JSONArray(json)
+                val out = ArrayList<ModelRow>(arr.length())
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    val id = o.optString("id", "").trim()
+                    if (id.isBlank()) continue
+                    val name = o.optString("name", "").trim().ifEmpty { id }
+                    out.add(ModelRow(id, name, buildModelMeta(o, name), parseRateOf(name, id)))
+                }
+                if (out.isNotEmpty()) return out.sortedBy { it.rate ?: Double.MAX_VALUE }
+            } catch (e: Exception) { }
+        }
+        return staticModelsOf(channel).sortedBy { it.rate ?: Double.MAX_VALUE }
+    }
+
+    /** 从显示名里抠倍率（如 "DeepSeek V4 · x3.0"） */
+    private fun parseRateOf(name: String, id: String): Double? {
+        val m = Regex("""x\s*([0-9]+(?:\.[0-9]+)?)""", RegexOption.IGNORE_CASE).find(name)
+        return m?.groupValues?.getOrNull(1)?.toDoubleOrNull()
+    }
+
+    /** 组装元信息行：倍率 · 上下文 · 能力 */
+    private fun buildModelMeta(o: org.json.JSONObject, name: String): String {
+        val parts = ArrayList<String>()
+        Regex("""·\s*(x\s*[0-9]+(?:\.[0-9]+)?)""", RegexOption.IGNORE_CASE)
+            .find(name)?.groupValues?.getOrNull(1)?.let { parts.add(it.replace(" ", "")) }
+        val ctx = o.optInt("context_window", 0)
+        if (ctx > 0) parts.add(formatCtx(ctx))
+        if (o.optBoolean("supports_images", false)) parts.add("识图")
+        return parts.joinToString(" · ")
+    }
+
+    private fun formatCtx(v: Int): String = when {
+        v >= 1_000_000 -> "${v / 1_000_000}M"
+        v >= 1_000 -> "${v / 1_000}K"
+        else -> v.toString()
+    }
+
+    /** 网关未运行时的静态回退表 */
+    private fun staticModelsOf(channel: String): List<ModelRow> = when (channel) {
+        GatewayStore.CH_QODERCN -> ChannelConfigs.QODERCN.toModelsArray().let { arr ->
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                val id = o.optString("id", "")
+                val name = o.optString("name", "").ifEmpty { id }
+                ModelRow(id, name, buildModelMeta(o, name), parseRateOf(name, id))
+            }
+        }
+        GatewayStore.CH_LOOMY -> staticFromConfig(ChannelConfigs.LOOMY.toModelsArray())
+        GatewayStore.CH_BUDDY -> staticFromConfig(ChannelConfigs.BUDDY.toModelsArray())
+        else -> emptyList()
+    }
+
+    private fun staticFromConfig(arr: org.json.JSONArray): List<ModelRow> =
+        (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val id = o.optString("id", "")
+            val name = o.optString("name", "").ifEmpty { id }
+            ModelRow(id, name, buildModelMeta(o, name), parseRateOf(name, id))
+        }
+
+    /** 构建一行模型视图 */
+    private fun buildModelRow(m: ModelRow): View {
+        val ctx = this
+        val row = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(7), 0, dp(7))
+            // 长按整行复制模型 id（客户端里要填的是 id，不是显示名）
+            isLongClickable = true
+            setOnLongClickListener {
+                copyText("SIGNAPP_MODEL_ID", m.id, "已复制模型名：${m.id}")
+                true
+            }
+        }
+        val line1 = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        line1.addView(TextView(ctx).apply {
+            text = m.name
+            setTextColor(ContextCompat.getColor(ctx, R.color.text_primary))
+            textSize = 13.5f
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        if (m.rate != null) {
+            line1.addView(TextView(ctx).apply {
+                text = "x${trimNum(m.rate)}"
+                setTextColor(ContextCompat.getColor(ctx, R.color.gray))
+                textSize = 11f
+                setPadding(dp(8), dp(1), dp(8), dp(1))
+                background = ContextCompat.getDrawable(ctx, R.drawable.bg_api_chip)
+            })
+        }
+        row.addView(line1)
+        if (m.meta.isNotBlank() || m.id != m.name) {
+            val metaText = buildString {
+                if (m.meta.isNotBlank()) append(m.meta)
+                // id 与显示名不同时把 id 也露出来，方便直接照抄
+                if (m.id != m.name) {
+                    if (isNotEmpty()) append(" · ")
+                    append(m.id)
+                }
+            }
+            row.addView(TextView(ctx).apply {
+                text = metaText
+                setTextColor(ContextCompat.getColor(ctx, R.color.gray))
+                textSize = 11.5f
+                setPadding(0, dp(2), 0, 0)
+            })
+        }
+        return row
+    }
+
+    private fun trimNum(v: Double): String =
+        if (v == v.toLong().toDouble()) v.toLong().toString() else v.toString()
 
     // ---------- 网关内嵌调用记录 ----------
 

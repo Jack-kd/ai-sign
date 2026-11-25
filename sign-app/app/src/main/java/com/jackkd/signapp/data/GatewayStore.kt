@@ -99,6 +99,24 @@ class GatewayStore(context: Context) {
         return null
     }
 
+    /**
+     * 模型表最后一次刷新的**日期**（yyyy-MM-dd，本地时区）。
+     * 用于「每天过了 12 点，再打开就自动刷新一次」：跨天即视为过期。
+     */
+    fun modelsRefreshDay(channel: String): String? =
+        sp.getString("models_day_$channel", null)?.takeIf { it.isNotBlank() }
+
+    fun saveModelsRefreshDay(channel: String, day: String) {
+        sp.edit().putString("models_day_$channel", day).commit()
+    }
+
+    /** 今天还没刷过模型表吗（跨天 → true） */
+    fun shouldRefreshModelsToday(channel: String): Boolean {
+        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+            .format(java.util.Date())
+        return modelsRefreshDay(channel) != today
+    }
+
     fun cacheModels(channel: String, json: String) {
         if (json.isBlank()) return
         sp.edit().putString("models_cache_$channel", json).commit()

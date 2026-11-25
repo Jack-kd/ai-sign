@@ -195,6 +195,7 @@
                     android:elevation="3dp">
 
                     <LinearLayout
+                        android:id="@+id/rowInfoTrae"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
@@ -278,15 +279,23 @@
                         android:textSize="17sp"
                         android:textStyle="bold"
                         android:elevation="2dp" />
+                    <!-- API 快捷开启：灰=未开 / 蓝=已开 / 橙=想开但没跑起来 -->
                     <TextView
-                        android:id="@+id/apiDotTrae"
-                        android:layout_width="10dp"
-                        android:layout_height="10dp"
+                        android:id="@+id/apiBtnTrae"
+                        android:layout_width="wrap_content"
+                        android:layout_height="26dp"
                         android:layout_gravity="top|end"
-                        android:layout_marginTop="10dp"
+                        android:layout_marginTop="9dp"
                         android:layout_marginEnd="46dp"
-                        android:background="@drawable/bg_api_dot_off"
-                        android:elevation="3dp" />
+                        android:background="@drawable/bg_api_pill_off"
+                        android:gravity="center"
+                        android:paddingLeft="11dp"
+                        android:paddingRight="11dp"
+                        android:text="API"
+                        android:textColor="@color/gray"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:elevation="2dp" />
 
                     <!-- ── API 快捷开启：折叠条（默认收起，开启后展开显示地址与去敏密钥） ── -->
                     <LinearLayout
@@ -406,6 +415,7 @@
                     android:elevation="3dp">
 
                     <LinearLayout
+                        android:id="@+id/rowInfoWb"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
@@ -489,15 +499,23 @@
                         android:textSize="17sp"
                         android:textStyle="bold"
                         android:elevation="2dp" />
+                    <!-- API 快捷开启：灰=未开 / 蓝=已开 / 橙=想开但没跑起来 -->
                     <TextView
-                        android:id="@+id/apiDotWb"
-                        android:layout_width="10dp"
-                        android:layout_height="10dp"
+                        android:id="@+id/apiBtnWb"
+                        android:layout_width="wrap_content"
+                        android:layout_height="26dp"
                         android:layout_gravity="top|end"
-                        android:layout_marginTop="10dp"
+                        android:layout_marginTop="9dp"
                         android:layout_marginEnd="46dp"
-                        android:background="@drawable/bg_api_dot_off"
-                        android:elevation="3dp" />
+                        android:background="@drawable/bg_api_pill_off"
+                        android:gravity="center"
+                        android:paddingLeft="11dp"
+                        android:paddingRight="11dp"
+                        android:text="API"
+                        android:textColor="@color/gray"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:elevation="2dp" />
 
                     <!-- ── API 快捷开启：折叠条（默认收起，开启后展开显示地址与去敏密钥） ── -->
                     <LinearLayout
@@ -617,6 +635,7 @@
                     android:elevation="3dp">
 
                     <LinearLayout
+                        android:id="@+id/rowInfoQc"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
@@ -700,15 +719,23 @@
                         android:textSize="17sp"
                         android:textStyle="bold"
                         android:elevation="2dp" />
+                    <!-- API 快捷开启：灰=未开 / 蓝=已开 / 橙=想开但没跑起来 -->
                     <TextView
-                        android:id="@+id/apiDotQc"
-                        android:layout_width="10dp"
-                        android:layout_height="10dp"
+                        android:id="@+id/apiBtnQc"
+                        android:layout_width="wrap_content"
+                        android:layout_height="26dp"
                         android:layout_gravity="top|end"
-                        android:layout_marginTop="10dp"
+                        android:layout_marginTop="9dp"
                         android:layout_marginEnd="46dp"
-                        android:background="@drawable/bg_api_dot_off"
-                        android:elevation="3dp" />
+                        android:background="@drawable/bg_api_pill_off"
+                        android:gravity="center"
+                        android:paddingLeft="11dp"
+                        android:paddingRight="11dp"
+                        android:text="API"
+                        android:textColor="@color/gray"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:elevation="2dp" />
 
                     <!-- ── API 快捷开启：折叠条（默认收起，开启后展开显示地址与去敏密钥） ── -->
                     <LinearLayout
@@ -828,6 +855,7 @@
                     android:elevation="3dp">
 
                     <LinearLayout
+                        android:id="@+id/rowInfoLoomy"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
@@ -911,15 +939,23 @@
                         android:textSize="17sp"
                         android:textStyle="bold"
                         android:elevation="2dp" />
+                    <!-- API 快捷开启：灰=未开 / 蓝=已开 / 橙=想开但没跑起来 -->
                     <TextView
-                        android:id="@+id/apiDotLoomy"
-                        android:layout_width="10dp"
-                        android:layout_height="10dp"
+                        android:id="@+id/apiBtnLoomy"
+                        android:layout_width="wrap_content"
+                        android:layout_height="26dp"
                         android:layout_gravity="top|end"
-                        android:layout_marginTop="10dp"
+                        android:layout_marginTop="9dp"
                         android:layout_marginEnd="46dp"
-                        android:background="@drawable/bg_api_dot_off"
-                        android:elevation="3dp" />
+                        android:background="@drawable/bg_api_pill_off"
+                        android:gravity="center"
+                        android:paddingLeft="11dp"
+                        android:paddingRight="11dp"
+                        android:text="API"
+                        android:textColor="@color/gray"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:elevation="2dp" />
 
                     <!-- ── API 快捷开启：折叠条（默认收起，开启后展开显示地址与去敏密钥） ── -->
                     <LinearLayout

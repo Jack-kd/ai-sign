@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 按钮：未开启（灰色浅底 + 灰字） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#1F000000" />
+    <corners android:radius="999dp" />
+</shape>

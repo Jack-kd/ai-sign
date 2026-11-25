@@ -844,7 +844,7 @@ class MainActivity : AppCompatActivity() {
     private data class HomeApiCard(
         val tab: String,        // 卡片 tab 名（用于 showChannelDetail）
         val channel: String,    // GatewayStore 渠道 key
-        val dot: Int,
+        val btn: Int,
         val panel: Int,
         val url: Int,
         val copyUrl: Int,
@@ -856,16 +856,16 @@ class MainActivity : AppCompatActivity() {
     private val homeApiCards: List<HomeApiCard> by lazy {
         listOf(
             HomeApiCard("TRAE", GatewayStore.CH_TRAE,
-                R.id.apiDotTrae, R.id.apiPanelTrae, R.id.apiUrlTrae,
+                R.id.apiBtnTrae, R.id.apiPanelTrae, R.id.apiUrlTrae,
                 R.id.apiCopyUrlTrae, R.id.apiKeyTrae, R.id.apiEyeTrae, R.id.apiCopyKeyTrae),
             HomeApiCard("WorkBuddy", GatewayStore.CH_BUDDY,
-                R.id.apiDotWb, R.id.apiPanelWb, R.id.apiUrlWb,
+                R.id.apiBtnWb, R.id.apiPanelWb, R.id.apiUrlWb,
                 R.id.apiCopyUrlWb, R.id.apiKeyWb, R.id.apiEyeWb, R.id.apiCopyKeyWb),
             HomeApiCard("QoderCn", GatewayStore.CH_QODERCN,
-                R.id.apiDotQc, R.id.apiPanelQc, R.id.apiUrlQc,
+                R.id.apiBtnQc, R.id.apiPanelQc, R.id.apiUrlQc,
                 R.id.apiCopyUrlQc, R.id.apiKeyQc, R.id.apiEyeQc, R.id.apiCopyKeyQc),
             HomeApiCard("Loomy", GatewayStore.CH_LOOMY,
-                R.id.apiDotLoomy, R.id.apiPanelLoomy, R.id.apiUrlLoomy,
+                R.id.apiBtnLoomy, R.id.apiPanelLoomy, R.id.apiUrlLoomy,
                 R.id.apiCopyUrlLoomy, R.id.apiKeyLoomy, R.id.apiEyeLoomy, R.id.apiCopyKeyLoomy),
         )
     }
@@ -877,11 +877,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun bindHomeApiCards() {
         for (c in homeApiCards) {
-            // C：状态灯点击 = 单独开/关这个渠道的网关
-            findViewById<View>(c.dot).setOnClickListener { toggleChannelGateway(c) }
-            // A：点地址/密钥文字 = 展开或收起折叠条
-            findViewById<View>(c.url).setOnClickListener { toggleApiPanel(c) }
-            findViewById<View>(c.key).setOnClickListener { toggleApiPanel(c) }
+            // API 按钮：单独开/关这个渠道的网关，开启后自动展开面板
+            findViewById<View>(c.btn).setOnClickListener { toggleChannelGateway(c) }
 
             findViewById<View>(c.copyUrl).setOnClickListener {
                 copyText("SIGNAPP_GATEWAY_URL", findViewById<TextView>(c.url).text.toString(), "接口地址已复制")
@@ -915,31 +912,53 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "已启动 ${c.tab} 网关", Toast.LENGTH_SHORT).show()
         }
         // 服务启停是异步的，稍等再刷状态
-        findViewById<View>(c.dot).postDelayed({ refreshHomeApiCards() }, 600)
+        findViewById<View>(c.btn).postDelayed({ refreshHomeApiCards() }, 600)
     }
 
-    private fun toggleApiPanel(c: HomeApiCard) {
-        val panel = findViewById<View>(c.panel)
-        panel.visibility = if (panel.visibility == View.VISIBLE) View.GONE else View.VISIBLE
-        if (panel.visibility == View.VISIBLE) refreshHomeApiRow(c)
-    }
-
-    /** 刷新全部卡片的灯与折叠条 */
+    /** 刷新全部卡片的按钮与折叠条 */
     private fun refreshHomeApiCards() {
         for (c in homeApiCards) {
-            val running = GatewayService.isRunning(c.channel)
-            val want = gatewayStore.shouldRun(c.channel)
-            val dot = findViewById<View>(c.dot)
-            dot.setBackgroundResource(
-                when {
-                    running -> R.drawable.bg_api_dot_on
-                    want -> R.drawable.bg_api_dot_warn   // 想开但没跑起来
-                    else -> R.drawable.bg_api_dot_off
-                }
-            )
-            // 折叠条保持用户手动展开/收起的状态，这里只刷新内容
+            applyApiButton(c)
+            // 蓝（运行中）和橙（想开但没跑起来）都算「已开启」→ 展开面板；
+            // 只有灰（彻底没开）才收起，避免灰按钮下面挂着一堆地址让人困惑。
+            setPanelVisible(c, isApiEnabled(c.channel))
             refreshHomeApiRow(c)
         }
+    }
+
+    /**
+     * 显示/隐藏某渠道的信息面板。
+     * 布局里面板是 FrameLayout 的 bottom 子元素，会和主信息行重叠，
+     * 所以这里按面板实际高度给主信息行补底部内边距，避免文字被盖住。
+     */
+    private fun setPanelVisible(c: HomeApiCard, show: Boolean) {
+        val panel = findViewById<View>(c.panel)
+        val infoRow = findViewById<View>(infoRowIdOf(c.channel)) ?: return
+        if (show) {
+            panel.visibility = View.VISIBLE
+            // 等一帧拿到真实高度再补 padding
+            panel.post {
+                val h = panel.height
+                if (h > 0) {
+                    // 主信息行原本底部 16dp，展开时让它让出面板高度
+                    infoRow.setPadding(
+                        infoRow.paddingLeft, infoRow.paddingTop,
+                        infoRow.paddingRight, h + dp(6)
+                    )
+                }
+            }
+        } else {
+            panel.visibility = View.GONE
+            infoRow.setPadding(infoRow.paddingLeft, infoRow.paddingTop, infoRow.paddingRight, dp(16))
+        }
+    }
+
+    /** 各渠道主信息行（含图标/名称/账号数的那一行）的 id */
+    private fun infoRowIdOf(channel: String): Int = when (channel) {
+        GatewayStore.CH_LOOMY -> R.id.rowInfoLoomy
+        GatewayStore.CH_BUDDY -> R.id.rowInfoWb
+        GatewayStore.CH_QODERCN -> R.id.rowInfoQc
+        else -> R.id.rowInfoTrae
     }
 
     /** 刷新单个卡片的地址与去敏密钥 */
@@ -956,15 +975,44 @@ class MainActivity : AppCompatActivity() {
     /** 轮询时同步首页状态灯（网关可能被系统杀掉或由服务自己拉起） */
     private fun refreshHomeApiDots() {
         for (c in homeApiCards) {
-            val running = GatewayService.isRunning(c.channel)
-            val want = gatewayStore.shouldRun(c.channel)
-            findViewById<View>(c.dot).setBackgroundResource(
-                when {
-                    running -> R.drawable.bg_api_dot_on
-                    want -> R.drawable.bg_api_dot_warn
-                    else -> R.drawable.bg_api_dot_off
-                }
-            )
+            applyApiButton(c)
+            // 网关被系统杀掉（蓝→橙）时面板保持展开，状态变化看得见
+            val panel = findViewById<View>(c.panel)
+            val shouldShow = isApiEnabled(c.channel)
+            if ((panel.visibility == View.VISIBLE) != shouldShow) {
+                setPanelVisible(c, shouldShow)
+            }
+        }
+    }
+
+    /** 该渠道的 API 是否「已开启」：运行中（蓝）或想开但没跑起来（橙）都算 */
+    private fun isApiEnabled(channel: String): Boolean =
+        GatewayService.isRunning(channel) || gatewayStore.shouldRun(channel)
+
+    /**
+     * API 按钮三态：
+     *   蓝 = 已开启并运行中；灰 = 未开启；橙 = 想开但没跑起来（被系统杀掉 / 启动失败）
+     */
+    private fun applyApiButton(c: HomeApiCard) {
+        val running = GatewayService.isRunning(c.channel)
+        val want = gatewayStore.shouldRun(c.channel)
+        val btn = findViewById<TextView>(c.btn)
+        when {
+            running -> {
+                btn.setBackgroundResource(R.drawable.bg_api_pill_on)
+                btn.setTextColor(android.graphics.Color.WHITE)
+                btn.text = "API"
+            }
+            want -> {
+                btn.setBackgroundResource(R.drawable.bg_api_pill_warn)
+                btn.setTextColor(android.graphics.Color.parseColor("#FF8A3D"))
+                btn.text = "API"
+            }
+            else -> {
+                btn.setBackgroundResource(R.drawable.bg_api_pill_off)
+                btn.setTextColor(ContextCompat.getColor(this, R.color.gray))
+                btn.text = "API"
+            }
         }
     }
 

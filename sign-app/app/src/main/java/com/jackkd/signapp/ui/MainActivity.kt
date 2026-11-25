@@ -3202,6 +3202,7 @@ private fun showGithubDialog() {
             val success = list.count { it.result == "成功" }
             val fail = list.count { it.result == "失败" }
             val already = list.count { it.result == "已签到" }
+            val nocamp = list.count { it.result == "无活动" }
             val manual = list.count { it.source == "手动" }
             val auto = list.size - manual
 
@@ -3233,7 +3234,8 @@ private fun showGithubDialog() {
             sb.append(line("# 积分统计 · 全部渠道\n", cCyan))
             sb.append(line("  今日领取  " + two(earnedToday) + " 分   累计领取  " + two(earnedTotal) + " 分\n", cGreen))
             sb.append(line("  近 7 天   " + two(trendTotal) + " 分   本月领取  " + two(earnedMonth) + " 分\n", cCyan))
-            sb.append(line("  成功 " + success + " 次 / 失败 " + fail + " 次 / 已签到 " + already + " 次\n", cGray))
+            sb.append(line("  成功 " + success + " 次 / 失败 " + fail + " 次 / 已签到 " + already + " 次" +
+                (if (nocamp > 0) " / 无活动 " + nocamp + " 次" else "") + "\n", cGray))
             sb.append(line("  手动 $manual 条 / 自动 $auto 条" + (if (unknownCount > 0) " / 未标注渠道 +$unknownTotal 分" else "") + "\n", cGray))
             // ===== ② 分渠道 =====
             sb.append(line("# 分渠道明细\n", cCyan))
@@ -3259,7 +3261,7 @@ private fun showGithubDialog() {
             }
             // ===== ④ 说明 =====
             sb.append(line("\n单位：分（签到领取的积分/额度）；成功/失败/已签到 为云端返回结果；", cGray))
-            sb.append(line("已签到 = 当日已领过；累计 = 全部历史记录之和。", cGray))
+            sb.append(line("已签到 = 当日已领过；无活动 = 该账号不参与活动或当日无任务；累计 = 全部历史记录之和。", cGray))
             tv.text = sb
         }
     }
@@ -3300,6 +3302,7 @@ private fun showGithubDialog() {
             val dotColor = if (source == "手动") cYellow else cCyan
             val bodyColor = when {
                 result == "失败" -> cRed
+                result == "无活动" -> cGray
                 earned > 0 -> cGreen
                 else -> cPurple
             }

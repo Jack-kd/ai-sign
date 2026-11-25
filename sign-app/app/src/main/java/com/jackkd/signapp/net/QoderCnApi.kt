@@ -234,8 +234,35 @@ class QoderCnApi {
         val campaignId: String,
         val claimed: Boolean,
         val amount: Double,
-        val endAt: Long
+        val endAt: Long,
+        /** 服务端下发的活动总条数；0 表示该账号当前没有任何活动 */
+        val totalCampaigns: Int = 0
     )
+
+    /**
+     * 账号类型：personal_standard = 体验版（免费），personal_professional_trial = 试用期，
+     * personal_professional / premium / ultimate = 个人付费订阅。
+     * 体验版自 2026-11-19 起被官方移出「每日领取 100 Credits」活动范围，服务端不再下发签到任务。
+     */
+    fun fetchUserType(cred: QoderCnCredentials): String {
+        val token = cred.token()
+        if (token.isBlank()) return ""
+        val req = Request.Builder()
+            .url(OPENAPI_BASE + "/sash/api/v2/me/usage")
+            .get()
+            .headers(sashHeaders(token))
+            .build()
+        return try {
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return ""
+                val obj = JsonParser.parseString(resp.body?.string().orEmpty()).asJsonObject
+                val usage = obj.getAsJsonObject("qoderUsage") ?: return ""
+                str(usage, "userType")
+            }
+        } catch (e: Exception) {
+            ""
+        }
+    }
 
     fun fetchCampaign(cred: QoderCnCredentials): CampaignState? {
         val token = cred.token()
@@ -263,8 +290,10 @@ class QoderCnApi {
                         val am = benefit.asJsonObject.get("amount")
                         if (am != null && am.isJsonPrimitive) amount = am.asDouble
                     }
-                    return CampaignState(id, status == "CLAIMED", amount, endAt)
+                    return CampaignState(id, status == "CLAIMED", amount, endAt, arr.size())
                 }
+                // 有活动但没有 CLAIM_BENEFIT（例如只有 VIEW_DETAILS 广告活动），
+                // 说明该账号当前没有签到任务，不能当成「已领取」。
                 null
             }
         } catch (e: Exception) {

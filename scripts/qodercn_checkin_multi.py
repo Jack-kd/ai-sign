@@ -150,6 +150,19 @@ def _balance(access_token):
     return round(total, 2)
 
 
+def _account_type(access_token):
+    # userType 只用来解释「为什么没有可领活动」，不参与领取判定：
+    # personal_standard = 体验版（免费），personal_professional_trial = 试用期，
+    # personal_professional / premium / ultimate = 个人付费订阅
+    status, obj, _ = _get(API_BASE + USAGE_PATH, _headers(access_token))
+    if status != 200 or not isinstance(obj, dict):
+        return ""
+    usage = obj.get("qoderUsage")
+    if not isinstance(usage, dict):
+        return ""
+    return str(usage.get("userType") or "")
+
+
 def _fmt_num(x):
     try:
         f = float(x)
@@ -159,13 +172,16 @@ def _fmt_num(x):
 
 
 def _campaign(access_token):
-    # 只关心 CLAIM_BENEFIT 类型的活动（每日积分领取）
+    # 只关心 CLAIM_BENEFIT 类型的活动（每日积分领取）。
+    # 第 4 个返回值是服务端下发的活动总数：用来区分「一条活动都没有」和
+    # 「有活动但没有签到活动」（例如只有 VIEW_DETAILS 广告活动）。
     status, obj, raw = _get(API_BASE + CAMPAIGN_PATH, _headers(access_token))
     if status != 200 or not isinstance(obj, dict):
-        return status, None, raw
+        return status, None, raw, 0
     arr = obj.get("campaigns")
     if not isinstance(arr, list):
-        return status, None, raw
+        return status, None, raw, 0
+    total = len(arr)
     for c in arr:
         if not isinstance(c, dict):
             continue
@@ -182,8 +198,8 @@ def _campaign(access_token):
             "campaignId": str(c.get("campaignId") or ""),
             "claimStatus": str(c.get("claimStatus") or "").upper(),
             "amount": amount,
-        }, raw
-    return status, None, raw
+        }, raw, total
+    return status, None, raw, total
 
 
 def _claim(access_token, campaign_id):
@@ -215,14 +231,22 @@ def sign_one(acc):
 
     before = _balance(access_token)
 
-    status, camp, raw = _campaign(access_token)
+    status, camp, raw, camp_total = _campaign(access_token)
     if status in (401, 403):
         return "failed", label + "：凭证失效（HTTP " + str(status) + "）", 0
     if status != 200:
         return "failed", label + "：读取签到活动失败（HTTP " + str(status) + "）", 0
     if camp is None:
+        # 服务端没下发签到活动 ≠ 今日已领过，两者必须分开报，否则会误导成「已签到」。
+        # 实测：体验版（personal_standard）自 2026-11-19 起被官方移出活动范围，
+        # 服务端只下发 VIEW_DETAILS 广告活动，永远领不到。
         suffix = "" if before is None else "（余额 " + _fmt_num(before) + " 积分）"
-        return "already", label + "：未找到可领活动，可能已领取" + suffix, 0
+        utype = _account_type(access_token)
+        if utype == "personal_standard":
+            return "no_campaign", label + "：体验版账号不参与每日积分活动，无可领额度" + suffix, 0
+        if camp_total == 0:
+            return "no_campaign", label + "：当前无签到活动" + suffix, 0
+        return "no_campaign", label + "：无签到活动（服务端未下发可领任务）" + suffix, 0
     if camp["claimStatus"] == "CLAIMED":
         suffix = "" if before is None else "（余额 " + _fmt_num(before) + " 积分）"
         return "already", label + "：今日已领取" + suffix, 0
@@ -378,7 +402,7 @@ def push_wxpusher(entries):
         "<p><b>🧩 平台：</b>Qoder 中国版</p>",
         "<h3 style='margin:8px 0 4px'>账号明细</h3>",
     ]
-    ok = already = fail = 0
+    ok = already = fail = nocamp = 0
     for e in entries:
         label = e.get("account") or "账号"
         result = e.get("result") or ""
@@ -392,14 +416,17 @@ def push_wxpusher(entries):
         elif result == "已签到":
             already += 1
             line = "🔁 %s：今日已领取" % label
+        elif result == "无活动":
+            nocamp += 1
+            line = "⚪ %s：无签到活动" % label
         else:
             fail += 1
             detail = (e.get("detail") or "").strip()
             line = "❌ %s：签到失败%s" % (label, ("（" + detail[:100] + "）") if detail else "")
         lines.append("<p style='margin:2px 0'>%s</p>" % line)
-    lines.append("<p style='margin-top:6px'><b>汇总：</b>成功 %d · 已签到 %d · 失败 %d</p>" % (ok, already, fail))
+    lines.append("<p style='margin-top:6px'><b>汇总：</b>成功 %d · 已签到 %d · 无活动 %d · 失败 %d</p>" % (ok, already, nocamp, fail))
     html = "<h2>📮 Qoder 中国版 签到报告</h2>" + "".join(lines)
-    summary = "Qoder 中国版 签到：成功 %d，已签到 %d，失败 %d" % (ok, already, fail)
+    summary = "Qoder 中国版 签到：成功 %d，已签到 %d，无活动 %d，失败 %d" % (ok, already, nocamp, fail)
     body = json.dumps({
         "content": html, "summary": summary[:100],
         "contentType": 2, "spt": spt,
@@ -427,7 +454,7 @@ def main():
         return
     print("[信息] 共处理 " + str(len(accounts)) + " 个 Qoder 中国版账号")
     original_content = json.dumps(accounts, ensure_ascii=False, sort_keys=True)
-    ok = already = fail = 0
+    ok = already = fail = nocamp = 0
     entries = []
     now = int(time.time() * 1000)
     for acc in accounts:
@@ -440,6 +467,10 @@ def main():
         elif status == "already":
             result = "已签到"
             already += 1
+        elif status == "no_campaign":
+            # 没有签到活动不是失败，也不是「已签到」：单独记一档，避免误报
+            result = "无活动"
+            nocamp += 1
         else:
             result = "失败"
             fail += 1
@@ -456,13 +487,13 @@ def main():
             print("[日志] 本地写回账号失败: " + str(e))
         push_accounts(accounts)
 
-    print("[结果] 成功 {0}，已签到 {1}，失败 {2}，共 {3}".format(ok, already, fail, len(accounts)))
+    print("[结果] 成功 {0}，已签到 {1}，无活动 {2}，失败 {3}，共 {4}".format(ok, already, nocamp, fail, len(accounts)))
     push_logs(entries)
     try:
         push_wxpusher(entries)
     except Exception as e:
         print("[推送] 异常: " + str(e))
-    sys.exit(0 if (ok + already) == len(accounts) else 1)
+    sys.exit(0 if (ok + already + nocamp) == len(accounts) else 1)
 
 
 if __name__ == "__main__":

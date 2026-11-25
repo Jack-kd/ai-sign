@@ -18,29 +18,57 @@ class GatewayStore(context: Context) {
     private val sp = context.getSharedPreferences("gateway_prefs", Context.MODE_PRIVATE)
 
     /**
-     * 本地 API key（首次自动生成并 commit 落盘）。
-     * 多次调用返回值必须一致且非空（selfCheck：self 用这个 key 请求自己时会验证）。
+     * 某渠道的本地 API key（首次自动生成并 commit 落盘）。
+     * 每个渠道独立一把：TRAE / Loomy / Buddy / Qoder中国版 互不通用，
+     * 泄露一把不影响其它渠道。多次调用返回值必须一致且非空。
+     *
+     * ⚠️ TRAE 兼容旧版全局字段 api_key：老用户升级后原来的 key 继续可用，
+     * 不需要重新配置客户端。其它渠道首次访问时自动生成新 key。
      */
-    fun apiKey(): String {
-        sp.getString("api_key", null)?.let {
+    fun apiKey(channel: String = CH_TRAE): String {
+        sp.getString("api_key_$channel", null)?.let {
             if (it.startsWith("sk-") && it.length >= 16) return it
         }
+        if (channel == CH_TRAE) {
+            // 旧版只有一把全局 key，迁移过来继续给 TRAE 用
+            sp.getString("api_key", null)?.let {
+                if (it.startsWith("sk-") && it.length >= 16) {
+                    sp.edit().putString("api_key_$channel", it).commit()
+                    return it
+                }
+            }
+        }
         val key = newKey()
-        saveKey(key)
+        saveKey(channel, key)
         return key
     }
 
-    /** 主动换 key：旧 key 立即全部失效（所有已配置客户端会 401，需重新填写） */
-    fun rotateApiKey(): String {
+    /**
+     * 主动换某渠道的 key：只有这个渠道的客户端会 401，其它渠道不受影响。
+     * （旧版是全局轮换，所有渠道一起失效——现在按渠道隔离）
+     */
+    fun rotateApiKey(channel: String = CH_TRAE): String {
         val key = newKey()
-        saveKey(key)
+        saveKey(channel, key)
         return key
     }
 
-    /** 校验一个请求里的 Bearer token 是否等于本地 key */
-    fun isKeyValid(provided: String): Boolean {
+    /** 校验一个请求里的 Bearer token 是否等于**该渠道**的 key */
+    fun isKeyValid(provided: String, channel: String = CH_TRAE): Boolean {
         if (provided.isBlank() || !provided.startsWith("sk-")) return false
-        return provided == apiKey()
+        return provided == apiKey(channel)
+    }
+
+    /**
+     * 该 token 属于哪个渠道（用于请求未走端口路由时的兜底判断）。
+     * 返回 null 表示任何渠道都不匹配。
+     */
+    fun channelOfKey(provided: String): String? {
+        if (provided.isBlank() || !provided.startsWith("sk-")) return null
+        for (ch in ALL_CHANNELS) {
+            if (provided == apiKey(ch)) return ch
+        }
+        return null
     }
 
     /**
@@ -83,8 +111,8 @@ class GatewayStore(context: Context) {
         return "sk-" + bytes.joinToString("") { "%02x".format(it) }
     }
 
-    private fun saveKey(key: String) {
-        sp.edit().putString("api_key", key).commit()
+    private fun saveKey(channel: String, key: String) {
+        sp.edit().putString("api_key_$channel", key).commit()
     }
 
     // ---------- 每渠道独立网关（v2：端口即渠道） ----------

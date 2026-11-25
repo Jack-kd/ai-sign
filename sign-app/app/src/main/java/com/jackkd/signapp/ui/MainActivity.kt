@@ -429,6 +429,9 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, LoomyLoginActivity::class.java))
         }
 
+        // ── API 快捷开启（C 状态灯 + A 折叠条）──
+        bindHomeApiCards()
+
         // 详情页返回：分层返回（网关页→渠道详情→首页）
         findViewById<View>(R.id.btnBackHome).setOnClickListener { goBackFromDetail() }
 
@@ -460,8 +463,10 @@ class MainActivity : AppCompatActivity() {
             // 服务 onStartCommand/onDestroy 异步执行，等一会再刷新状态
             btnGatewayToggle.postDelayed({ refreshGatewayPage() }, 400)
         }
-        // 复制 Key（Key 全渠道共用一把 sk-，见 GatewayStore 注释）
-        btnGatewayCopyKey.setOnClickListener { copyText("SIGNAPP_GATEWAY_KEY", gatewayStore.apiKey(), "API Key 已复制") }
+        // 复制 Key（每个渠道独立一把 sk-，见 GatewayStore 注释）
+        btnGatewayCopyKey.setOnClickListener {
+            copyText("SIGNAPP_GATEWAY_KEY", gatewayStore.apiKey(currentChannelKey()), "API Key 已复制")
+        }
 
         // 复制本机端点
         btnGatewayCopyLocal.setOnClickListener {
@@ -644,8 +649,8 @@ class MainActivity : AppCompatActivity() {
         val port = GatewayService.portOf(ch)
         tvGatewayPort.text = "端口: $port · 监听 0.0.0.0（本机 + 局域网）"
 
-        // Key：打码显示，点按切换（rotateApiKey 后强制完整显示）；Key 全渠道共用一把
-        val fullKey = gatewayStore.apiKey()
+        // Key：打码显示，点按切换（rotateApiKey 后强制完整显示）；每个渠道有自己独立的 key
+        val fullKey = gatewayStore.apiKey(ch)
         tvGatewayKey.text = if (gatewayKeyRevealed) fullKey else maskKey(fullKey)
 
         // 账号：按当前渠道取对应 Store；preferUid 跨渠道统一匹配
@@ -833,6 +838,136 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** 取局域网 IPv4：优先 WiFi 网段，取不到显示 "--" */
+    // ---------- 首页「API 快捷开启」（C 状态灯 + A 折叠条） ----------
+
+    /** 首页四个卡片：状态灯 + 折叠条 id 映射（与布局里的 suffix 一一对应） */
+    private data class HomeApiCard(
+        val tab: String,        // 卡片 tab 名（用于 showChannelDetail）
+        val channel: String,    // GatewayStore 渠道 key
+        val dot: Int,
+        val panel: Int,
+        val url: Int,
+        val copyUrl: Int,
+        val key: Int,
+        val eye: Int,
+        val copyKey: Int,
+    )
+
+    private val homeApiCards: List<HomeApiCard> by lazy {
+        listOf(
+            HomeApiCard("TRAE", GatewayStore.CH_TRAE,
+                R.id.apiDotTrae, R.id.apiPanelTrae, R.id.apiUrlTrae,
+                R.id.apiCopyUrlTrae, R.id.apiKeyTrae, R.id.apiEyeTrae, R.id.apiCopyKeyTrae),
+            HomeApiCard("WorkBuddy", GatewayStore.CH_BUDDY,
+                R.id.apiDotWb, R.id.apiPanelWb, R.id.apiUrlWb,
+                R.id.apiCopyUrlWb, R.id.apiKeyWb, R.id.apiEyeWb, R.id.apiCopyKeyWb),
+            HomeApiCard("QoderCn", GatewayStore.CH_QODERCN,
+                R.id.apiDotQc, R.id.apiPanelQc, R.id.apiUrlQc,
+                R.id.apiCopyUrlQc, R.id.apiKeyQc, R.id.apiEyeQc, R.id.apiCopyKeyQc),
+            HomeApiCard("Loomy", GatewayStore.CH_LOOMY,
+                R.id.apiDotLoomy, R.id.apiPanelLoomy, R.id.apiUrlLoomy,
+                R.id.apiCopyUrlLoomy, R.id.apiKeyLoomy, R.id.apiEyeLoomy, R.id.apiCopyKeyLoomy),
+        )
+    }
+
+    /** 哪些卡片的密钥已点开明文（8 秒后自动收回） */
+    private val apiKeyRevealed = HashSet<String>()
+    /** 地址显示模式：false=本机 127.0.0.1，true=局域网 IP */
+    private var apiUseLan = false
+
+    private fun bindHomeApiCards() {
+        for (c in homeApiCards) {
+            // C：状态灯点击 = 单独开/关这个渠道的网关
+            findViewById<View>(c.dot).setOnClickListener { toggleChannelGateway(c) }
+            // A：点地址/密钥文字 = 展开或收起折叠条
+            findViewById<View>(c.url).setOnClickListener { toggleApiPanel(c) }
+            findViewById<View>(c.key).setOnClickListener { toggleApiPanel(c) }
+
+            findViewById<View>(c.copyUrl).setOnClickListener {
+                copyText("SIGNAPP_GATEWAY_URL", findViewById<TextView>(c.url).text.toString(), "接口地址已复制")
+            }
+            findViewById<View>(c.eye).setOnClickListener {
+                if (apiKeyRevealed.contains(c.channel)) apiKeyRevealed.remove(c.channel)
+                else {
+                    apiKeyRevealed.add(c.channel)
+                    // 8 秒后自动收回，避免一直明文晾在首页
+                    findViewById<View>(c.eye).postDelayed({
+                        if (apiKeyRevealed.remove(c.channel)) refreshHomeApiRow(c)
+                    }, 8000)
+                }
+                refreshHomeApiRow(c)
+            }
+            findViewById<View>(c.copyKey).setOnClickListener {
+                copyText("SIGNAPP_GATEWAY_KEY", gatewayStore.apiKey(c.channel), "API Key 已复制")
+            }
+        }
+        refreshHomeApiCards()
+    }
+
+    /** 开关某个渠道的网关（不动其它渠道） */
+    private fun toggleChannelGateway(c: HomeApiCard) {
+        val running = GatewayService.isRunning(c.channel)
+        if (running) {
+            GatewayService.stop(this, c.channel)
+            Toast.makeText(this, "已停止 ${c.tab} 网关", Toast.LENGTH_SHORT).show()
+        } else {
+            GatewayService.start(this, c.channel)
+            Toast.makeText(this, "已启动 ${c.tab} 网关", Toast.LENGTH_SHORT).show()
+        }
+        // 服务启停是异步的，稍等再刷状态
+        findViewById<View>(c.dot).postDelayed({ refreshHomeApiCards() }, 600)
+    }
+
+    private fun toggleApiPanel(c: HomeApiCard) {
+        val panel = findViewById<View>(c.panel)
+        panel.visibility = if (panel.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        if (panel.visibility == View.VISIBLE) refreshHomeApiRow(c)
+    }
+
+    /** 刷新全部卡片的灯与折叠条 */
+    private fun refreshHomeApiCards() {
+        for (c in homeApiCards) {
+            val running = GatewayService.isRunning(c.channel)
+            val want = gatewayStore.shouldRun(c.channel)
+            val dot = findViewById<View>(c.dot)
+            dot.setBackgroundResource(
+                when {
+                    running -> R.drawable.bg_api_dot_on
+                    want -> R.drawable.bg_api_dot_warn   // 想开但没跑起来
+                    else -> R.drawable.bg_api_dot_off
+                }
+            )
+            // 折叠条保持用户手动展开/收起的状态，这里只刷新内容
+            refreshHomeApiRow(c)
+        }
+    }
+
+    /** 刷新单个卡片的地址与去敏密钥 */
+    private fun refreshHomeApiRow(c: HomeApiCard) {
+        val port = GatewayService.portOf(c.channel)
+        val host = if (apiUseLan) lanIpOrDash() else "127.0.0.1"
+        findViewById<TextView>(c.url).text = "http://$host:$port/v1"
+
+        val full = gatewayStore.apiKey(c.channel)
+        findViewById<TextView>(c.key).text =
+            if (apiKeyRevealed.contains(c.channel)) full else maskKey(full)
+    }
+
+    /** 轮询时同步首页状态灯（网关可能被系统杀掉或由服务自己拉起） */
+    private fun refreshHomeApiDots() {
+        for (c in homeApiCards) {
+            val running = GatewayService.isRunning(c.channel)
+            val want = gatewayStore.shouldRun(c.channel)
+            findViewById<View>(c.dot).setBackgroundResource(
+                when {
+                    running -> R.drawable.bg_api_dot_on
+                    want -> R.drawable.bg_api_dot_warn
+                    else -> R.drawable.bg_api_dot_off
+                }
+            )
+        }
+    }
+
     private fun lanIpOrDash(): String {
         try {
             val nis = java.net.NetworkInterface.getNetworkInterfaces() ?: return "--"
@@ -862,14 +997,16 @@ class MainActivity : AppCompatActivity() {
         return key.take(6) + "••••••••" + key.takeLast(4)
     }
 
-    /** 换新 Key：旧 Key 全部失效（已配置客户端需更新） */
+    /** 换新 Key：只让**当前渠道**的旧 Key 失效，其它渠道的客户端不受影响 */
     private fun rotateGatewayKey() {
-        val key = gatewayStore.rotateApiKey()
+        val ch = currentChannelKey()
+        val key = gatewayStore.rotateApiKey(ch)
         gatewayKeyRevealed = true
         tvGatewayKey.text = key
         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        cm.setPrimaryClip(ClipData.newPlainText("TRAE_GATEWAY_KEY", key))
-        Toast.makeText(this, "已生成新 Key 并复制（旧 Key 已失效）", Toast.LENGTH_LONG).show()
+        cm.setPrimaryClip(ClipData.newPlainText("SIGNAPP_GATEWAY_KEY", key))
+        Toast.makeText(this, "已生成新 Key 并复制（仅本渠道旧 Key 失效）", Toast.LENGTH_LONG).show()
+        refreshHomeApiCards()
     }
 
     /** 通用复制 */
@@ -1245,6 +1382,8 @@ class MainActivity : AppCompatActivity() {
         showLoomyScheduleText()
         updateChannelCards()
         refreshGatewayPage()
+        // 首页 API 状态灯同步（网关可能被系统杀掉或自己拉起）
+        refreshHomeApiDots()
     }
 
     /** 首页 4 张渠道卡片汇总刷新（账号数/总积分/过期徽章），云端逻辑零改动 */

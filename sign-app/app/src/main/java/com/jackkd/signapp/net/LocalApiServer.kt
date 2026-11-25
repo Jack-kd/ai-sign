@@ -632,10 +632,14 @@ class LocalApiServer(
 
     // ---------- 读请求 ----------
 
+    /**
+     * 鉴权：**只认本端口所属渠道的那把 key**（各渠道 key 互相独立）。
+     * 8787 的 key 拿去打 8788 会 401，反之亦然——一把泄露不影响其它渠道。
+     */
     private fun authOk(headers: Map<String, String>): Boolean {
         val auth = headers["authorization"] ?: return false
         val token = auth.removePrefix("Bearer ").removePrefix("bearer ").trim()
-        return store.isKeyValid(token)
+        return store.isKeyValid(token, defaultChannelKey)
     }
 
     /** 逐字节读一行（\n 结尾，去 \r）；不预读、不缓冲（对齐参考项目）。

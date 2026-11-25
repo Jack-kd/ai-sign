@@ -278,6 +278,122 @@
                         android:textSize="17sp"
                         android:textStyle="bold"
                         android:elevation="2dp" />
+                    <TextView
+                        android:id="@+id/apiDotTrae"
+                        android:layout_width="10dp"
+                        android:layout_height="10dp"
+                        android:layout_gravity="top|end"
+                        android:layout_marginTop="10dp"
+                        android:layout_marginEnd="46dp"
+                        android:background="@drawable/bg_api_dot_off"
+                        android:elevation="3dp" />
+
+                    <!-- ── API 快捷开启：折叠条（默认收起，开启后展开显示地址与去敏密钥） ── -->
+                    <LinearLayout
+                        android:id="@+id/apiPanelTrae"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="bottom"
+                        android:orientation="vertical"
+                        android:visibility="gone"
+                        android:background="@drawable/bg_api_panel"
+                        android:paddingLeft="14dp"
+                        android:paddingRight="14dp"
+                        android:paddingTop="10dp"
+                        android:paddingBottom="10dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:layout_width="44dp"
+                                android:layout_height="wrap_content"
+                                android:text="接口"
+                                android:textColor="@color/gray"
+                                android:textSize="11sp" />
+
+                            <TextView
+                                android:id="@+id/apiUrlTrae"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="--"
+                                android:textColor="@color/text_primary"
+                                android:textSize="12sp"
+                                android:singleLine="true"
+                                android:ellipsize="middle" />
+
+                            <TextView
+                                android:id="@+id/apiCopyUrlTrae"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_api_chip"
+                                android:paddingLeft="10dp"
+                                android:paddingRight="10dp"
+                                android:paddingTop="4dp"
+                                android:paddingBottom="4dp"
+                                android:text="复制"
+                                android:textColor="?attr/signPrimary"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginTop="6dp">
+
+                            <TextView
+                                android:layout_width="44dp"
+                                android:layout_height="wrap_content"
+                                android:text="密钥"
+                                android:textColor="@color/gray"
+                                android:textSize="11sp" />
+
+                            <TextView
+                                android:id="@+id/apiKeyTrae"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="--"
+                                android:textColor="@color/text_primary"
+                                android:textSize="12sp"
+                                android:singleLine="true" />
+
+                            <TextView
+                                android:id="@+id/apiEyeTrae"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_api_chip"
+                                android:paddingLeft="8dp"
+                                android:paddingRight="8dp"
+                                android:paddingTop="4dp"
+                                android:paddingBottom="4dp"
+                                android:layout_marginEnd="6dp"
+                                android:text="👁"
+                                android:textColor="@color/gray"
+                                android:textSize="11sp" />
+
+                            <TextView
+                                android:id="@+id/apiCopyKeyTrae"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_api_chip"
+                                android:paddingLeft="10dp"
+                                android:paddingRight="10dp"
+                                android:paddingTop="4dp"
+                                android:paddingBottom="4dp"
+                                android:text="复制"
+                                android:textColor="?attr/signPrimary"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
                 </FrameLayout>
 
                 <!-- ─── WorkBuddy 卡片 ─── -->
@@ -373,6 +489,122 @@
                         android:textSize="17sp"
                         android:textStyle="bold"
                         android:elevation="2dp" />
+                    <TextView
+                        android:id="@+id/apiDotWb"
+                        android:layout_width="10dp"
+                        android:layout_height="10dp"
+                        android:layout_gravity="top|end"
+                        android:layout_marginTop="10dp"
+                        android:layout_marginEnd="46dp"
+                        android:background="@drawable/bg_api_dot_off"
+                        android:elevation="3dp" />
+
+                    <!-- ── API 快捷开启：折叠条（默认收起，开启后展开显示地址与去敏密钥） ── -->
+                    <LinearLayout
+                        android:id="@+id/apiPanelWb"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="bottom"
+                        android:orientation="vertical"
+                        android:visibility="gone"
+                        android:background="@drawable/bg_api_panel"
+                        android:paddingLeft="14dp"
+                        android:paddingRight="14dp"
+                        android:paddingTop="10dp"
+                        android:paddingBottom="10dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:layout_width="44dp"
+                                android:layout_height="wrap_content"
+                                android:text="接口"
+                                android:textColor="@color/gray"
+                                android:textSize="11sp" />
+
+                            <TextView
+                                android:id="@+id/apiUrlWb"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="--"
+                                android:textColor="@color/text_primary"
+                                android:textSize="12sp"
+                                android:singleLine="true"
+                                android:ellipsize="middle" />
+
+                            <TextView
+                                android:id="@+id/apiCopyUrlWb"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_api_chip"
+                                android:paddingLeft="10dp"
+                                android:paddingRight="10dp"
+                                android:paddingTop="4dp"
+                                android:paddingBottom="4dp"
+                                android:text="复制"
+                                android:textColor="?attr/signPrimary"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginTop="6dp">
+
+                            <TextView
+                                android:layout_width="44dp"
+                                android:layout_height="wrap_content"
+                                android:text="密钥"
+                                android:textColor="@color/gray"
+                                android:textSize="11sp" />
+
+                            <TextView
+                                android:id="@+id/apiKeyWb"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="--"
+                                android:textColor="@color/text_primary"
+                                android:textSize="12sp"
+                                android:singleLine="true" />
+
+                            <TextView
+                                android:id="@+id/apiEyeWb"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_api_chip"
+                                android:paddingLeft="8dp"
+                                android:paddingRight="8dp"
+                                android:paddingTop="4dp"
+                                android:paddingBottom="4dp"
+                                android:layout_marginEnd="6dp"
+                                android:text="👁"
+                                android:textColor="@color/gray"
+                                android:textSize="11sp" />
+
+                            <TextView
+                                android:id="@+id/apiCopyKeyWb"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_api_chip"
+                                android:paddingLeft="10dp"
+                                android:paddingRight="10dp"
+                                android:paddingTop="4dp"
+                                android:paddingBottom="4dp"
+                                android:text="复制"
+                                android:textColor="?attr/signPrimary"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
                 </FrameLayout>
 
                 <!-- ─── Qoder 中国版 卡片 ─── -->
@@ -468,6 +700,122 @@
                         android:textSize="17sp"
                         android:textStyle="bold"
                         android:elevation="2dp" />
+                    <TextView
+                        android:id="@+id/apiDotQc"
+                        android:layout_width="10dp"
+                        android:layout_height="10dp"
+                        android:layout_gravity="top|end"
+                        android:layout_marginTop="10dp"
+                        android:layout_marginEnd="46dp"
+                        android:background="@drawable/bg_api_dot_off"
+                        android:elevation="3dp" />
+
+                    <!-- ── API 快捷开启：折叠条（默认收起，开启后展开显示地址与去敏密钥） ── -->
+                    <LinearLayout
+                        android:id="@+id/apiPanelQc"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="bottom"
+                        android:orientation="vertical"
+                        android:visibility="gone"
+                        android:background="@drawable/bg_api_panel"
+                        android:paddingLeft="14dp"
+                        android:paddingRight="14dp"
+                        android:paddingTop="10dp"
+                        android:paddingBottom="10dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:layout_width="44dp"
+                                android:layout_height="wrap_content"
+                                android:text="接口"
+                                android:textColor="@color/gray"
+                                android:textSize="11sp" />
+
+                            <TextView
+                                android:id="@+id/apiUrlQc"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="--"
+                                android:textColor="@color/text_primary"
+                                android:textSize="12sp"
+                                android:singleLine="true"
+                                android:ellipsize="middle" />
+
+                            <TextView
+                                android:id="@+id/apiCopyUrlQc"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_api_chip"
+                                android:paddingLeft="10dp"
+                                android:paddingRight="10dp"
+                                android:paddingTop="4dp"
+                                android:paddingBottom="4dp"
+                                android:text="复制"
+                                android:textColor="?attr/signPrimary"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginTop="6dp">
+
+                            <TextView
+                                android:layout_width="44dp"
+                                android:layout_height="wrap_content"
+                                android:text="密钥"
+                                android:textColor="@color/gray"
+                                android:textSize="11sp" />
+
+                            <TextView
+                                android:id="@+id/apiKeyQc"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="--"
+                                android:textColor="@color/text_primary"
+                                android:textSize="12sp"
+                                android:singleLine="true" />
+
+                            <TextView
+                                android:id="@+id/apiEyeQc"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_api_chip"
+                                android:paddingLeft="8dp"
+                                android:paddingRight="8dp"
+                                android:paddingTop="4dp"
+                                android:paddingBottom="4dp"
+                                android:layout_marginEnd="6dp"
+                                android:text="👁"
+                                android:textColor="@color/gray"
+                                android:textSize="11sp" />
+
+                            <TextView
+                                android:id="@+id/apiCopyKeyQc"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_api_chip"
+                                android:paddingLeft="10dp"
+                                android:paddingRight="10dp"
+                                android:paddingTop="4dp"
+                                android:paddingBottom="4dp"
+                                android:text="复制"
+                                android:textColor="?attr/signPrimary"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
                 </FrameLayout>
 
                 <!-- ─── Loomy 卡片 ─── -->
@@ -563,6 +911,122 @@
                         android:textSize="17sp"
                         android:textStyle="bold"
                         android:elevation="2dp" />
+                    <TextView
+                        android:id="@+id/apiDotLoomy"
+                        android:layout_width="10dp"
+                        android:layout_height="10dp"
+                        android:layout_gravity="top|end"
+                        android:layout_marginTop="10dp"
+                        android:layout_marginEnd="46dp"
+                        android:background="@drawable/bg_api_dot_off"
+                        android:elevation="3dp" />
+
+                    <!-- ── API 快捷开启：折叠条（默认收起，开启后展开显示地址与去敏密钥） ── -->
+                    <LinearLayout
+                        android:id="@+id/apiPanelLoomy"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="bottom"
+                        android:orientation="vertical"
+                        android:visibility="gone"
+                        android:background="@drawable/bg_api_panel"
+                        android:paddingLeft="14dp"
+                        android:paddingRight="14dp"
+                        android:paddingTop="10dp"
+                        android:paddingBottom="10dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:layout_width="44dp"
+                                android:layout_height="wrap_content"
+                                android:text="接口"
+                                android:textColor="@color/gray"
+                                android:textSize="11sp" />
+
+                            <TextView
+                                android:id="@+id/apiUrlLoomy"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="--"
+                                android:textColor="@color/text_primary"
+                                android:textSize="12sp"
+                                android:singleLine="true"
+                                android:ellipsize="middle" />
+
+                            <TextView
+                                android:id="@+id/apiCopyUrlLoomy"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_api_chip"
+                                android:paddingLeft="10dp"
+                                android:paddingRight="10dp"
+                                android:paddingTop="4dp"
+                                android:paddingBottom="4dp"
+                                android:text="复制"
+                                android:textColor="?attr/signPrimary"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginTop="6dp">
+
+                            <TextView
+                                android:layout_width="44dp"
+                                android:layout_height="wrap_content"
+                                android:text="密钥"
+                                android:textColor="@color/gray"
+                                android:textSize="11sp" />
+
+                            <TextView
+                                android:id="@+id/apiKeyLoomy"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="--"
+                                android:textColor="@color/text_primary"
+                                android:textSize="12sp"
+                                android:singleLine="true" />
+
+                            <TextView
+                                android:id="@+id/apiEyeLoomy"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_api_chip"
+                                android:paddingLeft="8dp"
+                                android:paddingRight="8dp"
+                                android:paddingTop="4dp"
+                                android:paddingBottom="4dp"
+                                android:layout_marginEnd="6dp"
+                                android:text="👁"
+                                android:textColor="@color/gray"
+                                android:textSize="11sp" />
+
+                            <TextView
+                                android:id="@+id/apiCopyKeyLoomy"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_api_chip"
+                                android:paddingLeft="10dp"
+                                android:paddingRight="10dp"
+                                android:paddingTop="4dp"
+                                android:paddingBottom="4dp"
+                                android:text="复制"
+                                android:textColor="?attr/signPrimary"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
                 </FrameLayout>
 
             </LinearLayout>

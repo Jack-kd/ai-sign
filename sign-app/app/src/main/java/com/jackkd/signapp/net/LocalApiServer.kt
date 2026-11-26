@@ -21,6 +21,8 @@ import java.net.SocketException
 import java.util.concurrent.Executors
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicBoolean
+import com.jackkd.signapp.data.LobsteraiAccount
+import com.jackkd.signapp.data.LobsteraiAccountStore
 
 /**
  * 本地 OpenAI 兼容网关 HTTP 服务器。
@@ -47,6 +49,7 @@ class LocalApiServer(
     private val workBuddyStore: WorkBuddyAccountStore? = null,
     private val basePort: Int = 8787,
     private val qoderCnStore: QoderCnAccountStore? = null,
+    private val lobsteraiStore: LobsteraiAccountStore? = null,
     /** Qoder 中国版签名用的 WASM 字节（null = 本端口不是 qodercn，或资源读取失败） */
     private val qoderCnWasm: ByteArray? = null,
 ) {
@@ -62,6 +65,7 @@ class LocalApiServer(
         8788 -> "loomy"
         8789 -> "buddy"
         8790 -> "qodercn"
+        8791 -> "lobsterai"
         else -> "trae"
     }
     private val portMax: Int = basePort + 9
@@ -405,6 +409,33 @@ class LocalApiServer(
             "qodercn" -> {
                 handleQoderCnChat(w, body, wantStream, recorder)
             }
+            "lobsterai" -> {
+                // LobsterAI 即使请求 stream:false 也强制回 SSE，
+                // 但通用 chatStream 本来就把上游 stream 置 true 并聚合，
+                // 所以这里和 Loomy/Buddy 走同一条路，不需要特殊分支。
+                val lobsters = lobsteraiStore?.load().orEmpty()
+                if (lobsters.isEmpty()) {
+                    failChannel(w, "没有可用的 LobsterAI 账号，请先在应用里登录", wantStream)
+                    recorder?.finish(false, "没有可用的 LobsterAI 账号")
+                    return
+                }
+                val ok = OpenAiChannelGateway.chatStream(
+                    cfg = cfg, body = body, accounts = lobsters,
+                    tokenOf = { (it as LobsteraiAccount).credentials.accessToken },
+                    uidOf = { (it as LobsteraiAccount).credentials.uid },
+                    labelOf = { (it as LobsteraiAccount).label },
+                    completeOf = { (it as LobsteraiAccount).credentials.isComplete() },
+                    preferUid = store.preferUid,
+                    accountOrder = store.accountOrder("lobsterai"),
+                    wantStream = wantStream,
+                    recvChunk = recorder?.wrap { frame ->
+                        if (wantStream) w.sseFrame(frame) else w.json(200, frame)
+                    } ?: { frame -> if (wantStream) w.sseFrame(frame) else w.json(200, frame) },
+                    onAttempt = { recorder?.lastAccount = it }
+                )
+                finishChannel(w, wantStream, ok)
+                recorder?.finish(ok)
+            }
             else -> {
                 // 未知前缀（理论不可达：byModel 已过滤）
                 failChannel(w, "未知渠道：$model", wantStream)
@@ -562,6 +593,7 @@ class LocalApiServer(
             // Qoder 中国版没有公开的模型清单接口（模型 key 是私有命名，固定 11 个），
             // 直接用静态表 —— 也是唯一能保证「8790 上只出现本渠道模型」的做法
             GatewayStore.CH_QODERCN -> ChannelConfigs.QODERCN.toModelsArray()
+            GatewayStore.CH_LOBSTERAI -> ChannelConfigs.LOBSTERAI.toModelsArray()
             else -> defaultTraeModels()
         }
     }
@@ -613,6 +645,7 @@ class LocalApiServer(
                 GatewayStore.CH_LOOMY -> fetchLoomyModelsFromAccount()
                 GatewayStore.CH_BUDDY -> fetchBuddyModelsFromAccount()
                 GatewayStore.CH_QODERCN -> ChannelConfigs.QODERCN.toModelsArray()
+                GatewayStore.CH_LOBSTERAI -> fetchLobsteraiModelsFromAccount()
                 else -> fetchTraeModelsFromAccount()
             }
             if (arr.length() > 0) {
@@ -642,6 +675,7 @@ class LocalApiServer(
                     GatewayStore.CH_BUDDY -> fetchBuddyModelsFromAccount()
                     // Qoder 中国版模型 key 固定（无清单接口），不走上游拉取
                     GatewayStore.CH_QODERCN -> ChannelConfigs.QODERCN.toModelsArray()
+                    GatewayStore.CH_LOBSTERAI -> fetchLobsteraiModelsFromAccount()
                     else -> fetchTraeModelsFromAccount()
                 }
                 if (arr.length() > 0) {
@@ -692,6 +726,28 @@ class LocalApiServer(
             val arr = OpenAiChannelGateway.fetchBuddyModels(acc.credentials.accessToken, acc.credentials.uid)
             if (arr.length() > 0) return mergeWithStaticModels(arr, ChannelConfigs.BUDDY.toModelsArray())
             Log.w(tag, "[buddy] 账号 ${acc.label} 未拉到模型，换下一个")
+        }
+        return JSONArray()
+    }
+
+    /**
+     * LobsterAI 上游模型：依次试所有账号。
+     * 这个渠道的倍率/上下文/识图都是**上游真实字段**，
+     * 所以不跟静态表合并（静态表只是上游挂了时的兜底）。
+     */
+    private fun fetchLobsteraiModelsFromAccount(): JSONArray {
+        val store2 = lobsteraiStore ?: return JSONArray()
+        val accs = store2.load().filter { it.credentials.isComplete() }
+        if (accs.isEmpty()) return JSONArray()
+        val api = LobsteraiApi()
+        for (acc in accs) {
+            val arr = api.fetchModels(
+                acc.credentials.accessToken,
+                acc.credentials.keyfrom,
+                acc.credentials.uuid
+            )
+            if (arr.length() > 0) return arr
+            Log.w(tag, "[lobsterai] 账号 ${acc.label} 未拉到模型（${LobsteraiApi.lastError}），换下一个")
         }
         return JSONArray()
     }

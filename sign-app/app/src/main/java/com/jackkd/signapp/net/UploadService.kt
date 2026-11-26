@@ -9,6 +9,8 @@ import com.jackkd.signapp.data.UploadWorkBuddyAccount
 import com.jackkd.signapp.data.UploadQoderCnAccount
 import com.jackkd.signapp.data.UploadLoomyAccount
 import com.jackkd.signapp.data.LoomyScheduleTime
+import com.jackkd.signapp.data.UploadLobsteraiAccount
+import com.jackkd.signapp.data.LobsteraiScheduleTime
 
 /**
  * 负责把多账号凭证 + 签到时间同步到 GitHub 仓库。
@@ -64,6 +66,11 @@ class UploadService(
         const val LOOMY_ACCOUNTS_FILE = "scripts/loomy_accounts.json"
         const val LOOMY_SCRIPT_FILE = "scripts/loomy_checkin_multi.py"
         const val LOOMY_WORKFLOW_FILE = ".github/workflows/loomy-checkin.yml"
+
+        // LobsterAI（有道）
+        const val LOBSTER_ACCOUNTS_FILE = "scripts/lobsterai_accounts.json"
+        const val LOBSTER_SCRIPT_FILE = "scripts/lobsterai_checkin_multi.py"
+        const val LOBSTER_WORKFLOW_FILE = ".github/workflows/lobsterai-checkin.yml"
 
         // 微信 ClawBot 推送：云端开关状态（只含 enabled，SPT 走 GitHub Secret，绝不写入仓库文件）
         const val WXPUSHER_CONFIG_FILE = "scripts/wxpusher_config.json"
@@ -317,6 +324,99 @@ class UploadService(
         } catch (e: Exception) {
             e.printStackTrace(); e.message ?: "触发异常"
         }
+    }
+
+    /**
+     * 上传 LobsterAI 账号凭证到 scripts/lobsterai_accounts.json。
+     *
+     * ⚠️ 必须**明文**上传（不加密）：云端 lobsterai_checkin_multi.py 直接读明文，
+     * 没有解密逻辑。和 Loomy 一样，本渠道**不内嵌脚本** —— 云端脚本已在仓库里，
+     * 只在 workflow 缺失时补 workflow，脚本缺失跳过以免覆盖云端版本。
+     */
+    fun uploadLobsteraiAccounts(accounts: List<UploadLobsteraiAccount>): String? {
+        return try {
+            val files = mutableMapOf<String, String>()
+            files[LOBSTER_ACCOUNTS_FILE] = gson.toJson(accounts)
+            val wfExists = api.readRepoFile(owner, repo, LOBSTER_WORKFLOW_FILE) != null
+            if (!wfExists) files[LOBSTER_WORKFLOW_FILE] = buildLobsteraiWorkflow(LobsteraiScheduleTime(11, 0))
+            api.updateMultipleFiles(owner, repo, branch, files, "更新 LobsterAI 签到账号列表")
+        } catch (e: Exception) {
+            e.printStackTrace(); e.message ?: "上传异常"
+        }
+    }
+
+    fun uploadLobsteraiAll(accounts: List<UploadLobsteraiAccount>): String? {
+        return try {
+            val files = mutableMapOf<String, String>()
+            files[LOBSTER_ACCOUNTS_FILE] = gson.toJson(accounts)
+            files[LOBSTER_WORKFLOW_FILE] = buildLobsteraiWorkflow(LobsteraiScheduleTime(11, 0))
+            api.updateMultipleFiles(owner, repo, branch, files, "同步 LobsterAI 签到账号")
+        } catch (e: Exception) {
+            e.printStackTrace(); e.message ?: "上传异常"
+        }
+    }
+
+    /** 更新 LobsterAI 签到时间（脚本缺失时**不**补 —— 云端已有脚本，避免覆盖）。 */
+    fun updateLobsteraiSchedule(schedule: ScheduleTime): Boolean {
+        return try {
+            api.createOrUpdateFile(owner, repo, LOBSTER_WORKFLOW_FILE, buildLobsteraiWorkflow(LobsteraiScheduleTime(schedule.hour, schedule.minute)), "更新 LobsterAI 自动签到时间")
+        } catch (e: Exception) {
+            e.printStackTrace(); false
+        }
+    }
+
+    fun fetchLobsteraiSchedule(): ScheduleTime? {
+        return try {
+            val yml = api.readRepoFile(owner, repo, LOBSTER_WORKFLOW_FILE) ?: return null
+            val m = Regex("cron\\s*:\\s*['\"]?([0-9]+)\\s+([0-9]+)\\s+\\*\\s+\\*\\s+\\*").find(yml)
+            if (m == null) return null
+            val minute = m.groupValues[1].toIntOrNull() ?: return null
+            val utcHour = m.groupValues[2].toIntOrNull() ?: return null
+            val localHour = (utcHour + 8) % 24
+            if (minute !in 0..59 || localHour !in 0..23) return null
+            ScheduleTime(localHour, minute)
+        } catch (e: Exception) { null }
+    }
+
+    /** 手动触发 LobsterAI 签到工作流（立即签到）。@return null 表示成功；否则返回错误信息。 */
+    fun triggerLobsteraiNow(): String? {
+        return try {
+            api.triggerWorkflow(owner, repo, LOBSTER_WORKFLOW_FILE, branch)
+        } catch (e: Exception) {
+            e.printStackTrace(); e.message ?: "触发异常"
+        }
+    }
+
+    private fun buildLobsteraiWorkflow(schedule: LobsteraiScheduleTime): String {
+        val cron = schedule.toUtcCron()
+        return """
+name: LobsterAI 自动签到
+
+on:
+  schedule:
+    - cron: '${cron}'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  checkin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 执行 LobsterAI 多账号签到
+        run: cd scripts && python lobsterai_checkin_multi.py
+        env:
+          GITHUB_TOKEN: ${'$'}{{ secrets.GITHUB_TOKEN }}
+""".trimIndent()
     }
 
     private fun buildLoomyWorkflow(schedule: LoomyScheduleTime): String {

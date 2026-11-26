@@ -141,7 +141,8 @@ class GatewayStore(context: Context) {
         const val CH_LOOMY = "loomy"
         const val CH_BUDDY = "buddy"
         const val CH_QODERCN = "qodercn"
-        val ALL_CHANNELS = listOf(CH_TRAE, CH_LOOMY, CH_BUDDY, CH_QODERCN)
+        const val CH_LOBSTERAI = "lobsterai"
+        val ALL_CHANNELS = listOf(CH_TRAE, CH_LOOMY, CH_BUDDY, CH_QODERCN, CH_LOBSTERAI)
     }
 
     /** 某渠道网关的用户意图：是否该保持运行（默认关） */

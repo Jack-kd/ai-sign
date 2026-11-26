@@ -3,6 +3,7 @@ package com.jackkd.signapp.net
 import com.jackkd.signapp.data.TraeCredentials
 import com.jackkd.signapp.data.QoderCnCredentials
 import com.jackkd.signapp.data.WorkBuddyCredentials
+import com.jackkd.signapp.data.LobsteraiCredentials
 import org.json.JSONObject
 
 /**
@@ -140,6 +141,38 @@ object CredentialParser {
      * 解析过期时间（毫秒时间戳）。兼容三种形态：
      * - 纯数字字符串毫秒；- 秒级时间戳（乘以 1000）；- 无法解析返回 0。
      */
+    /**
+     * 解析 LobsterAI 凭证。
+     *
+     * 与「模型中转」插件导出的字段一致：
+     * `access_token / refresh_token / user_id / nickname / keyfrom / uuid / expires_at`
+     *
+     * 两个要点：
+     * - `keyfrom` 是必填的下游参数（拉模型、发消息、签到都要带上），
+     *   插件导出时可能写成 `latest_keyfrom` / `first_keyfrom`，这里都认。
+     * - `uid` 缺省时从 JWT 的 `sub` 解出来，再不行才用 token 哈希占位，
+     *   保证账号能去重、能排序，不至于存进去之后没法用。
+     */
+    fun parseLobsteraiCredentials(text: String): LobsteraiCredentials? {
+        val map = parseFields(text)
+        if (map.isEmpty()) return null
+        val accessToken = get(map, "access_token", "accessToken")
+        if (accessToken.isBlank()) return null
+        var uid = get(map, "user_id", "uid", "userId", "sub")
+        if (uid.isBlank()) uid = LobsteraiApi.jwtSubject(accessToken)
+        if (uid.isBlank()) uid = "lobster_" + Math.abs(accessToken.hashCode())
+        val keyfrom = get(map, "keyfrom", "latest_keyfrom", "latestKeyfrom", "first_keyfrom", "firstKeyfrom")
+        return LobsteraiCredentials(
+            accessToken = accessToken,
+            refreshToken = get(map, "refresh_token", "refreshToken"),
+            expiresAt = parseExpiry(map["expires_at"] ?: map["expiresAt"] ?: map["expires_in"]),
+            uid = uid,
+            nickname = get(map, "nickname", "nickName", "name"),
+            keyfrom = keyfrom,
+            uuid = get(map, "uuid", "device_id", "deviceId")
+        )
+    }
+
     private fun parseExpiry(raw: String?): Long {
         if (raw.isNullOrBlank()) return 0L
         val v = raw.trim().toLongOrNull() ?: return 0L

@@ -126,11 +126,86 @@ object ChannelConfigs {
         prefixModelIds = false,
     )
 
+    // ---------- LobsterAI（有道） ----------
+
+    /**
+     * 2026-11-26 实测（账号 sub=148553，个人版）：
+     *  - 模型列表 GET /api/models/available?keyfrom=&uuid=
+     *    要带 X-LobsterAI-Client-Capabilities / -Version 两个头，缺了会少返回模型。
+     *    每个模型自带 costMultiplier / contextWindow / supportsImage，
+     *    所以这个渠道的倍率和上下文是**上游实测值**，不是估算。
+     *  - 对话 POST /api/proxy/v1/chat/completions
+     *    ⚠️ 即使请求体写 stream:false，上游仍**强制返回 SSE**，
+     *       网关必须按流解析（已在 LocalApiServer 里按渠道判断）。
+     *  - 鉴权只认 Authorization: Bearer <access_token>，不认 x-api-key。
+     */
+    val LOBSTERAI: OpenAiChannelConfig = OpenAiChannelConfig(
+        prefix = "lobsterai",
+        ownedBy = "lobsterai",
+        baseUrl = "https://lobsterai-server.youdao.com",
+        chatPath = "/api/proxy/v1/chat/completions",
+        extraHeaders = mapOf(
+            "user-agent" to "LobsterAI/0.1.0",
+            "X-LobsterAI-Client-Capabilities" to "kimi-k3-agentic-v1,thinking-level-control-v1",
+            "X-LobsterAI-Client-Version" to "0.1.0",
+        ),
+        // 兜底表（上游不可用时用）：id to 显示名，倍率写进名字由 UI 拆成徽章
+        models = listOf(
+            "deepseek-flash" to "DeepSeek-V4.1-Flash · x0.05",
+            "deepseek-v4-flash" to "DeepSeek-V4-Flash · x0.05",
+            "deepseek-v4-flash-vision-exp" to "DeepSeek-V4-Flash-Vision · x0.05",
+            "deepseek-v4-pro" to "DeepSeek-V4-Pro · x0.26",
+            "qwen3.8-flash" to "Qwen3.8-Flash · x0.06",
+            "qwen3.8-omni-flash" to "Qwen3.8-Omni-Flash · x0.06",
+            "qwen3.8-max" to "Qwen3.8-Max · x0.91",
+            "qwen3.7-max" to "Qwen3.7-Max · x1.33",
+            "qwen3.7-plus" to "Qwen3.7-Plus · x0.53",
+            "qwen4-max" to "Qwen4-Max · x0.71",
+            "glm-5.3-flash" to "GLM-5.3-Flash · x0.06",
+            "glm-5.3-flashx" to "GLM-5.3-FlashX · x0.15",
+            "glm-5.3" to "GLM-5.3 · x1.08",
+            "glm-5.2" to "GLM-5.2 · x1.08",
+            "glm-5.4" to "GLM-5.4 · x1.08",
+            "kimi-k3" to "Kimi-K3 · x1.35",
+            "kimi-k3.1-pro" to "Kimi-K3.1-Pro · x0.88",
+            "kimi-k3.1-pro-highspeed" to "Kimi-K3.1-Pro-Highspeed · x1.16",
+            "kimi-k2.8-preview" to "Kimi-K2.8-Preview · x0.73",
+            "MiniMax-M3" to "MiniMax-M3 · x0.24",
+            "MiniMax-M3.1-Flash" to "MiniMax-M3.1-Flash · x0.11",
+            "doubao-seed-2-1-pro-260915" to "Doubao-Seed-2.1-Pro · x0.68",
+        ),
+        // 实测上下文（/api/models/available 的 contextWindow）
+        contextWindows = mapOf(
+            "deepseek-flash" to 400_000, "deepseek-v4-flash" to 400_000,
+            "deepseek-v4-flash-vision-exp" to 400_000, "deepseek-v4-pro" to 1_000_000,
+            "qwen3.8-flash" to 1_000_000, "qwen3.8-omni-flash" to 1_000_000,
+            "qwen3.8-max" to 1_000_000, "qwen3.7-max" to 1_000_000,
+            "qwen3.7-plus" to 1_000_000, "qwen4-max" to 400_000,
+            "glm-5.3-flash" to 1_000_000, "glm-5.3-flashx" to 1_000_000,
+            "glm-5.3" to 1_000_000, "glm-5.2" to 1_000_000, "glm-5.4" to 400_000,
+            "kimi-k3" to 1_048_576, "kimi-k3.1-pro" to 1_048_576,
+            "kimi-k3.1-pro-highspeed" to 1_048_576, "kimi-k2.8-preview" to 262_144,
+            "MiniMax-M3" to 1_000_000, "MiniMax-M3.1-Flash" to 1_000_000,
+            "doubao-seed-2-1-pro-260915" to 256_000,
+        ),
+        // 实测支持识图的模型（supportsImage=true）
+        visionModels = setOf(
+            "deepseek-flash", "qwen3.8-flash", "glm-5.3-flashx", "glm-5.3-flash",
+            "kimi-k3.1-pro", "kimi-k2.8-preview", "MiniMax-M3.1-Flash", "MiniMax-M3",
+            "doubao-seed-2-1-pro-260915", "qwen4-max", "glm-5.4",
+            "kimi-k3.1-pro-highspeed", "qwen3.8-omni-flash",
+            "deepseek-v4-flash-vision-exp", "qwen3.8-max", "qwen3.7-plus", "kimi-k3",
+        ),
+        // 8791 端口只服务本渠道：模型 id 用裸 key，不加 lobsterai/ 前缀
+        prefixModelIds = false,
+    )
+
     /** 按模型 id 识别渠道前缀（返回渠道配置；null = 走 Trae 默认） */
     fun byModel(model: String): OpenAiChannelConfig? = when {
         model.startsWith("${LOOMY.prefix}/") -> LOOMY
         model.startsWith("${BUDDY.prefix}/") -> BUDDY
         model.startsWith("${QODERCN.prefix}/") -> QODERCN
+        model.startsWith("${LOBSTERAI.prefix}/") -> LOBSTERAI
         else -> null
     }
 
@@ -139,6 +214,7 @@ object ChannelConfigs {
         LOOMY.prefix -> LOOMY
         BUDDY.prefix -> BUDDY
         QODERCN.prefix -> QODERCN
+        LOBSTERAI.prefix -> LOBSTERAI
         else -> null
     }
 }

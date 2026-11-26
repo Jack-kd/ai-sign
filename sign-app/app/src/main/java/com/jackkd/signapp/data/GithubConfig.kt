@@ -120,6 +120,14 @@ class GithubConfig(context: Context) {
         sp.edit().putInt("loomy_schedule_hour", hour).putInt("loomy_schedule_minute", minute).apply()
     }
 
+    // ===== LobsterAI 签到时间存储（独立）=====
+    fun spForLobsterScheduleHour(): Int = sp.getInt("lobster_schedule_hour", -1)
+    fun spForLobsterScheduleMinute(): Int = sp.getInt("lobster_schedule_minute", -1)
+
+    fun saveLobsterSchedule(hour: Int, minute: Int) {
+        sp.edit().putInt("lobster_schedule_hour", hour).putInt("lobster_schedule_minute", minute).apply()
+    }
+
     // ===== WorkBuddy 云端文件路径 =====
     val wbCredentialsPath: String = "scripts/workbuddy_accounts.json"
     val wbWorkflowPath: String = ".github/workflows/workbuddy-checkin.yml"
@@ -131,6 +139,10 @@ class GithubConfig(context: Context) {
     // ===== Loomy 云端文件路径 =====
     val loomyCredentialsPath: String = "scripts/loomy_accounts.json"
     val loomyWorkflowPath: String = ".github/workflows/loomy-checkin.yml"
+
+    // ===== LobsterAI 云端文件路径 =====
+    val lobsterCredentialsPath: String = "scripts/lobsterai_accounts.json"
+    val lobsterWorkflowPath: String = ".github/workflows/lobsterai-checkin.yml"
 
     // ===== 已登录 GitHub 账号列表（支持多账号快速切换） =====
     fun savedAccounts(): List<GithubSavedAccount> {

@@ -54,11 +54,16 @@ import com.jackkd.signapp.data.LoomyAccount
 import com.jackkd.signapp.data.LoomyAccountStore
 import com.jackkd.signapp.data.LoomyCredentials
 import com.jackkd.signapp.data.WorkBuddyAccountStore
+import com.jackkd.signapp.data.LobsteraiAccount
+import com.jackkd.signapp.data.LobsteraiAccountStore
+import com.jackkd.signapp.data.LobsteraiCredentials
+import com.jackkd.signapp.data.UploadLobsteraiAccount
 import com.jackkd.signapp.data.WorkBuddyCredentials
 import com.jackkd.signapp.net.CredentialCrypto
 import com.jackkd.signapp.net.CreditsQuery
 import com.jackkd.signapp.net.GithubApi
 import com.jackkd.signapp.net.LoomyApi
+import com.jackkd.signapp.net.LobsteraiApi
 import com.jackkd.signapp.net.QoderCnApi
 import com.jackkd.signapp.net.TraeApi
 import com.jackkd.signapp.net.UploadService
@@ -134,7 +139,7 @@ fun animateMainTheme(activity: android.app.Activity) {
     val dark = (activity.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
             android.content.res.Configuration.UI_MODE_NIGHT_YES
     val (s, e) = themeGrad(main.config.getColorTheme(), dark)
-    listOf(R.id.btnLoginTrae, R.id.btnTriggerTrae, R.id.btnLoginWorkBuddy, R.id.btnTriggerWb, R.id.btnLoginQoderCn, R.id.btnTriggerQc, R.id.btnLoginLoomy, R.id.btnTriggerLoomy).forEach { id ->
+    listOf(R.id.btnLoginTrae, R.id.btnTriggerTrae, R.id.btnLoginWorkBuddy, R.id.btnTriggerWb, R.id.btnLoginQoderCn, R.id.btnTriggerQc, R.id.btnLoginLoomy, R.id.btnTriggerLoomy, R.id.btnLoginLobster, R.id.btnTriggerLobster).forEach { id ->
         activity.findViewById<android.view.View>(id)?.let {
             animateGradient(it, s, e, 8f)
         }
@@ -182,26 +187,31 @@ class MainActivity : AppCompatActivity() {
     private lateinit var wbAccountStore: WorkBuddyAccountStore
     private lateinit var qcAccountStore: QoderCnAccountStore
     private lateinit var loomyAccountStore: LoomyAccountStore
+    private lateinit var lobsteraiAccountStore: LobsteraiAccountStore
     private lateinit var logStore: LogStore
     private lateinit var callLogStore: CallLogStore
     private lateinit var accountAdapter: AccountAdapter
     private lateinit var wbAccountAdapter: WorkBuddyAccountAdapter
     private lateinit var qcAccountAdapter: QoderCnAccountAdapter
     private lateinit var loomyAccountAdapter: LoomyAccountAdapter
+    private lateinit var lobsteraiAccountAdapter: LobsteraiAccountAdapter
 
     private lateinit var tvUser: TextView
     private lateinit var tvSchedule: TextView
     private lateinit var tvScheduleWb: TextView
     private lateinit var tvScheduleQc: TextView
     private lateinit var tvScheduleLoomy: TextView
+    private lateinit var tvScheduleLobster: TextView
     private lateinit var tvAccountTitleTrae: TextView
     private lateinit var tvAccountTitleWb: TextView
     private lateinit var tvAccountTitleQc: TextView
     private lateinit var tvAccountTitleLoomy: TextView
+    private lateinit var tvAccountTitleLobster: TextView
     private lateinit var rvAccounts: RecyclerView
     private lateinit var rvWbAccounts: RecyclerView
     private lateinit var rvQcAccounts: RecyclerView
     private lateinit var rvLoomyAccounts: RecyclerView
+    private lateinit var rvLobsterAccounts: RecyclerView
     private lateinit var pageTrae: View
     private lateinit var pageTraeGateway: View
     private lateinit var pageWb: View
@@ -227,6 +237,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var gatewayCallRecent: LinearLayout
     private lateinit var pageQc: View
     private lateinit var pageLoomy: View
+    private lateinit var pageLobster: View
     private lateinit var homePage: View
     private lateinit var detailContainer: View
     private lateinit var detailChannelName: TextView
@@ -240,14 +251,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var subWb: TextView
     private lateinit var subQc: TextView
     private lateinit var subLoomy: TextView
+    private lateinit var subLobster: TextView
     private lateinit var badgeTrae: TextView
     private lateinit var badgeWb: TextView
     private lateinit var badgeQc: TextView
     private lateinit var badgeLoomy: TextView
+    private lateinit var badgeLobster: TextView
     private lateinit var iconTrae: TextView
     private lateinit var iconWb: TextView
     private lateinit var iconQc: TextView
     private lateinit var iconLoomy: TextView
+    private lateinit var iconLobster: TextView
 
     private var githubDialog: AlertDialog? = null
     var currentTab: String = "TRAE"
@@ -284,6 +298,7 @@ class MainActivity : AppCompatActivity() {
         wbAccountStore = WorkBuddyAccountStore(this)
         qcAccountStore = QoderCnAccountStore(this)
         loomyAccountStore = LoomyAccountStore(this)
+        lobsteraiAccountStore = LobsteraiAccountStore(this)
         logStore = LogStore(this)
         callLogStore = CallLogStore(this)
 
@@ -299,8 +314,12 @@ class MainActivity : AppCompatActivity() {
         rvQcAccounts = findViewById(R.id.rvQoderCnAccounts)
         tvScheduleLoomy = findViewById(R.id.tvScheduleLoomy)
         tvAccountTitleLoomy = findViewById(R.id.tvAccountTitleLoomy)
+        tvScheduleLobster = findViewById(R.id.tvScheduleLobster)
+        tvAccountTitleLobster = findViewById(R.id.tvAccountTitleLobster)
+        rvLobsterAccounts = findViewById(R.id.rvLobsterAccounts)
         rvLoomyAccounts = findViewById(R.id.rvLoomyAccounts)
         pageLoomy = findViewById(R.id.pageLoomy)
+        pageLobster = findViewById(R.id.pageLobster)
         pageTrae = findViewById(R.id.pageTrae)
         pageTraeGateway = findViewById(R.id.pageTraeGateway)
         btnGatewayEntry = findViewById(R.id.btnGatewayEntry)
@@ -344,14 +363,17 @@ class MainActivity : AppCompatActivity() {
         subWb = findViewById(R.id.subWorkBuddy)
         subQc = findViewById(R.id.subQoderCn)
         subLoomy = findViewById(R.id.subLoomy)
+        subLobster = findViewById(R.id.subLobster)
         badgeTrae = findViewById(R.id.badgeTrae)
         badgeWb = findViewById(R.id.badgeWorkBuddy)
         badgeQc = findViewById(R.id.badgeQoderCn)
         badgeLoomy = findViewById(R.id.badgeLoomy)
+        badgeLobster = findViewById(R.id.badgeLobster)
         iconTrae = findViewById(R.id.iconTrae)
         iconWb = findViewById(R.id.iconWorkBuddy)
         iconQc = findViewById(R.id.iconQoderCn)
         iconLoomy = findViewById(R.id.iconLoomy)
+        iconLobster = findViewById(R.id.iconLobster)
 
         // 下拉刷新：两页共用"全成功才提交"的刷新逻辑
         setupPullRefresh(findViewById(R.id.swipeTrae))
@@ -387,6 +409,13 @@ class MainActivity : AppCompatActivity() {
         rvLoomyAccounts.layoutManager = LinearLayoutManager(this)
         rvLoomyAccounts.adapter = loomyAccountAdapter
 
+        lobsteraiAccountAdapter = LobsteraiAccountAdapter(
+            onDetail = { acc -> openLobsterDetail(acc) },
+            onDelete = { acc -> confirmDeleteLobster(acc) }
+        )
+        rvLobsterAccounts.layoutManager = LinearLayoutManager(this)
+        rvLobsterAccounts.adapter = lobsteraiAccountAdapter
+
         findViewById<TextView>(R.id.btnLoginTrae).setOnClickListener {
             startActivity(Intent(this, LoginActivity::class.java))
         }
@@ -399,22 +428,28 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.btnLoginLoomy).setOnClickListener {
             startActivity(Intent(this, LoomyLoginActivity::class.java))
         }
+        findViewById<TextView>(R.id.btnLoginLobster).setOnClickListener {
+            startActivity(Intent(this, LobsteraiLoginActivity::class.java))
+        }
         findViewById<TextView>(R.id.btnTriggerTrae).setOnClickListener { showCheckinConfirmDialog("TRAE") }
         findViewById<TextView>(R.id.btnTriggerWb).setOnClickListener { showCheckinConfirmDialog("WorkBuddy") }
         findViewById<TextView>(R.id.btnTriggerQc).setOnClickListener { showCheckinConfirmDialog("QoderCn") }
         findViewById<TextView>(R.id.btnTriggerLoomy).setOnClickListener { showCheckinConfirmDialog("Loomy") }
+        findViewById<TextView>(R.id.btnTriggerLobster).setOnClickListener { showCheckinConfirmDialog("LobsterAI") }
 
         // 各平台时间行旁的"设置"：单独设置该平台签到时间
         findViewById<TextView>(R.id.btnSetTraeSchedule).setOnClickListener { showSingleScheduleDialog("TRAE") }
         findViewById<TextView>(R.id.btnSetWbSchedule).setOnClickListener { showSingleScheduleDialog("WorkBuddy") }
         findViewById<TextView>(R.id.btnSetQcSchedule).setOnClickListener { showSingleScheduleDialog("QoderCn") }
         findViewById<TextView>(R.id.btnSetLoomySchedule).setOnClickListener { showSingleScheduleDialog("Loomy") }
+        findViewById<TextView>(R.id.btnSetLobsterSchedule).setOnClickListener { showSingleScheduleDialog("LobsterAI") }
 
         // 卡片点击 → 进入渠道详情（方案 A：MainActivity 内视图切换）
         findViewById<View>(R.id.cardTrae).setOnClickListener { showChannelDetail("TRAE") }
         findViewById<View>(R.id.cardWorkBuddy).setOnClickListener { showChannelDetail("WorkBuddy") }
         findViewById<View>(R.id.cardQoderCn).setOnClickListener { showChannelDetail("QoderCn") }
         findViewById<View>(R.id.cardLoomy).setOnClickListener { showChannelDetail("Loomy") }
+        findViewById<View>(R.id.cardLobster).setOnClickListener { showChannelDetail("LobsterAI") }
 
         // 卡片右上角 ＋：快捷添加账号（方案 B：首页快捷入口）
         findViewById<View>(R.id.addTrae).setOnClickListener {
@@ -551,6 +586,7 @@ class MainActivity : AppCompatActivity() {
         "WorkBuddy" -> GatewayStore.CH_BUDDY
         "Loomy" -> GatewayStore.CH_LOOMY
         "QoderCn" -> GatewayStore.CH_QODERCN
+        "LobsterAI" -> GatewayStore.CH_LOBSTERAI
         else -> ""
     }
 
@@ -560,6 +596,7 @@ class MainActivity : AppCompatActivity() {
         "WorkBuddy" -> "WorkBuddy"
         "Loomy" -> "Loomy"
         "QoderCn" -> "Qoder 中国版"
+        "LobsterAI" -> "LobsterAI"
         else -> ""
     }
 
@@ -570,6 +607,8 @@ class MainActivity : AppCompatActivity() {
         "Loomy" -> loomyAccountStore.load().filter { it.credentials.isComplete() }
             .map { Triple(it.label, it.credentials.userId, it.id) }
         "QoderCn" -> qcAccountStore.load().filter { it.credentials.isComplete() }
+            .map { Triple(it.label, it.credentials.uid, it.id) }
+        "LobsterAI" -> lobsteraiAccountStore.load().filter { it.credentials.isComplete() }
             .map { Triple(it.label, it.credentials.uid, it.id) }
         else -> accountStore.load().filter { it.credentials.isComplete() }
             .map { Triple(it.label, it.credentials.uid, it.id) }
@@ -591,15 +630,17 @@ class MainActivity : AppCompatActivity() {
         pageWb.visibility = if (tab == "WorkBuddy") View.VISIBLE else View.GONE
         pageQc.visibility = if (tab == "QoderCn") View.VISIBLE else View.GONE
         pageLoomy.visibility = if (tab == "Loomy") View.VISIBLE else View.GONE
+        pageLobster.visibility = if (tab == "LobsterAI") View.VISIBLE else View.GONE
         detailChannelName.text = when (tab) {
             "TRAE" -> "TRAE"
             "WorkBuddy" -> "WorkBuddy_国内版"
             "QoderCn" -> "Qoder 中国版"
+            "LobsterAI" -> "LobsterAI"
             else -> "Loomy"
         }
         // 有网关能力的渠道（TRAE / WorkBuddy / Loomy / Qoder 中国版）详情页顶栏都显示「API」入口
         btnGatewayEntry.visibility =
-            if (tab == "TRAE" || tab == "WorkBuddy" || tab == "Loomy" || tab == "QoderCn") View.VISIBLE
+            if (tab == "TRAE" || tab == "WorkBuddy" || tab == "Loomy" || tab == "QoderCn" || tab == "LobsterAI") View.VISIBLE
             else View.GONE
     }
 
@@ -615,6 +656,7 @@ class MainActivity : AppCompatActivity() {
             pageWb.visibility = if (currentTab == "WorkBuddy") View.VISIBLE else View.GONE
             pageQc.visibility = if (currentTab == "QoderCn") View.VISIBLE else View.GONE
             pageLoomy.visibility = if (currentTab == "Loomy") View.VISIBLE else View.GONE
+            pageLobster.visibility = if (currentTab == "LobsterAI") View.VISIBLE else View.GONE
         } else {
             showHome()
         }
@@ -622,7 +664,7 @@ class MainActivity : AppCompatActivity() {
 
     /** 从渠道详情页顶栏「API」进入网关子页（TRAE / WorkBuddy / Loomy 通用） */
     private fun showGatewayPage() {
-        if (currentTab != "TRAE" && currentTab != "WorkBuddy" && currentTab != "Loomy" && currentTab != "QoderCn") return
+        if (currentTab != "TRAE" && currentTab != "WorkBuddy" && currentTab != "Loomy" && currentTab != "QoderCn" && currentTab != "LobsterAI") return
         gatewayPageActive = true
         gatewayPolling = true
         gatewayLastLogSignature = ""
@@ -634,6 +676,7 @@ class MainActivity : AppCompatActivity() {
         pageWb.visibility = View.GONE
         pageQc.visibility = View.GONE
         pageLoomy.visibility = View.GONE
+        pageLobster.visibility = View.GONE
         pageTraeGateway.visibility = View.VISIBLE
     }
 
@@ -669,6 +712,7 @@ class MainActivity : AppCompatActivity() {
                 "WorkBuddy" -> "WorkBuddy 页"
                 "Loomy" -> "Loomy 页"
                 "QoderCn" -> "Qoder 中国版页"
+                "LobsterAI" -> "LobsterAI 页"
                 else -> "TRAE 页"
             }}添加账号"
         }
@@ -928,6 +972,7 @@ class MainActivity : AppCompatActivity() {
             GatewayStore.CH_QODERCN -> ChannelConfigs.QODERCN
             GatewayStore.CH_LOOMY -> ChannelConfigs.LOOMY
             GatewayStore.CH_BUDDY -> ChannelConfigs.BUDDY
+            GatewayStore.CH_LOBSTERAI -> ChannelConfigs.LOBSTERAI
             else -> null
         } ?: return emptyList()
         return parseModelArray(cfg.toModelsArray().toString())
@@ -1123,6 +1168,9 @@ class MainActivity : AppCompatActivity() {
             HomeApiCard("Loomy", GatewayStore.CH_LOOMY,
                 R.id.apiBtnLoomy, R.id.apiPanelLoomy, R.id.apiUrlLoomy,
                 R.id.apiCopyUrlLoomy, R.id.apiKeyLoomy, R.id.apiEyeLoomy, R.id.apiCopyKeyLoomy),
+            HomeApiCard("LobsterAI", GatewayStore.CH_LOBSTERAI,
+                R.id.apiBtnLobster, R.id.apiPanelLobster, R.id.apiUrlLobster,
+                R.id.apiCopyUrlLobster, R.id.apiKeyLobster, R.id.apiEyeLobster, R.id.apiCopyKeyLobster),
         )
     }
 
@@ -1214,6 +1262,7 @@ class MainActivity : AppCompatActivity() {
         GatewayStore.CH_LOOMY -> R.id.rowInfoLoomy
         GatewayStore.CH_BUDDY -> R.id.rowInfoWb
         GatewayStore.CH_QODERCN -> R.id.rowInfoQc
+        GatewayStore.CH_LOBSTERAI -> R.id.rowInfoLobster
         else -> R.id.rowInfoTrae
     }
 
@@ -1352,6 +1401,7 @@ class MainActivity : AppCompatActivity() {
             "WorkBuddy" -> { id -> wbAccountAdapter.creditsOf(id) }
             "QoderCn" -> { id -> qcAccountAdapter.creditsOf(id) }
             "Loomy" -> { id -> loomyAccountAdapter.creditsOf(id) }
+            "LobsterAI" -> { id -> lobsteraiAccountAdapter.creditsOf(id) }
             else -> { id -> accountAdapter.creditsOf(id) }
         }
 
@@ -1474,6 +1524,7 @@ class MainActivity : AppCompatActivity() {
                 "WorkBuddy" -> "WorkBuddy_国内版"
                 "QoderCn" -> "Qoder 中国版"
                 "Loomy" -> "Loomy"
+                "LobsterAI" -> "LobsterAI"
                 else -> platform
             }
         view.findViewById<TextView>(R.id.tvConfirmTitle).text = if (both) "一键签到" else "立即签到$displayName"
@@ -1500,16 +1551,18 @@ class MainActivity : AppCompatActivity() {
             "TRAE" -> config.spForScheduleHour()
             "WorkBuddy" -> config.spForWbScheduleHour()
             "QoderCn" -> config.spForQcScheduleHour()
-            else -> config.spForLoomyScheduleHour()
+            "Loomy" -> config.spForLoomyScheduleHour()
+            else -> config.spForLobsterScheduleHour()
         }
         val curMinute = when (platform) {
             "TRAE" -> config.spForScheduleMinute()
             "WorkBuddy" -> config.spForWbScheduleMinute()
             "QoderCn" -> config.spForQcScheduleMinute()
-            else -> config.spForLoomyScheduleMinute()
+            "Loomy" -> config.spForLoomyScheduleMinute()
+            else -> config.spForLobsterScheduleMinute()
         }
         // Qoder 中国版每日 10:00（UTC+8）刷新活动，默认给 11:00；Loomy 任意时刻可领，也给 11:00
-        val defHour = if (platform == "QoderCn" || platform == "Loomy") 11 else 0
+        val defHour = if (platform == "QoderCn" || platform == "Loomy" || platform == "LobsterAI") 11 else 0
         val h = curHour.let { if (it in 0..23) it else defHour }
         val m = curMinute.let { if (it in 0..59) it else 30 }
         showSchedulePicker(h, m) { hh, mm -> saveSingleSchedule(platform, hh, mm) }
@@ -1526,7 +1579,8 @@ class MainActivity : AppCompatActivity() {
                         "TRAE" -> svc.updateSchedule(ScheduleTime(hour, minute))
                         "WorkBuddy" -> svc.updateWorkBuddySchedule(ScheduleTime(hour, minute))
                         "QoderCn" -> svc.updateQoderCnSchedule(ScheduleTime(hour, minute))
-                        else -> svc.updateLoomySchedule(ScheduleTime(hour, minute))
+                        "Loomy" -> svc.updateLoomySchedule(ScheduleTime(hour, minute))
+                        else -> svc.updateLobsteraiSchedule(ScheduleTime(hour, minute))
                     }
                 }.getOrDefault(false)
             }
@@ -1535,7 +1589,8 @@ class MainActivity : AppCompatActivity() {
                     "TRAE" -> { config.saveSchedule(hour, minute); showScheduleText() }
                     "WorkBuddy" -> { config.saveWbSchedule(hour, minute); showWbScheduleText() }
                     "QoderCn" -> { config.saveQcSchedule(hour, minute); showQcScheduleText() }
-                    else -> { config.saveLoomySchedule(hour, minute); showLoomyScheduleText() }
+                    "Loomy" -> { config.saveLoomySchedule(hour, minute); showLoomyScheduleText() }
+                    else -> { config.saveLobsterSchedule(hour, minute); showLobsterScheduleText() }
                 }
                 val name = when (platform) { "WorkBuddy" -> "WorkBuddy_国内版"; "QoderCn" -> "Qoder 中国版"; else -> platform }
                 Toast.makeText(this@MainActivity, "$name 签到时间已设置为 %02d:%02d".format(hour, minute), Toast.LENGTH_SHORT).show()
@@ -1545,7 +1600,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** 全局设置签到时间：四平台设同一时间（滚轮选择） */
+    /** 全局设置签到时间：五平台设同一时间（滚轮选择） */
     private fun showGlobalScheduleDialog() {
         val h = config.spForScheduleHour().let { if (it in 0..23) it else 0 }
         val m = config.spForScheduleMinute().let { if (it in 0..59) it else 30 }
@@ -1586,7 +1641,7 @@ class MainActivity : AppCompatActivity() {
         dlg.show()
     }
 
-    /** 同时保存 TRAE + WorkBuddy + Qoder 中国版 + Loomy 的签到时间 */
+    /** 同时保存 TRAE + WorkBuddy + Qoder 中国版 + Loomy + LobsterAI 的签到时间 */
     private fun saveBothSchedule(hour: Int, minute: Int) {
         lifecycleScope.launch {
             val api = GithubApi(config.username, config.token)
@@ -1614,32 +1669,41 @@ class MainActivity : AppCompatActivity() {
                         .updateLoomySchedule(ScheduleTime(hour, minute))
                 }.getOrDefault(false)
             }
-            if (traeOk && wbOk && qcOk && loomyOk) {
+            val lobsterOk = withContext(Dispatchers.IO) {
+                runCatching {
+                    UploadService(api, config.repoOwner, config.repoName, config.workflowBranch)
+                        .updateLobsteraiSchedule(ScheduleTime(hour, minute))
+                }.getOrDefault(false)
+            }
+            if (traeOk && wbOk && qcOk && loomyOk && lobsterOk) {
                 config.saveSchedule(hour, minute)
                 config.saveWbSchedule(hour, minute)
                 config.saveQcSchedule(hour, minute)
                 config.saveLoomySchedule(hour, minute)
+                config.saveLobsterSchedule(hour, minute)
                 showScheduleText()
                 showWbScheduleText()
                 showQcScheduleText()
                 showLoomyScheduleText()
-                Toast.makeText(this@MainActivity, "签到时间已同步到 GitHub（四平台）", Toast.LENGTH_SHORT).show()
+                showLobsterScheduleText()
+                Toast.makeText(this@MainActivity, "签到时间已同步到 GitHub（五平台）", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(
                     this@MainActivity,
-                    "同步失败：TRAE=${if (traeOk) "成功" else "失败"}，WorkBuddy_国内版=${if (wbOk) "成功" else "失败"}，Qoder=${if (qcOk) "成功" else "失败"}，Loomy=${if (loomyOk) "成功" else "失败"}",
+                    "同步失败：TRAE=${if (traeOk) "成功" else "失败"}，WorkBuddy_国内版=${if (wbOk) "成功" else "失败"}，Qoder=${if (qcOk) "成功" else "失败"}，Loomy=${if (loomyOk) "成功" else "失败"}，LobsterAI=${if (lobsterOk) "成功" else "失败"}",
                     Toast.LENGTH_LONG
                 ).show()
             }
         }
     }
 
-    /** 一键签到：同时触发 TRAE + WorkBuddy + Qoder 中国版 + Loomy */
+    /** 一键签到：同时触发 TRAE + WorkBuddy + Qoder 中国版 + Loomy + LobsterAI */
     private fun triggerBothNow() {
         triggerNow("TRAE")
         triggerNow("WorkBuddy")
         triggerNow("QoderCn")
         triggerNow("Loomy")
+        triggerNow("LobsterAI")
     }
 
     override fun onPause() {
@@ -1680,10 +1744,12 @@ class MainActivity : AppCompatActivity() {
         wbAccountAdapter.submit(wbAccountStore.load())
         qcAccountAdapter.submit(qcAccountStore.load())
         loomyAccountAdapter.submit(loomyAccountStore.load())
+        lobsteraiAccountAdapter.submit(lobsteraiAccountStore.load())
         showScheduleText()
         showWbScheduleText()
         showQcScheduleText()
         showLoomyScheduleText()
+        showLobsterScheduleText()
         updateChannelCards()
         refreshGatewayPage()
         // 首页 API 状态灯同步（网关可能被系统杀掉或自己拉起）
@@ -1696,6 +1762,7 @@ class MainActivity : AppCompatActivity() {
         setChannelIcon(iconWb, R.color.channel_workbuddy, "W")
         setChannelIcon(iconQc, R.color.channel_qodercn, "Q")
         setChannelIcon(iconLoomy, R.color.channel_loomy, "L")
+        setChannelIcon(iconLobster, R.color.channel_lobsterai, "🦞")
         updateChannelCard(
             subTrae, badgeTrae,
             accountAdapter.accountCount(), accountAdapter.sumCredits(), accountAdapter.expiredCount()
@@ -1711,6 +1778,10 @@ class MainActivity : AppCompatActivity() {
         updateChannelCard(
             subLoomy, badgeLoomy,
             loomyAccountAdapter.accountCount(), loomyAccountAdapter.sumCredits(), 0
+        )
+        updateChannelCard(
+            subLobster, badgeLobster,
+            lobsteraiAccountAdapter.accountCount(), lobsteraiAccountAdapter.sumCredits(), 0
         )
     }
 
@@ -1780,6 +1851,16 @@ class MainActivity : AppCompatActivity() {
             "Loomy 签到时间: %02d:%02d".format(h, m)
         } else {
             "Loomy 签到时间: 未设置"
+        }
+    }
+
+    private fun showLobsterScheduleText() {
+        val h = config.spForLobsterScheduleHour()
+        val m = config.spForLobsterScheduleMinute()
+        tvScheduleLobster.text = if (h in 0..23 && m in 0..59) {
+            "LobsterAI 签到时间: %02d:%02d".format(h, m)
+        } else {
+            "LobsterAI 签到时间: 未设置"
         }
     }
 
@@ -2109,6 +2190,7 @@ private fun showGithubDialog() {
                 "WorkBuddy" -> 0xFF4CD889.toInt()
                 "QoderCn" -> 0xFFFF8A3D.toInt()
                 "Loomy" -> 0xFF9B59B6.toInt()
+                "LobsterAI" -> 0xFFFF6A00.toInt()
                 else -> 0xFF3B8BFF.toInt()
             }
             val row = LinearLayout(this).apply {
@@ -2155,6 +2237,7 @@ private fun showGithubDialog() {
                     "WorkBuddy" -> WorkBuddyLoginActivity::class.java
                     "QoderCn" -> QoderCnLoginActivity::class.java
                     "Loomy" -> LoomyLoginActivity::class.java
+                    "LobsterAI" -> LobsteraiLoginActivity::class.java
                     else -> LoginActivity::class.java
                 }))
             }
@@ -2221,6 +2304,7 @@ private fun showGithubDialog() {
                         log.platform == "WorkBuddy" -> "WorkBuddy"
                         log.platform == "QoderCn" -> "QoderCn"
                         log.platform == "Loomy" -> "Loomy"
+                        log.platform == "LobsterAI" -> "LobsterAI"
                         else -> "TRAE"
                     }
                     addLoginIssue(platform, log.account)
@@ -2279,25 +2363,28 @@ private fun showGithubDialog() {
             val wb = todayEarned("WorkBuddy")
             val qc = todayEarned("QoderCn")
             val loomy = todayEarned("Loomy")
+            val lobster = todayEarned("LobsterAI")
             // 今日已签到 X/Y：X = 今日日志成功/已签到的去重账号数，Y = 4 渠道账号总数
             val todayDoneAccounts = list
                 .filter { log ->
                     val p = log.platform
                     val match = p.isNullOrBlank() || p.equals("TRAE", true) ||
                         p.equals("WorkBuddy", true) || p.equals("QoderCn", true) ||
-                        p.equals("Loomy", true)
+                        p.equals("Loomy", true) || p.equals("LobsterAI", true)
                     match && fmt.format(java.util.Date(log.time)) == today &&
                         (log.result.equals("成功", true) || log.result.equals("已签到", true))
                 }
                 .distinctBy { "${it.platform}:${it.account}" }
                 .size
             val totalAccounts = accountAdapter.accountCount() + wbAccountAdapter.accountCount() +
-                qcAccountAdapter.accountCount() + loomyAccountAdapter.accountCount()
+                qcAccountAdapter.accountCount() + loomyAccountAdapter.accountCount() +
+                lobsteraiAccountAdapter.accountCount()
             runOnUiThread {
                 tvAccountTitleTrae.text = "TRAE 账号 · 今日已领 $trae 分"
                 tvAccountTitleWb.text = "WorkBuddy_国内版 账号 · 今日已领 $wb 额度"
                 tvAccountTitleQc.text = "Qoder 中国版 账号 · 今日已领 $qc 积分"
                 tvAccountTitleLoomy.text = "Loomy 账号 · 今日已领 $loomy 积分"
+                tvAccountTitleLobster.text = "LobsterAI 账号 · 今日已领 $lobster 积分"
                 homeOverviewValue.text = "$todayDoneAccounts / $totalAccounts"
             }
         }
@@ -2357,6 +2444,15 @@ private fun showGithubDialog() {
             }
             if (loomySchedule != null) {
                 config.saveLoomySchedule(loomySchedule.hour, loomySchedule.minute)
+            }
+
+            val lobsterSchedule = withContext(Dispatchers.IO) {
+                runCatching {
+                    UploadService(api, config.repoOwner, config.repoName, config.workflowBranch).fetchLobsteraiSchedule()
+                }.getOrNull()
+            }
+            if (lobsterSchedule != null) {
+                config.saveLobsterSchedule(lobsterSchedule.hour, lobsterSchedule.minute)
             }
 
             val raw = withContext(Dispatchers.IO) {
@@ -2453,6 +2549,32 @@ private fun showGithubDialog() {
                 loomyAccountAdapter.submit(loomyAccountStore.load())
             }
 
+            val lobsterResult = withContext(Dispatchers.IO) {
+                runCatching { api.readRepoFile(config.repoOwner, config.repoName, config.lobsterCredentialsPath) }
+            }
+            val lobsterRaw = lobsterResult.getOrNull()
+            if (lobsterRaw != null) {
+                val lobsterList = parseCloudLobster(lobsterRaw)
+                for (ua in lobsterList) {
+                    // LobsterAI 凭证明文存储，无 AES 加密
+                    val acc = LobsteraiAccount(
+                        id = "cloud_lobster_" + (ua.uid.ifBlank { ua.label }),
+                        label = ua.label.ifBlank { (ua.nickname.ifBlank { "LobsterAI" }) },
+                        credentials = LobsteraiCredentials(
+                            accessToken = ua.accessToken,
+                            refreshToken = ua.refreshToken,
+                            expiresAt = ua.expiresAt,
+                            uid = ua.uid,
+                            nickname = ua.nickname,
+                            keyfrom = ua.keyfrom,
+                            uuid = ua.uuid
+                        )
+                    )
+                    lobsteraiAccountStore.addOrUpdate(acc)
+                }
+                lobsteraiAccountAdapter.submit(lobsteraiAccountStore.load())
+            }
+
             // 拉取微信 ClawBot 推送配置（开关 + SPT），换设备登录后自动回显
             val wxRaw = withContext(Dispatchers.IO) {
                 runCatching {
@@ -2475,6 +2597,8 @@ private fun showGithubDialog() {
             showScheduleText()
             showWbScheduleText()
             showQcScheduleText()
+            showLoomyScheduleText()
+            showLobsterScheduleText()
             } finally {
                 hideLoading()
                 // 账号拉取入库后串行刷新积分与失效横幅，保证用「最新云端解密密文」判失效，
@@ -2506,6 +2630,10 @@ private fun showGithubDialog() {
 
     private fun openLoomyDetail(acc: LoomyAccount) {
         startActivity(Intent(this, LoomyAccountDetailActivity::class.java).putExtra("account_id", acc.id))
+    }
+
+    private fun openLobsterDetail(acc: LobsteraiAccount) {
+        startActivity(Intent(this, LobsteraiAccountDetailActivity::class.java).putExtra("account_id", acc.id))
     }
 
     private fun confirmDelete(acc: TraeAccount) {
@@ -2764,6 +2892,115 @@ private fun showGithubDialog() {
                         phone = field(arr, i, "phone"),
                         uid = field(arr, i, "uid", "user_id", "userId"),
                         nickname = field(arr, i, "nickname", "nickName")
+                    )
+                )
+            }
+            out
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun confirmDeleteLobster(acc: LobsteraiAccount) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("删除 LobsterAI 账号")
+            .setMessage("确定删除 ${acc.label} 吗？\n\n将从本地和云端(GitHub)同时删除。")
+            .setPositiveButton("删除", { _, _ ->
+                if (!config.verified) {
+                    Toast.makeText(this, "请先完成 GitHub 授权", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                deleteLobsterSync(acc)
+            })
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun deleteLobsterSync(acc: LobsteraiAccount) {
+        Toast.makeText(this, "正在从云端删除 ${acc.label}...", Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            val api = GithubApi(config.username, config.token)
+            val raw = withContext(Dispatchers.IO) {
+                runCatching { api.readRepoFile(config.repoOwner, config.repoName, config.lobsterCredentialsPath) }.getOrNull()
+            }
+            if (raw == null) {
+                lobsteraiAccountStore.remove(acc.id)
+                refresh()
+                Toast.makeText(this@MainActivity, "${acc.label} 已删除（云端无账号文件）", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val cloudList: List<UploadLobsteraiAccount> = parseCloudLobster(raw)
+            val targetUid = acc.credentials.uid
+            val remaining = cloudList.filterNot {
+                if (targetUid.isNotBlank()) it.uid.equals(targetUid, true)
+                else it.label.equals(acc.label, true)
+            }
+            if (remaining.size == cloudList.size) {
+                lobsteraiAccountStore.remove(acc.id)
+                refresh()
+                Toast.makeText(this@MainActivity, "${acc.label} 已删除（云端未找到该账号）", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val error = withContext(Dispatchers.IO) {
+                runCatching {
+                    UploadService(api, config.repoOwner, config.repoName, config.workflowBranch)
+                        .uploadLobsteraiAccounts(remaining)
+                }.getOrNull()
+            }
+            if (error != null) {
+                Toast.makeText(this@MainActivity, "云端删除失败：$error\n本地账号未删除", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            lobsteraiAccountStore.remove(acc.id)
+            refresh()
+            logStore.add(SignLog(System.currentTimeMillis(), acc.label, "删除成功", "已从本地和云端删除 LobsterAI"))
+            Toast.makeText(this@MainActivity, "${acc.label} 已从本地和云端删除", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** 解析云端 lobsterai_accounts.json（snake_case 权威），明文，无需解密 */
+    private fun parseCloudLobster(raw: String): List<UploadLobsteraiAccount> {
+        fun field(arr: com.google.gson.JsonArray, i: Int, vararg keys: String): String {
+            return try {
+                val el = arr[i]
+                if (el is com.google.gson.JsonObject) {
+                    for (key in keys) {
+                        val v = el.get(key)
+                        if (v != null && !v.isJsonNull) {
+                            val str = v.asString
+                            if (str.isNotBlank()) return str
+                        }
+                    }
+                    ""
+                } else ""
+            } catch (_: Exception) { "" }
+        }
+        fun num(arr: com.google.gson.JsonArray, i: Int, vararg keys: String): Long {
+            return try {
+                val el = arr[i]
+                if (el is com.google.gson.JsonObject) {
+                    for (key in keys) {
+                        val v = el.get(key)
+                        if (v != null && !v.isJsonNull) return v.asLong
+                    }
+                    0L
+                } else 0L
+            } catch (_: Exception) { 0L }
+        }
+        return try {
+            val arr = com.google.gson.JsonParser.parseString(raw).asJsonArray
+            val out = ArrayList<UploadLobsteraiAccount>()
+            for (i in 0 until arr.size()) {
+                out.add(
+                    UploadLobsteraiAccount(
+                        label = field(arr, i, "label"),
+                        accessToken = field(arr, i, "access_token", "accessToken"),
+                        refreshToken = field(arr, i, "refresh_token", "refreshToken"),
+                        uid = field(arr, i, "user_id", "userId", "uid"),
+                        nickname = field(arr, i, "nickname", "nickName"),
+                        keyfrom = field(arr, i, "keyfrom", "latest_keyfrom", "latestKeyfrom"),
+                        uuid = field(arr, i, "uuid", "device_id", "deviceId"),
+                        expiresAt = num(arr, i, "expires_at", "expiresAt")
                     )
                 )
             }
@@ -3089,6 +3326,7 @@ private fun showGithubDialog() {
         val wbList = wbAccountStore.load()
         val qcList = qcAccountStore.load()
         val loomyList = loomyAccountStore.load()
+        val lobsterList = lobsteraiAccountStore.load()
 
         if (traeList.isNotEmpty()) {
             lifecycleScope.launch {
@@ -3199,6 +3437,26 @@ private fun showGithubDialog() {
                 updateChannelCards()
             }
         }
+        if (lobsterList.isNotEmpty()) {
+            lifecycleScope.launch {
+                val jobs = lobsterList.map { acc ->
+                    async(Dispatchers.IO) {
+                        val c = LobsteraiApi().fetchCredits(acc.credentials.accessToken)
+                        Triple(acc.id, acc.label, c?.remaining)
+                    }
+                }
+                jobs.forEach { job ->
+                    val (id, label, v) = job.await()
+                    if (v != null) {
+                        lobsteraiAccountAdapter.setCredits(id, "当前积分 ${formatQcNum(v)}")
+                        removeLoginIssue("LobsterAI", label)
+                    } else {
+                        lobsteraiAccountAdapter.setCredits(id, "当前积分 获取失败", R.color.gray)
+                    }
+                }
+                updateChannelCards()
+            }
+        }
     }
 
     /** 积分显示：整数不带小数点，小数保留两位（与云端脚本 round(x,2) 一致） */
@@ -3278,6 +3536,8 @@ private fun showGithubDialog() {
             val qcSchRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, config.qcWorkflowPath) }.getOrNull() }
             val loomyRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, config.loomyCredentialsPath) }.getOrNull() }
             val loomySchRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, config.loomyWorkflowPath) }.getOrNull() }
+            val lobsterRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, config.lobsterCredentialsPath) }.getOrNull() }
+            val lobsterSchRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, config.lobsterWorkflowPath) }.getOrNull() }
             val logRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, config.logPath) }.getOrNull() }
             val wxRaw = async(Dispatchers.IO) { runCatching { api.readRepoFile(owner, repo, UploadService.WXPUSHER_CONFIG_FILE) }.getOrNull() }
 
@@ -3328,6 +3588,13 @@ private fun showGithubDialog() {
                 }
             }
 
+            val lobsterList = lobsteraiAccountStore.load()
+            val lobsterJobs = lobsterList.map { acc ->
+                async(Dispatchers.IO) {
+                    Triple(acc.id, acc.label, LobsteraiApi().fetchCredits(acc.credentials.accessToken)?.remaining)
+                }
+            }
+
             val traeAccounts = traeRaw.await()
             val wbAccounts = wbRaw.await()
             val schedule = schRaw.await()
@@ -3336,12 +3603,15 @@ private fun showGithubDialog() {
             val qcSchedule = qcSchRaw.await()
             val loomyAccounts = loomyRaw.await()
             val loomySchedule = loomySchRaw.await()
+            val lobsterAccounts = lobsterRaw.await()
+            val lobsterSchedule = lobsterSchRaw.await()
             val logsRaw2 = logRaw.await()
             val wxConfig = wxRaw.await()
             val traeCredits = traeJobs.map { it.await() }
             val wbCredits = wbJobs.map { it.await() }
             val qcCredits = qcJobs.map { it.await() }
             val loomyCredits = loomyJobs.map { it.await() }
+            val lobsterCredits = lobsterJobs.map { it.await() }
 
             // 成功判定：核心文件必须全部存在；积分查询不允许 Failed/null
             // qodercn 相关文件可能尚未创建（首次使用），不算刷新失败
@@ -3431,10 +3701,31 @@ private fun showGithubDialog() {
                         loomyAccountStore.addOrUpdate(acc)
                     }
                 } catch (e: Exception) { }
+                try {
+                    val list: List<UploadLobsteraiAccount> = parseCloudLobster(lobsterAccounts ?: "")
+                    for (ua in list) {
+                        // LobsterAI 凭证明文存储，无 AES 加密
+                        val acc = LobsteraiAccount(
+                            id = "cloud_lobster_" + (ua.uid.ifBlank { ua.label }),
+                            label = ua.label.ifBlank { (ua.nickname.ifBlank { "LobsterAI" }) },
+                            credentials = LobsteraiCredentials(
+                                accessToken = ua.accessToken,
+                                refreshToken = ua.refreshToken,
+                                expiresAt = ua.expiresAt,
+                                uid = ua.uid,
+                                nickname = ua.nickname,
+                                keyfrom = ua.keyfrom,
+                                uuid = ua.uuid
+                            )
+                        )
+                        lobsteraiAccountStore.addOrUpdate(acc)
+                    }
+                } catch (e: Exception) { }
                 accountAdapter.submit(accountStore.load())
                 wbAccountAdapter.submit(wbAccountStore.load())
                 qcAccountAdapter.submit(qcAccountStore.load())
                 loomyAccountAdapter.submit(loomyAccountStore.load())
+                lobsteraiAccountAdapter.submit(lobsteraiAccountStore.load())
 
                 // 2) 签到时间（cron → 本地时间）
                 try {
@@ -3449,10 +3740,14 @@ private fun showGithubDialog() {
                 try {
                     parseCron(loomySchedule ?: "")?.let { config.saveLoomySchedule(it.hour, it.minute) }
                 } catch (e: Exception) { }
+                try {
+                    parseCron(lobsterSchedule ?: "")?.let { config.saveLobsterSchedule(it.hour, it.minute) }
+                } catch (e: Exception) { }
                 showScheduleText()
                 showWbScheduleText()
                 showQcScheduleText()
                 showLoomyScheduleText()
+                showLobsterScheduleText()
 
                 // 3) 推送配置回显（文件缺失=未配置，保持本地）
                 try {
@@ -3480,6 +3775,7 @@ private fun showGithubDialog() {
                     tvAccountTitleWb.text = "WorkBuddy_国内版 账号 · 今日已领 ${todayEarned("WorkBuddy")} 额度"
                     tvAccountTitleQc.text = "Qoder 中国版 账号 · 今日已领 ${todayEarned("QoderCn")} 积分"
                     tvAccountTitleLoomy.text = "Loomy 账号 · 今日已领 ${todayEarned("Loomy")} 积分"
+                    tvAccountTitleLobster.text = "LobsterAI 账号 · 今日已领 ${todayEarned("LobsterAI")} 积分"
                     // 4b) 登录态失效（收集日志中全部命中账号加入集合，多个账号聚合显示）
                     val issues = logs.take(20)
                         .filter { log ->
@@ -3495,6 +3791,7 @@ private fun showGithubDialog() {
                                 log.platform == "WorkBuddy" -> "WorkBuddy"
                                 log.platform == "QoderCn" -> "QoderCn"
                                 log.platform == "Loomy" -> "Loomy"
+                                log.platform == "LobsterAI" -> "LobsterAI"
                                 else -> "TRAE"
                             }, log.account)
                         }
@@ -3538,6 +3835,12 @@ private fun showGithubDialog() {
                         removeLoginIssue("Loomy", label)
                     } else { }
                 }
+                lobsterCredits.forEach { (id, label, v) ->
+                    if (v != null) {
+                        lobsteraiAccountAdapter.setCredits(id, "当前积分 ${formatQcNum(v)}")
+                        removeLoginIssue("LobsterAI", label)
+                    } else { }
+                }
 
                 updateChannelCards()
                 Toast.makeText(this@MainActivity, "刷新成功", Toast.LENGTH_SHORT).show()
@@ -3572,7 +3875,8 @@ private fun showGithubDialog() {
             "TRAE" to ContextCompat.getColor(this, R.color.channel_trae),
             "WorkBuddy" to ContextCompat.getColor(this, R.color.channel_workbuddy),
             "QoderCn" to ContextCompat.getColor(this, R.color.channel_qodercn),
-            "Loomy" to ContextCompat.getColor(this, R.color.channel_loomy)
+            "Loomy" to ContextCompat.getColor(this, R.color.channel_loomy),
+            "LobsterAI" to ContextCompat.getColor(this, R.color.channel_lobsterai)
         )
         fun line(text: String, color: Int): CharSequence {
             val sp = SpannableString(text)
@@ -3614,7 +3918,8 @@ private fun showGithubDialog() {
             )
             val chNames = mapOf(
                 "TRAE" to "TRAE", "WorkBuddy" to "WorkBuddy_国内版",
-                "QoderCn" to "Qoder中国版", "Loomy" to "Loomy"
+                "QoderCn" to "Qoder中国版", "Loomy" to "Loomy",
+                "LobsterAI" to "LobsterAI"
             )
             fun inMonth(l: CloudSignLog): Boolean {
                 val c = java.util.Calendar.getInstance().apply { time = java.util.Date(l.time) }
@@ -3635,7 +3940,7 @@ private fun showGithubDialog() {
                     accounts
                 )
             }
-            val statsByCh = listOf("TRAE", "WorkBuddy", "QoderCn", "Loomy").map { chStat(it) }
+            val statsByCh = listOf("TRAE", "WorkBuddy", "QoderCn", "Loomy", "LobsterAI").map { chStat(it) }
             val unknownCount = list.count { it.platform.isBlank() }
             val unknownTotal = list.filter { it.platform.isBlank() }.sumOf { it.earned }
 
@@ -3848,12 +4153,14 @@ private fun showGithubDialog() {
             "TRAE" -> R.id.btnTriggerTrae
             "WorkBuddy" -> R.id.btnTriggerWb
             "QoderCn" -> R.id.btnTriggerQc
-            else -> R.id.btnTriggerLoomy
+            "Loomy" -> R.id.btnTriggerLoomy
+            else -> R.id.btnTriggerLobster
         }
         val displayName = when (platform) {
                 "WorkBuddy" -> "WorkBuddy_国内版"
                 "QoderCn" -> "Qoder 中国版"
                 "Loomy" -> "Loomy"
+                "LobsterAI" -> "LobsterAI"
                 else -> platform
             }
         val tv = findViewById<TextView>(button)
@@ -3872,7 +4179,8 @@ private fun showGithubDialog() {
                         "TRAE" -> service.triggerTraeNow()
                         "WorkBuddy" -> service.triggerWorkBuddyNow()
                         "QoderCn" -> service.triggerQoderCnNow()
-                        else -> service.triggerLoomyNow()
+                        "Loomy" -> service.triggerLoomyNow()
+                        else -> service.triggerLobsteraiNow()
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -3920,7 +4228,8 @@ private fun showGithubDialog() {
             "TRAE" -> ".github/workflows/trae-checkin.yml"
             "WorkBuddy" -> ".github/workflows/workbuddy-checkin.yml"
             "QoderCn" -> ".github/workflows/qodercn-checkin.yml"
-            else -> ".github/workflows/loomy-checkin.yml"
+            "Loomy" -> ".github/workflows/loomy-checkin.yml"
+            else -> ".github/workflows/lobsterai-checkin.yml"
         }
         val deadline = System.currentTimeMillis() + 300_000L
         while (System.currentTimeMillis() < deadline) {
@@ -3992,10 +4301,12 @@ private fun showGithubDialog() {
         var creditsWb: Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>>? = null
         var creditsQc: Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>>? = null
         var creditsLoomy: Pair<HashMap<String, String>, HashMap<String, Int>>? = null
+        var creditsLobster: Pair<HashMap<String, String>, HashMap<String, Int>>? = null
         var titleTrae: String? = null
         var titleWb: String? = null
         var titleQc: String? = null
         var titleLoomy: String? = null
+        var titleLobster: String? = null
         var overviewText: String? = null
         var currentTab: String? = null
         @Volatile var themeRestartPending = false
@@ -4006,10 +4317,12 @@ private fun showGithubDialog() {
             creditsWb = activity.wbAccountAdapter.snapshotCredits()
             creditsQc = activity.qcAccountAdapter.snapshotCredits()
             creditsLoomy = activity.loomyAccountAdapter.snapshotCredits()
+            creditsLobster = activity.lobsteraiAccountAdapter.snapshotCredits()
             titleTrae = activity.tvAccountTitleTrae.text?.toString()
             titleWb = activity.tvAccountTitleWb.text?.toString()
             titleQc = activity.tvAccountTitleQc.text?.toString()
             titleLoomy = activity.tvAccountTitleLoomy.text?.toString()
+            titleLobster = activity.tvAccountTitleLobster.text?.toString()
             overviewText = activity.homeOverviewValue.text?.toString()
             currentTab = activity.currentTab
             themeRestartPending = true
@@ -4021,10 +4334,12 @@ private fun showGithubDialog() {
             creditsWb?.let { activity.wbAccountAdapter.restoreCredits(it) }
             creditsQc?.let { activity.qcAccountAdapter.restoreCredits(it) }
             creditsLoomy?.let { activity.loomyAccountAdapter.restoreCredits(it) }
+            creditsLobster?.let { activity.lobsteraiAccountAdapter.restoreCredits(it) }
             titleTrae?.let { activity.tvAccountTitleTrae.text = it }
             titleWb?.let { activity.tvAccountTitleWb.text = it }
             titleQc?.let { activity.tvAccountTitleQc.text = it }
             titleLoomy?.let { activity.tvAccountTitleLoomy.text = it }
+            titleLobster?.let { activity.tvAccountTitleLobster.text = it }
             overviewText?.let { activity.homeOverviewValue.text = it }
             val tab = currentTab
             if (tab != null && tab != "TRAE") {
@@ -4403,6 +4718,93 @@ class LoomyAccountAdapter(
         tvCredits.setTextColor(if (clr != null && clr != 0) ContextCompat.getColor(holder.root.context, clr) else themePrimary(holder.root.context))
         // Loomy 凭证永不过期（非 JWT），不显示到期行
         tvExpiry.visibility = View.GONE
+        holder.root.setOnClickListener { onDetail(acc) }
+        btnDel.setOnClickListener { onDelete(acc) }
+    }
+}
+
+/**
+ * LobsterAI 账号列表适配器。
+ * 副标题显示 uid；积分文本由详情页/签到结果回填（与 Loomy 同构）。
+ */
+class LobsteraiAccountAdapter(
+    private val onDetail: (LobsteraiAccount) -> Unit,
+    private val onDelete: (LobsteraiAccount) -> Unit
+) : RecyclerView.Adapter<LobsteraiAccountAdapter.VH>() {
+
+    private var items: List<LobsteraiAccount> = emptyList()
+    private val credits = HashMap<String, String>()
+    private val colors = HashMap<String, Int>()
+
+    fun accountCount(): Int = items.size
+
+    fun snapshotCredits(): Pair<HashMap<String, String>, HashMap<String, Int>> =
+        Pair(HashMap(credits), HashMap(colors))
+
+    fun restoreCredits(snap: Pair<HashMap<String, String>, HashMap<String, Int>>) {
+        credits.putAll(snap.first)
+        colors.putAll(snap.second)
+        notifyDataSetChanged()
+    }
+
+    fun sumCredits(): Double? {
+        if (items.isEmpty()) return 0.0
+        var any = false
+        var total = 0.0
+        for ((id, text) in credits) {
+            if (items.any { it.id == id }) {
+                val num = parseCreditsNumber(text)
+                if (num != null) { any = true; total += num }
+            }
+        }
+        return if (!any) null else total
+    }
+
+    fun submit(list: List<LobsteraiAccount>) {
+        items = list
+        notifyDataSetChanged()
+    }
+
+    fun creditsOf(accountId: String): String? = credits[accountId]
+
+    fun setCredits(accountId: String, text: String, colorRes: Int = 0, tokenExpired: Boolean = false) {
+        credits[accountId] = text
+        colors[accountId] = colorRes
+        val idx = items.indexOfFirst { it.id == accountId }
+        if (idx >= 0) notifyItemChanged(idx)
+    }
+
+    class VH(val root: android.view.View) : RecyclerView.ViewHolder(root)
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_account, parent, false)
+        return VH(view)
+    }
+
+    override fun getItemCount(): Int = items.size
+
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        val acc = items[position]
+        val tvLabel = holder.root.findViewById<TextView>(R.id.tvAccountLabel)
+        val tvSub = holder.root.findViewById<TextView>(R.id.tvAccountSub)
+        val tvCredits = holder.root.findViewById<TextView>(R.id.tvAccountCredits)
+        val tvExpiry = holder.root.findViewById<TextView>(R.id.tvTokenExpiry)
+        val btnDel = holder.root.findViewById<TextView>(R.id.btnDelete)
+        tvLabel.text = acc.label
+        val nick = acc.credentials.nickname
+        tvSub.text = if (nick.isNotBlank()) nick else "UID: " + acc.credentials.uid.ifBlank { "未获取" }
+        tvCredits.text = credits[acc.id] ?: "当前积分 --"
+        val clr = colors[acc.id]
+        tvCredits.setTextColor(if (clr != null && clr != 0) ContextCompat.getColor(holder.root.context, clr) else themePrimary(holder.root.context))
+        // access_token 是 JWT，有明确到期时间：过期了就标红提示重新登录
+        val exp = acc.credentials.expiresAt
+        if (exp > 0 && exp < System.currentTimeMillis()) {
+            tvExpiry.visibility = View.VISIBLE
+            tvExpiry.text = "凭证已过期"
+            tvExpiry.setTextColor(ContextCompat.getColor(holder.root.context, R.color.error_red))
+        } else {
+            tvExpiry.visibility = View.GONE
+        }
         holder.root.setOnClickListener { onDetail(acc) }
         btnDel.setOnClickListener { onDelete(acc) }
     }

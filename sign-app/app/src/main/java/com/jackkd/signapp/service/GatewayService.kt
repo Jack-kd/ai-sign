@@ -21,6 +21,7 @@ import com.jackkd.signapp.data.QoderCnAccountStore
 import com.jackkd.signapp.data.WorkBuddyAccountStore
 import com.jackkd.signapp.net.LocalApiServer
 import com.jackkd.signapp.ui.MainActivity
+import com.jackkd.signapp.data.LobsteraiAccountStore
 
 /**
  * OpenAI 兼容网关前台服务（多渠道版）。
@@ -57,12 +58,14 @@ class GatewayService : Service() {
         const val PORT_LOOMY = 8788
         const val PORT_BUDDY = 8789
         const val PORT_QODERCN = 8790
+        const val PORT_LOBSTERAI = 8791
 
         private val CHANNELS = mapOf(
             GatewayStore.CH_TRAE to PORT_TRAE,
             GatewayStore.CH_LOOMY to PORT_LOOMY,
             GatewayStore.CH_BUDDY to PORT_BUDDY,
             GatewayStore.CH_QODERCN to PORT_QODERCN,
+            GatewayStore.CH_LOBSTERAI to PORT_LOBSTERAI,
         )
 
         /** 渠道名 → 服务状态 */
@@ -172,9 +175,13 @@ class GatewayService : Service() {
         val workBuddyStore = WorkBuddyAccountStore(this)
         val basePort = CHANNELS[channel] ?: PORT_TRAE
         val qoderCnStore = QoderCnAccountStore(this)
+        val lobsteraiStore = LobsteraiAccountStore(this)
         // Qoder 中国版签名 WASM 只在 8790 端口加载（其它渠道不占这 292KB 内存）
         val qoderCnWasm = if (channel == GatewayStore.CH_QODERCN) loadQoderCnWasm() else null
-        val srv = LocalApiServer(store, accountStore, loomyStore, workBuddyStore, basePort, qoderCnStore, qoderCnWasm)
+        val srv = LocalApiServer(
+            store, accountStore, loomyStore, workBuddyStore, basePort,
+            qoderCnStore, lobsteraiStore, qoderCnWasm
+        )
         liveServers[channel] = srv
         srv.callLogStore = CallLogStore(this)
         val ok = srv.start()
@@ -284,6 +291,7 @@ class GatewayService : Service() {
                     GatewayStore.CH_LOOMY -> "Loomy"
                     GatewayStore.CH_BUDDY -> "WorkBuddy"
                     GatewayStore.CH_QODERCN -> "Qoder中国版"
+                    GatewayStore.CH_LOBSTERAI -> "LobsterAI"
                     else -> "TRAE"
                 }
                 "$name:${portOf(ch)}"

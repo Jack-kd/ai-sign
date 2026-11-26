@@ -42,6 +42,9 @@
         <activity
             android:name=".ui.LoomyAccountDetailActivity"
             android:exported="false" />
+        <activity
+            android:name=".ui.LobsteraiAccountDetailActivity"
+            android:exported="false" />
 
         <activity
             android:name=".ui.LoginActivity"
@@ -60,6 +63,11 @@
 
         <activity
             android:name=".ui.LoomyLoginActivity"
+            android:exported="false"
+            android:launchMode="singleTask" />
+
+        <activity
+            android:name=".ui.LobsteraiLoginActivity"
             android:exported="false"
             android:launchMode="singleTask" />
 

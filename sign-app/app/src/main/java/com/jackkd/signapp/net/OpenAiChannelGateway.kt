@@ -42,6 +42,8 @@ data class OpenAiChannelConfig(
     val prefixModelIds: Boolean = true,
     /** 静态模型表里的上下文长度（id -> tokens），上游不提供时用 */
     val contextWindows: Map<String, Int> = emptyMap(),
+    /** 静态表里支持识图的模型 id（LobsterAI 上游 supportsImage 实测值） */
+    val visionModels: Set<String> = emptySet(),
 ) {
     /** 模型表转 /v1/models 条目 */
     fun toModelsArray(): JSONArray = JSONArray().apply {
@@ -54,6 +56,7 @@ data class OpenAiChannelConfig(
                 .put("name", name)
                 .apply {
                     contextWindows[id]?.let { put("context_window", it) }
+                    if (id in visionModels) put("supports_images", true)
                 })
         }
     }

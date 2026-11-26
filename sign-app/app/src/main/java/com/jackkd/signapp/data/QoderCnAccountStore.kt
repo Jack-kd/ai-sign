@@ -75,6 +75,19 @@ class QoderCnAccountStore(context: Context) {
         save(list)
     }
 
+    /**
+     * 删除同步：只保留 uid 在 validUids 里的本地云账号。
+     * 云端已删、本地却残留的账号（如插件/其它端删掉并同步了云端，软件在这里拉取）在这里被清掉。
+     * uid 为空或本地独有的账号：若 validUids 非空则视为云端没有，一并删除（软件账号以云端为准）。
+     */
+    @Synchronized
+    fun retainUids(validUids: Set<String>) {
+        if (validUids.isEmpty()) return  // 云端为空时不清理，避免误删全部
+        val list = load()
+        val kept = list.filter { it.credentials.uid in validUids }
+        if (kept.size != list.size) save(kept)
+    }
+
     @Synchronized
     fun update(account: QoderCnAccount) {
         val list = load()

@@ -2477,10 +2477,12 @@ private fun showGithubDialog() {
             if (wbRaw != null) {
                 // 云端 workbuddy_accounts.json 兼容 snake_case 与历史 camelCase（手动解析，见 parseCloudWorkBuddy）
                 val wbList = parseCloudWorkBuddy(wbRaw)
+                val wbValidUids = mutableSetOf<String>()
                 for (ua in wbList) {
                     val at = CredentialCrypto.decrypt(ua.accessToken)
                     val rt = CredentialCrypto.decrypt(ua.refreshToken)
                     if (at.startsWith("v1:") || rt.startsWith("v1:")) continue
+                    if (ua.uid.isNotBlank()) wbValidUids.add(ua.uid)
                     val acc = WorkBuddyAccount(
                         id = "cloud_wb_" + (ua.uid.ifBlank { ua.label }),
                         label = ua.label.ifBlank { (ua.nickname.ifBlank { "WorkBuddy" }) },
@@ -2495,6 +2497,8 @@ private fun showGithubDialog() {
                     )
                     wbAccountStore.addOrUpdate(acc)
                 }
+                // 删除同步：云端已经没有的 WorkBuddy 账号，本地也一并清掉
+                wbAccountStore.retainUids(wbValidUids)
                 wbAccountAdapter.submit(wbAccountStore.load())
             }
 
@@ -2503,11 +2507,13 @@ private fun showGithubDialog() {
             }
             if (qcRaw != null) {
                 val qcList = parseCloudQoderCn(qcRaw)
+                val qcValidUids = mutableSetOf<String>()
                 for (ua in qcList) {
                     val at = CredentialCrypto.decrypt(ua.accessToken)
                     val st = CredentialCrypto.decrypt(ua.securityOauthToken)
                     val rt = CredentialCrypto.decrypt(ua.refreshToken)
                     if (at.startsWith("v1:") || rt.startsWith("v1:")) continue
+                    if (ua.uid.isNotBlank()) qcValidUids.add(ua.uid)
                     val acc = QoderCnAccount(
                         id = "cloud_qc_" + (ua.uid.ifBlank { ua.label }),
                         label = ua.label.ifBlank { (ua.nickname.ifBlank { "Qoder 中国版" }) },
@@ -2523,6 +2529,8 @@ private fun showGithubDialog() {
                     )
                     qcAccountStore.addOrUpdate(acc)
                 }
+                // 删除同步：云端已经没有的 Qoder 中国版账号，本地也一并清掉
+                qcAccountStore.retainUids(qcValidUids)
                 qcAccountAdapter.submit(qcAccountStore.load())
             }
 
@@ -2532,8 +2540,11 @@ private fun showGithubDialog() {
             val loomyRaw = loomyResult.getOrNull()
             if (loomyRaw != null) {
                 val loomyList = parseCloudLoomy(loomyRaw)
+                val loomyValidUids = mutableSetOf<String>()
                 for (ua in loomyList) {
                     // Loomy 凭证明文存储，无 AES 加密
+                    val lu = ua.userId.ifBlank { ua.uid }
+                    if (lu.isNotBlank()) loomyValidUids.add(lu)
                     val acc = LoomyAccount(
                         id = "cloud_loomy_" + (ua.userId.ifBlank { ua.uid.ifBlank { ua.label } }),
                         label = ua.label.ifBlank { (ua.nickname.ifBlank { ua.phone.ifBlank { "Loomy" } }) },
@@ -2546,6 +2557,8 @@ private fun showGithubDialog() {
                     )
                     loomyAccountStore.addOrUpdate(acc)
                 }
+                // 删除同步：云端已经没有的 Loomy 账号，本地也一并清掉
+                loomyAccountStore.retainUids(loomyValidUids)
                 loomyAccountAdapter.submit(loomyAccountStore.load())
             }
 
@@ -2555,8 +2568,10 @@ private fun showGithubDialog() {
             val lobsterRaw = lobsterResult.getOrNull()
             if (lobsterRaw != null) {
                 val lobsterList = parseCloudLobster(lobsterRaw)
+                val lobsterValidUids = mutableSetOf<String>()
                 for (ua in lobsterList) {
                     // LobsterAI 凭证明文存储，无 AES 加密
+                    if (ua.uid.isNotBlank()) lobsterValidUids.add(ua.uid)
                     val acc = LobsteraiAccount(
                         id = "cloud_lobster_" + (ua.uid.ifBlank { ua.label }),
                         label = ua.label.ifBlank { (ua.nickname.ifBlank { "LobsterAI" }) },
@@ -2572,6 +2587,8 @@ private fun showGithubDialog() {
                     )
                     lobsteraiAccountStore.addOrUpdate(acc)
                 }
+                // 删除同步：云端已经没有的 LobsterAI 账号，本地也一并清掉
+                lobsteraiAccountStore.retainUids(lobsterValidUids)
                 lobsteraiAccountAdapter.submit(lobsteraiAccountStore.load())
             }
 
@@ -3650,10 +3667,12 @@ private fun showGithubDialog() {
                 } catch (e: Exception) { }
                 try {
                     val list: List<UploadWorkBuddyAccount> = parseCloudWorkBuddy(wbAccounts ?: "")
+                    val wbValidUids = mutableSetOf<String>()
                     for (ua in list) {
                         val at = CredentialCrypto.decrypt(ua.accessToken ?: "")
                         val rt = CredentialCrypto.decrypt(ua.refreshToken ?: "")
                         if (at.startsWith("v1:") || rt.startsWith("v1:")) continue
+                        if (ua.uid.isNotBlank()) wbValidUids.add(ua.uid)
                         val acc = WorkBuddyAccount(
                             id = "cloud_wb_" + (ua.uid.ifBlank { ua.label }),
                             label = ua.label.ifBlank { (ua.nickname.ifBlank { "WorkBuddy" }) },
@@ -3664,14 +3683,18 @@ private fun showGithubDialog() {
                         )
                         wbAccountStore.addOrUpdate(acc)
                     }
+                    // 删除同步：云端已经没有的 WorkBuddy 账号，本地也一并清掉
+                    wbAccountStore.retainUids(wbValidUids)
                 } catch (e: Exception) { }
                 try {
                     val list: List<UploadQoderCnAccount> = parseCloudQoderCn(qcAccounts ?: "")
+                    val qcValidUids = mutableSetOf<String>()
                     for (ua in list) {
                         val at = CredentialCrypto.decrypt(ua.accessToken)
                         val st = CredentialCrypto.decrypt(ua.securityOauthToken)
                         val rt = CredentialCrypto.decrypt(ua.refreshToken)
                         if (at.startsWith("v1:") || rt.startsWith("v1:")) continue
+                        if (ua.uid.isNotBlank()) qcValidUids.add(ua.uid)
                         val acc = QoderCnAccount(
                             id = "cloud_qc_" + (ua.uid.ifBlank { ua.label }),
                             label = ua.label.ifBlank { (ua.nickname.ifBlank { "Qoder 中国版" }) },
@@ -3683,11 +3706,16 @@ private fun showGithubDialog() {
                         )
                         qcAccountStore.addOrUpdate(acc)
                     }
+                    // 删除同步：云端已经没有的 Qoder 中国版账号，本地也一并清掉
+                    qcAccountStore.retainUids(qcValidUids)
                 } catch (e: Exception) { }
                 try {
                     val list: List<UploadLoomyAccount> = parseCloudLoomy(loomyAccounts ?: "")
+                    val loomyValidUids = mutableSetOf<String>()
                     for (ua in list) {
                         // Loomy 凭证明文存储，无 AES 加密
+                        val lu = ua.userId.ifBlank { ua.uid }
+                        if (lu.isNotBlank()) loomyValidUids.add(lu)
                         val acc = LoomyAccount(
                             id = "cloud_loomy_" + (ua.userId.ifBlank { ua.uid.ifBlank { ua.label } }),
                             label = ua.label.ifBlank { (ua.nickname.ifBlank { ua.phone.ifBlank { "Loomy" } }) },
@@ -3700,11 +3728,15 @@ private fun showGithubDialog() {
                         )
                         loomyAccountStore.addOrUpdate(acc)
                     }
+                    // 删除同步：云端已经没有的 Loomy 账号，本地也一并清掉
+                    loomyAccountStore.retainUids(loomyValidUids)
                 } catch (e: Exception) { }
                 try {
                     val list: List<UploadLobsteraiAccount> = parseCloudLobster(lobsterAccounts ?: "")
+                    val lobsterValidUids = mutableSetOf<String>()
                     for (ua in list) {
                         // LobsterAI 凭证明文存储，无 AES 加密
+                        if (ua.uid.isNotBlank()) lobsterValidUids.add(ua.uid)
                         val acc = LobsteraiAccount(
                             id = "cloud_lobster_" + (ua.uid.ifBlank { ua.label }),
                             label = ua.label.ifBlank { (ua.nickname.ifBlank { "LobsterAI" }) },
@@ -3720,6 +3752,8 @@ private fun showGithubDialog() {
                         )
                         lobsteraiAccountStore.addOrUpdate(acc)
                     }
+                    // 删除同步：云端已经没有的 LobsterAI 账号，本地也一并清掉
+                    lobsteraiAccountStore.retainUids(lobsterValidUids)
                 } catch (e: Exception) { }
                 accountAdapter.submit(accountStore.load())
                 wbAccountAdapter.submit(wbAccountStore.load())

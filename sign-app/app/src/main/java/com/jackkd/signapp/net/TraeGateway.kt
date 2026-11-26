@@ -637,6 +637,36 @@ object TraeGateway {
                         .apply {
                             val name = dc?.optString("display_name", "")?.trim().orEmpty()
                             if (name.isNotEmpty()) put("name", name)
+                            // ---- 以下元数据对齐 channel-pack parseTraeConfigEntry ----
+                            // 上下文：context_window_tokens.dev / max
+                            m.optJSONObject("context_window_tokens")?.let { cwt ->
+                                val cw = firstPositive(cwt, "dev", "max")
+                                if (cw > 0) put("context_window", cw)
+                            }
+                            // 视觉能力：display_config.multimodal
+                            if (dc != null && dc.optBoolean("multimodal", false)) put("supports_images", true)
+                            // 成本倍率：display_contact_config 是 JSON 字符串，里面 consumption_rate.data.rate
+                            run {
+                                val raw = m.optString("display_contact_config", "")
+                                if (raw.isNotBlank()) {
+                                    try {
+                                        val cfg = JSONObject(raw)
+                                        val cr = cfg.optJSONObject("consumption_rate")
+                                        if (cr != null && cr.optBoolean("enable", true)) {
+                                            val d = cr.optJSONObject("data")
+                                            val rate = d?.optDouble("rate", -1.0) ?: -1.0
+                                            if (rate >= 0) put("credits_rate", rate)
+                                        }
+                                        // 限时折扣：activity_discount.data.rate
+                                        val ad = cfg.optJSONObject("activity_discount")
+                                        if (ad != null && ad.optBoolean("enable", false)) {
+                                            val d = ad.optJSONObject("data")
+                                            val rate = d?.optDouble("rate", -1.0) ?: -1.0
+                                            if (rate >= 0) put("activity_rate", rate)
+                                        }
+                                    } catch (e: Exception) { }
+                                }
+                            }
                         })
                 }
                 out
@@ -650,6 +680,15 @@ object TraeGateway {
      * 是否是可聊天的真模型（对齐 traework2api isChatModel）：
      * config_source == 1 且非自定义模型、非隐藏、有 display_config、名字不像内部 agent。
      */
+    /** 按优先级取第一个 >0 的数值字段（用于 context_window_tokens.dev / max） */
+    private fun firstPositive(o: JSONObject, vararg keys: String): Int {
+        for (k in keys) {
+            val v = o.optInt(k, 0)
+            if (v > 0) return v
+        }
+        return 0
+    }
+
     private fun isChatModel(cfg: JSONObject): Boolean {
         if (cfg.optInt("config_source", 0) != 1) return false
         val dc = cfg.optJSONObject("display_config") ?: return false

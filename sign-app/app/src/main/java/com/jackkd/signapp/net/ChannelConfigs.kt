@@ -112,6 +112,16 @@ object ChannelConfigs {
             "kmodel" to "Kimi-K2.8-Preview · x41",
             "kmodel_latest" to "Kimi-K3 · x81",
         ),
+        // Qoder 中国版全部模型 is_vl:false（实测），不支持识图；
+        // 上下文：qfmodel/dfmodel/dmodel 1M，mmodel/auto 200K
+        contextWindows = mapOf(
+            "mmodel" to 200_000, "auto" to 200_000,
+            "q37fmodel" to 1_000_000, "gfmodel" to 1_000_000,
+            "dfmodel" to 1_000_000, "qmodel_38max" to 1_000_000,
+            "dmodel" to 1_000_000, "gmodel" to 1_000_000,
+            "gm51model" to 1_000_000, "kmodel" to 1_000_000,
+            "kmodel_latest" to 1_000_000,
+        ),
         // 8790 端口只服务本渠道：模型 id 用裸 key（q37fmodel / dmodel…），不加 qodercn/ 前缀
         prefixModelIds = false,
     )

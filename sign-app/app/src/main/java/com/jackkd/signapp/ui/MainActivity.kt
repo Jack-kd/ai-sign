@@ -754,7 +754,13 @@ class MainActivity : AppCompatActivity() {
         listLl.removeAllViews()
 
         val shown = if (modelShowAll) models else models.take(MODEL_PREVIEW_COUNT)
-        for (m in shown) listLl.addView(buildModelRow(m))
+        for ((idx, m) in shown.withIndex()) {
+            val v = buildModelRow(m)
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            if (idx > 0) lp.topMargin = dp(6)
+            listLl.addView(v, lp)
+        }
 
         if (models.size > MODEL_PREVIEW_COUNT) {
             moreTv.visibility = View.VISIBLE
@@ -772,8 +778,10 @@ class MainActivity : AppCompatActivity() {
     private data class ModelRow(
         val id: String,
         val name: String,
-        val meta: String,
-        val rate: Double?,      // 用于排序；null = 无倍率信息
+        val ctx: Int,            // 上下文 tokens；0 = 未知
+        val vision: Boolean,     // 是否支持识图
+        val rate: Double?,       // 成本倍率；null = 上游未提供（不编造）
+        val discountRate: Double?, // 限时折扣后的倍率
     )
 
     /**
@@ -784,82 +792,66 @@ class MainActivity : AppCompatActivity() {
      */
     private fun loadChannelModels(channel: String): List<ModelRow> {
         val json = GatewayService.modelsJsonOf(channel)
-        if (json != null) {
-            try {
-                val arr = org.json.JSONArray(json)
-                val out = ArrayList<ModelRow>(arr.length())
-                for (i in 0 until arr.length()) {
-                    val o = arr.optJSONObject(i) ?: continue
-                    val id = o.optString("id", "").trim()
-                    if (id.isBlank()) continue
-                    val name = o.optString("name", "").trim().ifEmpty { id }
-                    out.add(ModelRow(id, name, buildModelMeta(o, name), parseRateOf(name, id)))
-                }
-                if (out.isNotEmpty()) return out.sortedBy { it.rate ?: Double.MAX_VALUE }
-            } catch (e: Exception) { }
-        }
-        return staticModelsOf(channel).sortedBy { it.rate ?: Double.MAX_VALUE }
+        val live = if (json != null) parseModelArray(json) else emptyList()
+        val rows = if (live.isNotEmpty()) live else staticModelsOf(channel)
+        return rows.sortedBy { it.rate ?: Double.MAX_VALUE }
     }
 
+    /** 把模型 JSON 数组解析成行（键名兼容驼峰/下划线） */
+    private fun parseModelArray(json: String): List<ModelRow> {
+        return try {
+            val arr = org.json.JSONArray(json)
+            val out = ArrayList<ModelRow>(arr.length())
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val id = o.optString("id", "").trim()
+                if (id.isBlank()) continue
+                val name = o.optString("name", "").trim().ifEmpty { id }
+                val rate = if (o.has("credits_rate")) o.optDouble("credits_rate", 0.0) else parseRateOf(name)
+                val disc = if (o.has("activity_rate")) o.optDouble("activity_rate", 0.0) else null
+                out.add(ModelRow(
+                    id = id,
+                    name = stripRateSuffix(name),
+                    ctx = o.optInt("context_window", o.optInt("contextWindow", 0)),
+                    vision = o.optBoolean("supports_images", o.optBoolean("supportsImages", false)),
+                    rate = rate,
+                    discountRate = disc
+                ))
+            }
+            out
+        } catch (e: Exception) { emptyList() }
+    }
+
+    /** 去掉名字尾巴上的 " · xN"（倍率改为单独徽章显示） */
+    private fun stripRateSuffix(name: String): String =
+        name.replace(Regex("\\s*·\\s*x\\s*[0-9]+(?:\\.[0-9]+)?\\s*\\$"), "").trim()
+
     /** 从显示名里抠倍率（如 "DeepSeek V4 · x3.0"） */
-    private fun parseRateOf(name: String, id: String): Double? {
-        val m = Regex("""x\s*([0-9]+(?:\.[0-9]+)?)""", RegexOption.IGNORE_CASE).find(name)
+    private fun parseRateOf(name: String): Double? {
+        val m = Regex("x\\s*([0-9]+(?:\\.[0-9]+)?)", RegexOption.IGNORE_CASE).find(name)
         return m?.groupValues?.getOrNull(1)?.toDoubleOrNull()
     }
 
-    /** 组装元信息行：倍率 · 上下文 · 能力 */
-    private fun buildModelMeta(o: org.json.JSONObject, name: String): String {
-        val parts = ArrayList<String>()
-        Regex("""·\s*(x\s*[0-9]+(?:\.[0-9]+)?)""", RegexOption.IGNORE_CASE)
-            .find(name)?.groupValues?.getOrNull(1)?.let { parts.add(it.replace(" ", "")) }
-        val ctx = o.optInt("context_window", 0)
-        if (ctx > 0) parts.add(formatCtx(ctx))
-        if (o.optBoolean("supports_images", false)) parts.add("识图")
-        return parts.joinToString(" · ")
-    }
-
-    private fun formatCtx(v: Int): String = when {
-        v >= 1_000_000 -> "${v / 1_000_000}M"
-        v >= 1_000 -> "${v / 1_000}K"
-        else -> v.toString()
-    }
-
-    /** 网关未运行时的静态回退表 */
-    private fun staticModelsOf(channel: String): List<ModelRow> = when (channel) {
-        GatewayStore.CH_QODERCN -> ChannelConfigs.QODERCN.toModelsArray().let { arr ->
-            (0 until arr.length()).mapNotNull { i ->
-                val o = arr.optJSONObject(i) ?: return@mapNotNull null
-                val id = o.optString("id", "")
-                val name = o.optString("name", "").ifEmpty { id }
-                ModelRow(id, name, buildModelMeta(o, name), parseRateOf(name, id))
-            }
-        }
-        GatewayStore.CH_LOOMY -> staticFromConfig(ChannelConfigs.LOOMY.toModelsArray())
-        GatewayStore.CH_BUDDY -> staticFromConfig(ChannelConfigs.BUDDY.toModelsArray())
-        else -> emptyList()
-    }
-
-    private fun staticFromConfig(arr: org.json.JSONArray): List<ModelRow> =
-        (0 until arr.length()).mapNotNull { i ->
-            val o = arr.optJSONObject(i) ?: return@mapNotNull null
-            val id = o.optString("id", "")
-            val name = o.optString("name", "").ifEmpty { id }
-            ModelRow(id, name, buildModelMeta(o, name), parseRateOf(name, id))
-        }
-
-    /** 构建一行模型视图 */
+    /**
+     * 构建一行模型（美化版）：
+     *   首行：名称 + 倍率徽章 + 识图徽章
+     *   1M 上下文 · deepseek-v4-flash-0731
+     * 长按复制 id。
+     */
     private fun buildModelRow(m: ModelRow): View {
         val ctx = this
         val row = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, dp(7), 0, dp(7))
-            // 长按整行复制模型 id（客户端里要填的是 id，不是显示名）
+            setPadding(dp(10), dp(9), dp(10), dp(9))
+            background = ContextCompat.getDrawable(ctx, R.drawable.bg_model_row)
             isLongClickable = true
             setOnLongClickListener {
                 copyText("SIGNAPP_MODEL_ID", m.id, "已复制模型名：${m.id}")
                 true
             }
         }
+
+        // 第一行：名称 + 徽章
         val line1 = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
@@ -868,35 +860,77 @@ class MainActivity : AppCompatActivity() {
             text = m.name
             setTextColor(ContextCompat.getColor(ctx, R.color.text_primary))
             textSize = 13.5f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            isSingleLine = true
+            ellipsize = android.text.TextUtils.TruncateAt.END
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         })
-        if (m.rate != null) {
-            line1.addView(TextView(ctx).apply {
-                text = "x${trimNum(m.rate)}"
-                setTextColor(ContextCompat.getColor(ctx, R.color.gray))
-                textSize = 11f
-                setPadding(dp(8), dp(1), dp(8), dp(1))
-                background = ContextCompat.getDrawable(ctx, R.drawable.bg_api_chip)
-            })
+
+        // 视觉能力标志
+        if (m.vision) line1.addView(buildBadge(ctx, "👁 识图", "#FF3B82F6", "#143B82F6"))
+        // 倍率（有才显示；折扣时 x原价→x折后）
+        m.rate?.let { r ->
+            val text = if (m.discountRate != null) "x${trimNum(r)}→x${trimNum(m.discountRate)}"
+                       else "x${trimNum(r)}"
+            line1.addView(buildBadge(ctx, text, "#FF16A34A", "#1416A34A"))
         }
         row.addView(line1)
-        if (m.meta.isNotBlank() || m.id != m.name) {
-            val metaText = buildString {
-                if (m.meta.isNotBlank()) append(m.meta)
-                // id 与显示名不同时把 id 也露出来，方便直接照抄
-                if (m.id != m.name) {
-                    if (isNotEmpty()) append(" · ")
-                    append(m.id)
-                }
+
+        // 第二行：上下文 + id
+        val sub = buildString {
+            if (m.ctx > 0) append(formatCtx(m.ctx)).append(" 上下文")
+            if (m.id != m.name) {
+                if (isNotEmpty()) append(" · ")
+                append(m.id)
             }
+        }
+        if (sub.isNotBlank()) {
             row.addView(TextView(ctx).apply {
-                text = metaText
+                text = sub
                 setTextColor(ContextCompat.getColor(ctx, R.color.gray))
                 textSize = 11.5f
-                setPadding(0, dp(2), 0, 0)
+                setPadding(0, dp(3), 0, 0)
+                isSingleLine = true
+                ellipsize = android.text.TextUtils.TruncateAt.END
             })
         }
         return row
+    }
+
+    /** 小胶囊徽章：彩色文字 + 同色淡背景 */
+    private fun buildBadge(ctx: android.content.Context, text: String, color: String, bg: String): TextView =
+        TextView(ctx).apply {
+            this.text = text
+            setTextColor(android.graphics.Color.parseColor(color))
+            textSize = 10.5f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setPadding(dp(6), dp(2), dp(6), dp(2))
+            val d = android.graphics.drawable.GradientDrawable()
+            d.setColor(android.graphics.Color.parseColor(bg))
+            d.cornerRadius = dp(6).toFloat()
+            background = d
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            lp.marginStart = dp(6)
+            layoutParams = lp
+        }
+
+    /** 上下文长度格式化：1M / 200K / 8192 */
+    private fun formatCtx(v: Int): String = when {
+        v >= 1_000_000 -> "${v / 1_000_000}M"
+        v >= 1_000 -> "${v / 1_000}K"
+        else -> v.toString()
+    }
+
+    /** 网关未运行时的静态回退表 */
+    private fun staticModelsOf(channel: String): List<ModelRow> {
+        val cfg = when (channel) {
+            GatewayStore.CH_QODERCN -> ChannelConfigs.QODERCN
+            GatewayStore.CH_LOOMY -> ChannelConfigs.LOOMY
+            GatewayStore.CH_BUDDY -> ChannelConfigs.BUDDY
+            else -> null
+        } ?: return emptyList()
+        return parseModelArray(cfg.toModelsArray().toString())
     }
 
     private fun trimNum(v: Double): String =

@@ -40,6 +40,8 @@ data class OpenAiChannelConfig(
      * 在 8790 端口上只暴露本渠道模型，不加前缀。
      */
     val prefixModelIds: Boolean = true,
+    /** 静态模型表里的上下文长度（id -> tokens），上游不提供时用 */
+    val contextWindows: Map<String, Int> = emptyMap(),
 ) {
     /** 模型表转 /v1/models 条目 */
     fun toModelsArray(): JSONArray = JSONArray().apply {
@@ -49,7 +51,10 @@ data class OpenAiChannelConfig(
                 .put("object", "model")
                 .put("owned_by", ownedBy)
                 .put("created", 0)
-                .put("name", name))
+                .put("name", name)
+                .apply {
+                    contextWindows[id]?.let { put("context_window", it) }
+                })
         }
     }
 }
@@ -407,7 +412,7 @@ object OpenAiChannelGateway {
                     break
                 }
                 // 明细表：id → (name, 有效窗口)。disabled 或窗口缺失的跳过。
-                val byId = linkedMapOf<String, Pair<String, Long>>()
+                val byId = linkedMapOf<String, BMeta>()
                 val rawModels = data.optJSONArray("models") ?: JSONArray()
                 for (i in 0 until rawModels.length()) {
                     val m = rawModels.optJSONObject(i) ?: continue
@@ -417,7 +422,11 @@ object OpenAiChannelGateway {
                     val output = m.optLong("maxOutputTokens", 0L)
                     if (input <= 0 || output <= 0) continue
                     val name = m.optString("name", "").trim().ifEmpty { id }
-                    byId[id] = name to input
+                    // 识图：上游 supportsImages，或 reasoning/capabilities 里声明
+                    val vision = m.optBoolean("supportsImages", false) ||
+                        m.optBoolean("supports_images", false) ||
+                        m.optBoolean("multimodal", false)
+                    byId[id] = BMeta(name, input, vision)
                 }
                 val ids = if (cliIds.isNotEmpty()) cliIds else byId.keys
                 for (id in ids) {
@@ -427,7 +436,9 @@ object OpenAiChannelGateway {
                         .put("object", "model")
                         .put("owned_by", "workbuddy")
                         .put("created", 0)
-                        .put("name", meta.first))
+                        .put("name", meta.name)
+                        .put("context_window", meta.ctx)
+                        .apply { if (meta.vision) put("supports_images", true) })
                 }
             }
         } catch (e: Exception) {
@@ -435,4 +446,7 @@ object OpenAiChannelGateway {
         }
         return out
     }
+
+    /** WorkBuddy 模型明细：名称 / 上下文 / 是否识图 */
+    private data class BMeta(val name: String, val ctx: Long, val vision: Boolean)
 }

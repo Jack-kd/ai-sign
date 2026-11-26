@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 模型行背景：极淡填充 + 圆角，让每行像一张小卡 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#0D000000" />
+    <corners android:radius="10dp" />
+</shape>

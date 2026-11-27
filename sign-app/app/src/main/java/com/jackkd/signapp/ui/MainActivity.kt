@@ -1830,7 +1830,7 @@ class MainActivity : AppCompatActivity() {
         }
         sub.text = "$count 个账号 · 总积分 $totalText"
         if (expired > 0) {
-            badge.text = "$expired 过期"
+            badge.text = "$expired 失效"
             badge.visibility = View.VISIBLE
         } else {
             badge.visibility = View.GONE

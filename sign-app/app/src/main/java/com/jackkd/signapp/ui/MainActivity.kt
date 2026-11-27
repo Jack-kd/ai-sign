@@ -3453,7 +3453,9 @@ private fun showGithubDialog() {
                         wbAccountAdapter.setCredits(id, "当前积分 $v")
                         removeLoginIssue("WorkBuddy", label)
                     } else {
-                        wbAccountAdapter.setCredits(id, "当前积分 获取失败", R.color.gray)
+                        // 与下拉刷新同一判定：查不到即视为凭证失效，立刻打标记（不必再手动下拉）
+                        wbAccountAdapter.setCredits(id, "当前积分 -- 凭证已失效", R.color.error_red, true)
+                        addLoginIssue("WorkBuddy", label)
                     }
                 }
                 updateChannelCards()
@@ -3472,7 +3474,8 @@ private fun showGithubDialog() {
                         qcAccountAdapter.setCredits(id, "当前积分 ${formatQcNum(v)}")
                         removeLoginIssue("QoderCn", label)
                     } else {
-                        qcAccountAdapter.setCredits(id, "当前积分 获取失败", R.color.gray)
+                        qcAccountAdapter.setCredits(id, "当前积分 -- 凭证已失效", R.color.error_red, true)
+                        addLoginIssue("QoderCn", label)
                     }
                 }
                 updateChannelCards()
@@ -3491,7 +3494,8 @@ private fun showGithubDialog() {
                         loomyAccountAdapter.setCredits(id, "当前积分 ${formatQcNum(v)}")
                         removeLoginIssue("Loomy", label)
                     } else {
-                        loomyAccountAdapter.setCredits(id, "当前积分 获取失败", R.color.gray)
+                        loomyAccountAdapter.setCredits(id, "当前积分 -- 凭证已失效", R.color.error_red, true)
+                        addLoginIssue("Loomy", label)
                     }
                 }
                 updateChannelCards()
@@ -3511,7 +3515,8 @@ private fun showGithubDialog() {
                         lobsteraiAccountAdapter.setCredits(id, "当前积分 ${formatQcNum(v)}")
                         removeLoginIssue("LobsterAI", label)
                     } else {
-                        lobsteraiAccountAdapter.setCredits(id, "当前积分 获取失败", R.color.gray)
+                        lobsteraiAccountAdapter.setCredits(id, "当前积分 -- 凭证已失效", R.color.error_red, true)
+                        addLoginIssue("LobsterAI", label)
                     }
                 }
                 updateChannelCards()

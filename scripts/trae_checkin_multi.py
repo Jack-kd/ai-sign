@@ -328,16 +328,8 @@ def _attempt_checkin(access_token, uid, device_id):
 
     code, obj, raw = checkin_claim(access_token, uid, device_id)
     # 9074 = 服务端限流（"当前参与用户太多，请稍后再试"）。
-    # 多账号在同一台 runner 的出口 IP 上连续签到极易触发，属于临时性失败，
-    # 用指数退避多试几次通常能过。注意：这种情况换 token 没有意义，
-    # 换 token 本身也要打一次 ExchangeToken + 一次 claim，只会加重限流。
-    for i, wait in enumerate((8, 20, 45)):
-        if _first(obj, "code") != 9074:
-            break
-        print("[日志] 触发限流(code=9074)，等待 " + str(wait) + " 秒后重试（第 " + str(i + 1) + " 次）")
-        time.sleep(wait)
-        code, obj, raw = checkin_claim(access_token, uid, device_id)
-
+    # 已按需求移除退避重试：限流就直接记为 rate_limited，不再等待重试。
+    # （重试会换 token 再打 claim，只会加重限流，且把 Action 拖长 70 秒以上。）
     if _is_success(obj):
         return "success", "签到成功", credits_before
     if _is_auth_error(obj):
@@ -706,32 +698,20 @@ def main():
             entries.append(entry)
         return result
 
-    for i, acc in enumerate(accounts):
-        # 账号之间拉开间隔：多个账号在同一出口 IP 上连续请求，是触发 9074 限流的主因
-        if i > 0:
-            gap = random.uniform(12, 20)
-            print("[日志] 等待 %.0f 秒后处理下一个账号（避免连续请求触发限流）" % gap)
-            time.sleep(gap)
+    for acc in accounts:
+        # 已按需求移除账号间的随机间隔（原为 12~20 秒，目的是躲开 9074 限流）。
+        # 既然限流不再重试，等待也失去意义，直接连续处理，Action 更快结束。
         status, desc, earned = sign_one(acc)
         print("[日志] " + desc)
         if record(acc, status, desc, earned) == "限流":
             rate_limited_keys.add((acc.get("label", "账号"), str(acc.get("uid", ""))))
 
-    # 被限流的账号：等限流窗口过去后再补签一轮（9074 是临时性限流，值得再试）
+    # 已按需求移除「被限流账号等 75 秒补签一轮」的逻辑：
+    # 限流即记为该账号当天未领到，不再重试，也不影响其它账号。
     if rate_limited_keys:
-        wait = 75
-        print("[日志] " + str(len(rate_limited_keys)) + " 个账号被服务端限流，等待 "
-              + str(wait) + " 秒后补签一轮")
-        time.sleep(wait)
-        for acc in accounts:
-            key = (acc.get("label", "账号"), str(acc.get("uid", "")))
-            if key not in rate_limited_keys:
-                continue
-            status, desc, earned = sign_one(acc)
-            print("[日志][补签] " + desc)
-            record(acc, status, desc, earned)
+        print("[日志] " + str(len(rate_limited_keys)) + " 个账号被服务端限流，本次不重试")
 
-    # 统一统计（补签结果已覆盖第一轮的限流记录）
+    # 统一统计
     ok = sum(1 for e in entries if e.get("result") == "成功")
     already = sum(1 for e in entries if e.get("result") == "已签到")
     fail = len(entries) - ok - already

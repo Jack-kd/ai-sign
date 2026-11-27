@@ -50,13 +50,13 @@ object LocalCheckinService {
      * 对某个渠道的全部账号执行本地签到，并把结果写入本地签到日志。
      * 必须在后台线程调用（内部是同步网络请求）。
      */
-    fun run(context: Context, platform: String): List<Result> {
+    fun run(context: Context, platform: String, onlyAccountId: String? = null): List<Result> {
         val results = when (platform) {
-            "trae" -> runTrae(context)
-            "buddy" -> runWorkBuddy(context)
-            "qodercn" -> runQoderCn(context)
-            "loomy" -> runLoomy(context)
-            "lobsterai" -> runLobsterai(context)
+            "trae" -> runTrae(context, onlyAccountId)
+            "buddy" -> runWorkBuddy(context, onlyAccountId)
+            "qodercn" -> runQoderCn(context, onlyAccountId)
+            "loomy" -> runLoomy(context, onlyAccountId)
+            "lobsterai" -> runLobsterai(context, onlyAccountId)
             else -> emptyList()
         }
         // 写入本地签到日志
@@ -77,10 +77,24 @@ object LocalCheckinService {
         return results
     }
 
+    /**
+     * 取某渠道的本地签到日志（仅 isCheckin = true），按账号名过滤。
+     * 账号名匹配不区分大小写；accountName 为空时返回该渠道全部本地签到记录。
+     */
+    fun localLogs(context: Context, platform: String, accountName: String = ""): List<SignLog> {
+        val all = LogStore(context).load().filter { it.isCheckin && it.platform == platform }
+        if (accountName.isBlank()) return all
+        // 本地签到日志里的 account 字段存的是账号 label；detail 里含账号名
+        return all.filter { l ->
+            l.account.equals(accountName, true) || l.detail.contains(accountName, true)
+        }
+    }
+
     // ---------------- TRAE ----------------
 
-    private fun runTrae(context: Context): List<Result> {
-        val accounts = AccountStore(context).load()
+    private fun runTrae(context: Context, onlyAccountId: String? = null): List<Result> {
+        val all = AccountStore(context).load()
+        val accounts = if (onlyAccountId == null) all else all.filter { it.id == onlyAccountId }
         if (accounts.isEmpty()) return listOf(fail("trae", "（无账号）", "", "该渠道还没有账号，请先添加"))
         val api = TraeApi()
         return accounts.map { acc ->
@@ -111,8 +125,9 @@ object LocalCheckinService {
 
     // ---------------- WorkBuddy ----------------
 
-    private fun runWorkBuddy(context: Context): List<Result> {
-        val accounts = WorkBuddyAccountStore(context).load()
+    private fun runWorkBuddy(context: Context, onlyAccountId: String? = null): List<Result> {
+        val all = WorkBuddyAccountStore(context).load()
+        val accounts = if (onlyAccountId == null) all else all.filter { it.id == onlyAccountId }
         if (accounts.isEmpty()) return listOf(fail("buddy", "（无账号）", "", "该渠道还没有账号，请先添加"))
         val api = WorkBuddyApi()
         return accounts.map { acc ->
@@ -143,8 +158,9 @@ object LocalCheckinService {
 
     // ---------------- Qoder 中国版 ----------------
 
-    private fun runQoderCn(context: Context): List<Result> {
-        val accounts = QoderCnAccountStore(context).load()
+    private fun runQoderCn(context: Context, onlyAccountId: String? = null): List<Result> {
+        val all = QoderCnAccountStore(context).load()
+        val accounts = if (onlyAccountId == null) all else all.filter { it.id == onlyAccountId }
         if (accounts.isEmpty()) return listOf(fail("qodercn", "（无账号）", "", "该渠道还没有账号，请先添加"))
         val api = QoderCnApi()
         return accounts.map { acc ->
@@ -174,8 +190,9 @@ object LocalCheckinService {
 
     // ---------------- Loomy ----------------
 
-    private fun runLoomy(context: Context): List<Result> {
-        val accounts = LoomyAccountStore(context).load()
+    private fun runLoomy(context: Context, onlyAccountId: String? = null): List<Result> {
+        val all = LoomyAccountStore(context).load()
+        val accounts = if (onlyAccountId == null) all else all.filter { it.id == onlyAccountId }
         if (accounts.isEmpty()) return listOf(fail("loomy", "（无账号）", "", "该渠道还没有账号，请先添加"))
         val api = LoomyApi()
         return accounts.map { acc ->
@@ -196,8 +213,9 @@ object LocalCheckinService {
 
     // ---------------- LobsterAI ----------------
 
-    private fun runLobsterai(context: Context): List<Result> {
-        val accounts = LobsteraiAccountStore(context).load()
+    private fun runLobsterai(context: Context, onlyAccountId: String? = null): List<Result> {
+        val all = LobsteraiAccountStore(context).load()
+        val accounts = if (onlyAccountId == null) all else all.filter { it.id == onlyAccountId }
         if (accounts.isEmpty()) return listOf(fail("lobsterai", "（无账号）", "", "该渠道还没有账号，请先添加"))
         val api = LobsteraiApi()
         return accounts.map { acc ->

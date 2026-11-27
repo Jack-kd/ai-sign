@@ -348,6 +348,22 @@
                     android:fontFamily="monospace"
                     android:textStyle="bold" />
 
+                <!-- 日志来源切换：云端 sign_logs.json ↔ 本地签到记录 -->
+                <TextView
+                    android:id="@+id/btnLogsSource"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:background="#2A3A2A"
+                    android:paddingLeft="8dp"
+                    android:paddingRight="8dp"
+                    android:paddingTop="3dp"
+                    android:paddingBottom="3dp"
+                    android:text="☁ 云端 ›"
+                    android:textColor="#6A9955"
+                    android:textSize="11sp"
+                    android:fontFamily="monospace" />
+
                 <TextView
                     android:id="@+id/tvLogsMode"
                     android:layout_width="0dp"

@@ -393,35 +393,40 @@ class MainActivity : AppCompatActivity() {
 
         accountAdapter = AccountAdapter(
             onDetail = { acc -> openDetail(acc) },
-            onDelete = { acc -> confirmDelete(acc) }
+            onDelete = { acc -> confirmDelete(acc) },
+            onLocalCheckin = { acc -> confirmLocalCheckinOne("trae", acc.id, acc.label) }
         )
         rvAccounts.layoutManager = LinearLayoutManager(this)
         rvAccounts.adapter = accountAdapter
 
         wbAccountAdapter = WorkBuddyAccountAdapter(
             onDetail = { acc -> openWbDetail(acc) },
-            onDelete = { acc -> confirmDeleteWorkBuddy(acc) }
+            onDelete = { acc -> confirmDeleteWorkBuddy(acc) },
+            onLocalCheckin = { acc -> confirmLocalCheckinOne("buddy", acc.id, acc.label) }
         )
         rvWbAccounts.layoutManager = LinearLayoutManager(this)
         rvWbAccounts.adapter = wbAccountAdapter
 
         qcAccountAdapter = QoderCnAccountAdapter(
             onDetail = { acc -> openQcDetail(acc) },
-            onDelete = { acc -> confirmDeleteQoderCn(acc) }
+            onDelete = { acc -> confirmDeleteQoderCn(acc) },
+            onLocalCheckin = { acc -> confirmLocalCheckinOne("qodercn", acc.id, acc.label) }
         )
         rvQcAccounts.layoutManager = LinearLayoutManager(this)
         rvQcAccounts.adapter = qcAccountAdapter
 
         loomyAccountAdapter = LoomyAccountAdapter(
             onDetail = { acc -> openLoomyDetail(acc) },
-            onDelete = { acc -> confirmDeleteLoomy(acc) }
+            onDelete = { acc -> confirmDeleteLoomy(acc) },
+            onLocalCheckin = { acc -> confirmLocalCheckinOne("loomy", acc.id, acc.label) }
         )
         rvLoomyAccounts.layoutManager = LinearLayoutManager(this)
         rvLoomyAccounts.adapter = loomyAccountAdapter
 
         lobsteraiAccountAdapter = LobsteraiAccountAdapter(
             onDetail = { acc -> openLobsterDetail(acc) },
-            onDelete = { acc -> confirmDeleteLobster(acc) }
+            onDelete = { acc -> confirmDeleteLobster(acc) },
+            onLocalCheckin = { acc -> confirmLocalCheckinOne("lobsterai", acc.id, acc.label) }
         )
         rvLobsterAccounts.layoutManager = LinearLayoutManager(this)
         rvLobsterAccounts.adapter = lobsteraiAccountAdapter
@@ -1593,17 +1598,40 @@ class MainActivity : AppCompatActivity() {
         dlg.show()
     }
 
-    /** 执行本地签到：后台跑，完成后弹出结果汇总 */
-    private fun runLocalCheckin(platform: String) {
+    /**
+     * 单账号本地签到：账号卡片里的「本地签到」按钮。
+     * 只签这一个账号，不影响同渠道其它账号。
+     */
+    private fun confirmLocalCheckinOne(platform: String, accountId: String, label: String) {
         val displayName = LocalCheckinService.displayName(platform)
-        Toast.makeText(this, "正在本地签到 $displayName ...", Toast.LENGTH_SHORT).show()
+        MaterialAlertDialogBuilder(this)
+            .setTitle("本地签到")
+            .setMessage("将用本机网络直接为「$label」执行 $displayName 签到。\n\n" +
+                "· 不经过云端，不触发 GitHub Actions\n" +
+                "· 只签这一个账号，不影响其它账号\n" +
+                "· 结果记入本地签到日志\n\n确定现在签到吗？")
+            .setPositiveButton("开始签到") { _, _ ->
+                runLocalCheckin(platform, accountId, label)
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /**
+     * 执行本地签到（整渠道或单账号）。完成后只弹一个轻提示，
+     * 详细记录在账号详情页的日志区查看（云端 / 本地可切换）。
+     */
+    private fun runLocalCheckin(platform: String, onlyAccountId: String? = null, labelHint: String? = null) {
+        val displayName = LocalCheckinService.displayName(platform)
+        val who = labelHint ?: displayName
+        Toast.makeText(this, "正在本地签到 $who ...", Toast.LENGTH_SHORT).show()
         lifecycleScope.launch {
             val results = withContext(Dispatchers.IO) {
-                runCatching { LocalCheckinService.run(this@MainActivity, platform) }
+                runCatching { LocalCheckinService.run(this@MainActivity, platform, onlyAccountId) }
                     .getOrDefault(emptyList())
             }
             if (results.isEmpty()) {
-                Toast.makeText(this@MainActivity, "本地签到未执行：$displayName 暂无账号", Toast.LENGTH_LONG).show()
+                Toast.makeText(this@MainActivity, "本地签到未执行：$who 暂无账号", Toast.LENGTH_LONG).show()
                 updateChannelCards()
                 return@launch
             }
@@ -1611,28 +1639,16 @@ class MainActivity : AppCompatActivity() {
             val alreadyCount = results.count { it.status == "已签到" }
             val failCount = results.count { it.status == "失败" }
             val earned = results.sumOf { it.earned }
-            val summary = buildString {
-                append("$displayName 本地签到完成\n\n")
-                append("成功 $okCount · 已签到 $alreadyCount · 失败 $failCount")
-                if (earned > 0) append("\n共获得 $earned")
-                append("\n\n")
-                for (r in results) {
-                    val icon = when (r.status) {
-                        "成功" -> "✓"
-                        "已签到" -> "·"
-                        else -> "✗"
-                    }
-                    append("$icon ${r.account}：${r.detail}\n")
-                }
-            }.trimEnd()
-            MaterialAlertDialogBuilder(this@MainActivity)
-                .setTitle("本地签到结果")
-                .setMessage(summary)
-                .setPositiveButton("查看日志") { _, _ ->
-                    showLocalCheckinLogs()
-                }
-                .setNegativeButton("知道了", null)
-                .show()
+            // 轻提示：只说结果，不铺开逐条详情
+            val msg = buildString {
+                append("本地签到完成")
+                if (earned > 0) append("，+$earned")
+                append("\n成功 $okCount")
+                if (alreadyCount > 0) append(" · 已签到 $alreadyCount")
+                if (failCount > 0) append(" · 失败 $failCount")
+                append("\n详细记录见账号详情页日志区「本地」")
+            }
+            Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
             updateChannelCards()
             refreshAccountCredits(true)
         }
@@ -4617,7 +4633,8 @@ private fun showGithubDialog() {
 
 class AccountAdapter(
     private val onDetail: (TraeAccount) -> Unit,
-    private val onDelete: (TraeAccount) -> Unit
+    private val onDelete: (TraeAccount) -> Unit,
+    private val onLocalCheckin: (TraeAccount) -> Unit
 ) : RecyclerView.Adapter<AccountAdapter.VH>() {
 
     private var items: List<TraeAccount> = emptyList()
@@ -4709,12 +4726,14 @@ class AccountAdapter(
         }
         holder.root.setOnClickListener { onDetail(acc) }
         btnDel.setOnClickListener { onDelete(acc) }
+        holder.root.findViewById<TextView>(R.id.btnLocalCheckin).setOnClickListener { onLocalCheckin(acc) }
     }
 }
 
 class WorkBuddyAccountAdapter(
     private val onDetail: (WorkBuddyAccount) -> Unit,
-    private val onDelete: (WorkBuddyAccount) -> Unit
+    private val onDelete: (WorkBuddyAccount) -> Unit,
+    private val onLocalCheckin: (WorkBuddyAccount) -> Unit
 ) : RecyclerView.Adapter<WorkBuddyAccountAdapter.VH>() {
 
     private var items: List<WorkBuddyAccount> = emptyList()
@@ -4806,13 +4825,15 @@ class WorkBuddyAccountAdapter(
         }
         holder.root.setOnClickListener { onDetail(acc) }
         btnDel.setOnClickListener { onDelete(acc) }
+        holder.root.findViewById<TextView>(R.id.btnLocalCheckin).setOnClickListener { onLocalCheckin(acc) }
     }
 }
 
 /** Qoder 中国版账号列表适配器（结构与 WorkBuddyAccountAdapter 一致，凭证字段不同） */
 class QoderCnAccountAdapter(
     private val onDetail: (QoderCnAccount) -> Unit,
-    private val onDelete: (QoderCnAccount) -> Unit
+    private val onDelete: (QoderCnAccount) -> Unit,
+    private val onLocalCheckin: (QoderCnAccount) -> Unit
 ) : RecyclerView.Adapter<QoderCnAccountAdapter.VH>() {
 
     private var items: List<QoderCnAccount> = emptyList()
@@ -4899,13 +4920,15 @@ class QoderCnAccountAdapter(
         }
         holder.root.setOnClickListener { onDetail(acc) }
         btnDel.setOnClickListener { onDelete(acc) }
+        holder.root.findViewById<TextView>(R.id.btnLocalCheckin).setOnClickListener { onLocalCheckin(acc) }
     }
 }
 
 /** Loomy 账号列表适配器（结构与 QoderCnAccountAdapter 一致，凭证字段为 accessToken/userId/phone） */
 class LoomyAccountAdapter(
     private val onDetail: (LoomyAccount) -> Unit,
-    private val onDelete: (LoomyAccount) -> Unit
+    private val onDelete: (LoomyAccount) -> Unit,
+    private val onLocalCheckin: (LoomyAccount) -> Unit
 ) : RecyclerView.Adapter<LoomyAccountAdapter.VH>() {
 
     private var items: List<LoomyAccount> = emptyList()
@@ -4993,6 +5016,7 @@ class LoomyAccountAdapter(
         }
         holder.root.setOnClickListener { onDetail(acc) }
         btnDel.setOnClickListener { onDelete(acc) }
+        holder.root.findViewById<TextView>(R.id.btnLocalCheckin).setOnClickListener { onLocalCheckin(acc) }
     }
 }
 
@@ -5002,7 +5026,8 @@ class LoomyAccountAdapter(
  */
 class LobsteraiAccountAdapter(
     private val onDetail: (LobsteraiAccount) -> Unit,
-    private val onDelete: (LobsteraiAccount) -> Unit
+    private val onDelete: (LobsteraiAccount) -> Unit,
+    private val onLocalCheckin: (LobsteraiAccount) -> Unit
 ) : RecyclerView.Adapter<LobsteraiAccountAdapter.VH>() {
 
     private var items: List<LobsteraiAccount> = emptyList()
@@ -5086,6 +5111,7 @@ class LobsteraiAccountAdapter(
         }
         holder.root.setOnClickListener { onDetail(acc) }
         btnDel.setOnClickListener { onDelete(acc) }
+        holder.root.findViewById<TextView>(R.id.btnLocalCheckin).setOnClickListener { onLocalCheckin(acc) }
     }
 }
 

@@ -25,6 +25,7 @@ import com.jackkd.signapp.data.GithubConfig
 import com.jackkd.signapp.data.TraeAccount
 import com.jackkd.signapp.data.UploadAccount
 import com.jackkd.signapp.net.GithubApi
+import com.jackkd.signapp.net.LocalCheckinService
 import com.jackkd.signapp.net.UploadService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -122,8 +123,75 @@ class AccountDetailActivity : AppCompatActivity() {
             if (carriedName.isNotBlank()) lines.add("nickname: $carriedName")
             copyToClipboard("凭证", lines.joinToString("\n"), "已复制文本凭证（含账号名），可在登录页「粘贴凭证」导入")
         }
-        // 拉取云端日志并过滤该账号
-        loadAccountLogs(tvLogs, account)
+        // 日志区：默认云端，可切换本地
+        val btnSource = findViewById<TextView>(R.id.btnLogsSource)
+        lastAccount = account
+        btnSource.setOnClickListener {
+            logsFromLocal = !logsFromLocal
+            renderLogs(tvLogs, account)
+        }
+        renderLogs(tvLogs, account)
+    }
+
+    /** true = 当前显示本地签到日志；false = 云端 sign_logs.json */
+    private var logsFromLocal = false
+    private var lastAccount: TraeAccount? = null
+
+    /** 按当前来源渲染日志区（云端 / 本地） */
+    private fun renderLogs(tvLogs: TextView, account: TraeAccount) {
+        val btnSource = findViewById<TextView>(R.id.btnLogsSource)
+        if (logsFromLocal) {
+            btnSource.text = "💻 本地 ›"
+            renderLocalLogs(tvLogs, account)
+        } else {
+            btnSource.text = "☁ 云端 ›"
+            loadAccountLogs(tvLogs, account)
+        }
+    }
+
+    /** 渲染本地签到日志（本机 LogStore，isCheckin = true） */
+    private fun renderLocalLogs(tvLogs: TextView, account: TraeAccount) {
+        val tvMode = findViewById<TextView>(R.id.tvLogsMode)
+        val logs = LocalCheckinService.localLogs(this, "trae", account.label)
+        if (logs.isEmpty()) {
+            tvMode.text = "empty"
+            tvLogs.text = terminalLine(
+                "$ 暂无本地签到记录\n\n# 点「本地签到」在本机签到后，记录会出现在这里\n# 本地签到不经过云端，与上面云端日志是两套数据",
+                terminalColorOrange
+            )
+            return
+        }
+        tvMode.text = "local"
+        val sb = SpannableStringBuilder()
+        val okCount = logs.count { it.result == "成功" }
+        val alreadyCount = logs.count { it.result == "已签到" }
+        val failCount = logs.count { it.result == "失败" }
+        val earned = logs.sumOf { it.earned }
+        sb.append(terminalLine("$ 本地签到记录：" + logs.size + " 条", terminalColorGray)).append("\n")
+        sb.append(terminalLine("成功：" + okCount + " 条", terminalColorGreen)).append("\n")
+        sb.append(terminalLine("已签到：" + alreadyCount + " 条", terminalColorPurple)).append("\n")
+        sb.append(terminalLine("失败：" + failCount + " 条", terminalColorRed)).append("\n")
+        if (earned > 0) sb.append(terminalLine("累计获得：" + earned, terminalColorGreen)).append("\n")
+        sb.append("\n")
+        for (log in logs.take(30)) {
+            val t = formatTime(log.time)
+            val dotColor = when (log.result) {
+                "成功" -> terminalColorGreen
+                "失败" -> terminalColorRed
+                else -> terminalColorPurple
+            }
+            val bodyColor = when {
+                log.result == "失败" -> terminalColorRed
+                log.earned > 0 -> terminalColorGreen
+                else -> terminalColorPurple
+            }
+            val sp = SpannableString("● [$t] " + log.detail.ifBlank { log.result } + "\n")
+            sp.setSpan(ForegroundColorSpan(dotColor), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sp.setSpan(ForegroundColorSpan(terminalColorGray), 3, 3 + t.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sp.setSpan(ForegroundColorSpan(bodyColor), 3 + t.length + 2, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sb.append(sp)
+        }
+        tvLogs.text = sb
     }
 
     /**

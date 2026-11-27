@@ -2696,7 +2696,7 @@ private fun showGithubDialog() {
             val error = withContext(Dispatchers.IO) {
                 runCatching {
                     UploadService(api, config.repoOwner, config.repoName, config.workflowBranch)
-                        .uploadAccounts(remaining)
+                        .uploadAccounts(remaining, merge = false)
                 }.getOrNull()
             }
             if (error != null) {
@@ -2861,7 +2861,7 @@ private fun showGithubDialog() {
             val error = withContext(Dispatchers.IO) {
                 runCatching {
                     UploadService(api, config.repoOwner, config.repoName, config.workflowBranch)
-                        .uploadLoomyAccounts(remaining)
+                        .uploadLoomyAccounts(remaining, merge = false)
                 }.getOrNull()
             }
             if (error != null) {
@@ -2961,7 +2961,7 @@ private fun showGithubDialog() {
             val error = withContext(Dispatchers.IO) {
                 runCatching {
                     UploadService(api, config.repoOwner, config.repoName, config.workflowBranch)
-                        .uploadLobsteraiAccounts(remaining)
+                        .uploadLobsteraiAccounts(remaining, merge = false)
                 }.getOrNull()
             }
             if (error != null) {
@@ -3054,7 +3054,7 @@ private fun showGithubDialog() {
             val error = withContext(Dispatchers.IO) {
                 runCatching {
                     UploadService(api, config.repoOwner, config.repoName, config.workflowBranch)
-                        .uploadQoderCnAccounts(remaining)
+                        .uploadQoderCnAccounts(remaining, merge = false)
                 }.getOrNull()
             }
             if (error != null) {
@@ -3144,7 +3144,7 @@ private fun showGithubDialog() {
             val error = withContext(Dispatchers.IO) {
                 runCatching {
                     UploadService(api, config.repoOwner, config.repoName, config.workflowBranch)
-                        .uploadWorkBuddyAccounts(remaining)
+                        .uploadWorkBuddyAccounts(remaining, merge = false)
                 }.getOrNull()
             }
             if (error != null) {

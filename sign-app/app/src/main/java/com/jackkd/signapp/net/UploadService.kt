@@ -2,6 +2,9 @@ package com.jackkd.signapp.net
 
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import com.jackkd.signapp.data.ScheduleTime
 import com.jackkd.signapp.data.TraeAccount
 import com.jackkd.signapp.data.UploadAccount
@@ -45,6 +48,75 @@ class UploadService(
             securityOauthToken = CredentialCrypto.encrypt(u.securityOauthToken),
             refreshToken = CredentialCrypto.encrypt(u.refreshToken)
         ) else u
+
+    /**
+     * 把本次要上传的账号列表与云端已有列表**按 uid 合并**后再上传。
+     *
+     * 为什么必须合并：以前这里是把整份列表直接写上去，也就是「软件里有几个
+     * 账号，云端就只剩几个」。插件那边登录的账号一旦被推到云端，软件下次
+     * 登录/同步就会把它抹掉 —— 两边的账号数量因此长期对不上（云端 2 个、
+     * 软件 1 个就是这么来的）。
+     *
+     * 合并规则：同 uid 的用本地覆盖（本地是最新的凭证），云端独有的原样保留。
+     * 删除账号走 `merge = false`，那种场景要的正是「精确覆盖」。
+     *
+     * @param uidKeys 该渠道用哪个字段当 uid（snake_case，按优先级）
+     */
+    private fun mergeWithCloud(cloudPath: String, localJson: String, uidKeys: List<String>): String {
+        val localArr = try {
+            JsonParser.parseString(localJson).asJsonArray
+        } catch (e: Exception) {
+            return localJson
+        }
+        if (localArr.size() == 0) return localJson
+        val cloudRaw = try {
+            api.readRepoFile(owner, repo, cloudPath)
+        } catch (e: Exception) {
+            null
+        }
+        if (cloudRaw.isNullOrBlank()) return localJson
+        val cloudArr = try {
+            JsonParser.parseString(cloudRaw).asJsonArray
+        } catch (e: Exception) {
+            return localJson
+        }
+
+        fun uidOf(o: JsonObject): String {
+            for (k in uidKeys) {
+                val v = o.get(k) ?: continue
+                if (v.isJsonNull || !v.isJsonPrimitive) continue
+                val text = v.asString.trim()
+                if (text.isNotEmpty()) return text
+            }
+            return ""
+        }
+
+        val merged = mutableListOf<JsonObject>()
+        val indexByUid = mutableMapOf<String, Int>()
+        for (el in cloudArr) {
+            if (!el.isJsonObject) continue
+            val o = el.asJsonObject
+            val u = uidOf(o)
+            if (u.isNotEmpty() && indexByUid.containsKey(u)) continue
+            if (u.isNotEmpty()) indexByUid[u] = merged.size
+            merged.add(o)
+        }
+        for (el in localArr) {
+            if (!el.isJsonObject) continue
+            val o = el.asJsonObject
+            val u = uidOf(o)
+            val at = if (u.isNotEmpty()) indexByUid[u] else null
+            if (at != null) {
+                merged[at] = o
+            } else {
+                if (u.isNotEmpty()) indexByUid[u] = merged.size
+                merged.add(o)
+            }
+        }
+        val out = JsonArray()
+        for (o in merged) out.add(o)
+        return gson.toJson(out)
+    }
 
     companion object {
         // TRAE
@@ -101,10 +173,10 @@ class UploadService(
         return api.createOrUpdateFile(owner, repo, WORKFLOW_FILE, buildWorkflow(schedule), "更新自动签到时间")
     }
 
-    fun uploadAccounts(accounts: List<UploadAccount>): String? {
+    fun uploadAccounts(accounts: List<UploadAccount>, merge: Boolean = true): String? {
         return try {
             val files = mutableMapOf<String, String>()
-            files[ACCOUNTS_FILE] = gson.toJson(accounts.map { enc(it) })
+            files[ACCOUNTS_FILE] = if (merge) mergeWithCloud(ACCOUNTS_FILE, gson.toJson(accounts.map { enc(it) }), listOf("uid", "user_id")) else gson.toJson(accounts.map { enc(it) })
             // 确保签到脚本与工作流存在（缺失时自动补上，避免新仓库签到失败）
             val scriptExists = api.readRepoFile(owner, repo, SCRIPT_FILE) != null
             if (!scriptExists) files[SCRIPT_FILE] = SIGN_SCRIPT
@@ -120,10 +192,10 @@ class UploadService(
      * 上传 WorkBuddy 账号列表，并确保签到脚本存在（缺失时自动补上）。
      * @return null 表示成功；否则返回错误信息字符串。
      */
-    fun uploadWorkBuddyAccounts(accounts: List<UploadWorkBuddyAccount>): String? {
+    fun uploadWorkBuddyAccounts(accounts: List<UploadWorkBuddyAccount>, merge: Boolean = true): String? {
         return try {
             val files = mutableMapOf<String, String>()
-            files[WB_ACCOUNTS_FILE] = gson.toJson(accounts.map { encWb(it) })
+            files[WB_ACCOUNTS_FILE] = if (merge) mergeWithCloud(WB_ACCOUNTS_FILE, gson.toJson(accounts.map { encWb(it) }), listOf("user_id", "uid")) else gson.toJson(accounts.map { encWb(it) })
             // 确保脚本存在，否则自动创建（避免工作流运行时报找不到文件）
             val scriptExists = api.readRepoFile(owner, repo, WB_SCRIPT_FILE) != null
             if (!scriptExists) files[WB_SCRIPT_FILE] = WB_SIGN_SCRIPT
@@ -191,10 +263,10 @@ class UploadService(
      * 上传 Qoder 中国版账号列表，并确保签到脚本/工作流存在（缺失时自动补上）。
      * @return null 表示成功；否则返回错误信息字符串。
      */
-    fun uploadQoderCnAccounts(accounts: List<UploadQoderCnAccount>): String? {
+    fun uploadQoderCnAccounts(accounts: List<UploadQoderCnAccount>, merge: Boolean = true): String? {
         return try {
             val files = mutableMapOf<String, String>()
-            files[QC_ACCOUNTS_FILE] = gson.toJson(accounts.map { encQc(it) })
+            files[QC_ACCOUNTS_FILE] = if (merge) mergeWithCloud(QC_ACCOUNTS_FILE, gson.toJson(accounts.map { encQc(it) }), listOf("uid", "user_id")) else gson.toJson(accounts.map { encQc(it) })
             val scriptExists = api.readRepoFile(owner, repo, QC_SCRIPT_FILE) != null
             if (!scriptExists) files[QC_SCRIPT_FILE] = QC_SIGN_SCRIPT
             val wfExists = api.readRepoFile(owner, repo, QC_WORKFLOW_FILE) != null
@@ -271,10 +343,10 @@ class UploadService(
      *
      * @return null 表示成功；否则返回错误信息字符串
      */
-    fun uploadLoomyAccounts(accounts: List<UploadLoomyAccount>): String? {
+    fun uploadLoomyAccounts(accounts: List<UploadLoomyAccount>, merge: Boolean = true): String? {
         return try {
             val files = mutableMapOf<String, String>()
-            files[LOOMY_ACCOUNTS_FILE] = gson.toJson(accounts)
+            files[LOOMY_ACCOUNTS_FILE] = if (merge) mergeWithCloud(LOOMY_ACCOUNTS_FILE, gson.toJson(accounts), listOf("user_id", "uid")) else gson.toJson(accounts)
             // 凭证必须明文，绝不能走加密（见类注释 encQc 的反面）
             val wfExists = api.readRepoFile(owner, repo, LOOMY_WORKFLOW_FILE) != null
             if (!wfExists) files[LOOMY_WORKFLOW_FILE] = buildLoomyWorkflow(LoomyScheduleTime(11, 0))
@@ -333,10 +405,10 @@ class UploadService(
      * 没有解密逻辑。和 Loomy 一样，本渠道**不内嵌脚本** —— 云端脚本已在仓库里，
      * 只在 workflow 缺失时补 workflow，脚本缺失跳过以免覆盖云端版本。
      */
-    fun uploadLobsteraiAccounts(accounts: List<UploadLobsteraiAccount>): String? {
+    fun uploadLobsteraiAccounts(accounts: List<UploadLobsteraiAccount>, merge: Boolean = true): String? {
         return try {
             val files = mutableMapOf<String, String>()
-            files[LOBSTER_ACCOUNTS_FILE] = gson.toJson(accounts)
+            files[LOBSTER_ACCOUNTS_FILE] = if (merge) mergeWithCloud(LOBSTER_ACCOUNTS_FILE, gson.toJson(accounts), listOf("user_id", "uid")) else gson.toJson(accounts)
             val wfExists = api.readRepoFile(owner, repo, LOBSTER_WORKFLOW_FILE) != null
             if (!wfExists) files[LOBSTER_WORKFLOW_FILE] = buildLobsteraiWorkflow(LobsteraiScheduleTime(11, 0))
             api.updateMultipleFiles(owner, repo, branch, files, "更新 LobsterAI 签到账号列表")

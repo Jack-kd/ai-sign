@@ -1519,9 +1519,6 @@ class MainActivity : AppCompatActivity() {
         view.findViewById<View>(R.id.btnLogsEntry).setOnClickListener {
             dialog.dismiss(); showLogsDialog()
         }
-        view.findViewById<View>(R.id.btnLocalLogsEntry)?.setOnClickListener {
-            dialog.dismiss(); showLocalCheckinLogs()
-        }
         view.findViewById<View>(R.id.btnStatsEntry).setOnClickListener {
             dialog.dismiss(); showStatsDialog()
         }
@@ -4338,84 +4335,6 @@ private fun showGithubDialog() {
         btnClose.setOnClickListener { dlg.dismiss() }
         view.findViewById<View>(R.id.btnLogsCloseX)?.setOnClickListener { dlg.dismiss() }
         dlg.setOnShowListener { renderLocal() }
-        dlg.show()
-    }
-
-    /**
-     * 本地签到日志：只显示 isCheckin = true 的记录，按渠道分组。
-     * 与「签到日志」（云端 sign_logs.json）是两套数据，互不混杂。
-     */
-    private fun showLocalCheckinLogs() {
-        val view = LayoutInflater.from(this).inflate(R.layout.dialog_logs, null)
-        val tv = view.findViewById<TextView>(R.id.tvLogsContent)
-        // 本弹窗专看本地签到，隐藏云端切换页，避免与云端日志混淆
-        val tabLocal = view.findViewById<TextView>(R.id.btnLogsLocalTab)
-        val tabCloud = view.findViewById<TextView>(R.id.btnLogsCloudTab)
-        tabCloud.visibility = View.GONE
-        tabLocal.setBackgroundResource(R.drawable.bg_tab_on)
-        tabLocal.setTextColor(resources.getColor(R.color.terminal_green))
-        tabLocal.text = "本地签到日志"
-
-        val cGreen = ContextCompat.getColor(this, R.color.terminal_green)
-        val cYellow = ContextCompat.getColor(this, R.color.terminal_yellow)
-        val cRed = ContextCompat.getColor(this, R.color.error_red)
-        val cGray = ContextCompat.getColor(this, R.color.terminal_gray)
-        val cCyan = ContextCompat.getColor(this, R.color.terminal_cyan)
-        val cPurple = ContextCompat.getColor(this, R.color.terminal_purple)
-
-        fun render() {
-            val all = logStore.load().filter { it.isCheckin }
-            if (all.isEmpty()) {
-                val sp = SpannableString("$ 暂无本地签到记录\n\n# 点任一渠道卡片的「本地签到」即可在本机签到\n# 结果会自动记录到这里")
-                sp.setSpan(ForegroundColorSpan(cYellow), 0, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                tv.text = sp
-                return
-            }
-            val sb = SpannableStringBuilder()
-            // 按渠道分组，保持固定顺序
-            val order = listOf("trae", "buddy", "qodercn", "loomy", "lobsterai")
-            var total = 0
-            for (p in order) {
-                val list = all.filter { it.platform == p }
-                if (list.isEmpty()) continue
-                val title = "# ${LocalCheckinService.displayName(p)} (${list.size} 条)\n"
-                val ts = SpannableString(title)
-                ts.setSpan(ForegroundColorSpan(cCyan), 0, ts.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                sb.append(ts)
-                for (log in list) {
-                    val dotColor = if (log.result == "成功") cGreen else if (log.result == "失败") cRed else cPurple
-                    val bodyColor = when {
-                        log.result == "失败" -> cRed
-                        log.earned > 0 -> cGreen
-                        else -> cPurple
-                    }
-                    val t = formatTime(log.time)
-                    val body = if (log.earned > 0) "${log.detail}" else log.detail.ifBlank { log.account }
-                    val sp = SpannableString("● [$t] $body\n")
-                    sp.setSpan(ForegroundColorSpan(dotColor), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    sp.setSpan(ForegroundColorSpan(cGray), 3, 3 + t.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    sp.setSpan(ForegroundColorSpan(bodyColor), 3 + t.length + 2, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    sb.append(sp)
-                }
-                sb.append("\n")
-                total += list.size
-            }
-            // 清空按钮由底部清空入口统一处理；这里只展示
-            val foot = SpannableString("# 共 $total 条本地签到记录")
-            foot.setSpan(ForegroundColorSpan(cGray), 0, foot.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            sb.append(foot)
-            tv.text = sb
-        }
-
-        val dlg = MaterialAlertDialogBuilder(this)
-            .setView(view)
-            .create()
-        dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
-        applyDialogBlur(dlg)
-        tabLocal.setOnClickListener { render() }
-        view.findViewById<View>(R.id.btnLogsClose)?.setOnClickListener { dlg.dismiss() }
-        view.findViewById<View>(R.id.btnLogsCloseX)?.setOnClickListener { dlg.dismiss() }
-        dlg.setOnShowListener { render() }
         dlg.show()
     }
 

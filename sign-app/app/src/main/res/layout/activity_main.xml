@@ -220,46 +220,45 @@
                             android:orientation="vertical"
                             android:layout_marginStart="14dp">
 
+                            <TextView
+                                android:id="@+id/nameTrae"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="TRAE"
+                                android:textColor="@color/text_primary"
+                                android:textSize="17sp"
+                                android:textStyle="bold" />
+
                             <LinearLayout
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
                                 android:orientation="horizontal"
-                                android:gravity="center_vertical"
-                                android:layout_marginEnd="84dp">
+                                android:gravity="center_vertical">
 
                                 <TextView
-                                    android:id="@+id/nameTrae"
+                                    android:id="@+id/subTrae"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="TRAE"
-                                    android:textColor="@color/text_primary"
-                                    android:textSize="17sp"
-                                    android:textStyle="bold" />
+                                    android:text="0 个账号 · 总积分 --"
+                                    android:textColor="@color/gray"
+                                    android:textSize="13sp" />
 
                                 <TextView
                                     android:id="@+id/badgeTrae"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:layout_marginStart="6dp"
+                                    android:layout_marginStart="8dp"
                                     android:background="@drawable/bg_btn_delete"
                                     android:paddingLeft="6dp"
                                     android:paddingRight="6dp"
-                                    android:paddingTop="2dp"
-                                    android:paddingBottom="2dp"
-                                    android:text="1 过期"
+                                    android:paddingTop="1dp"
+                                    android:paddingBottom="1dp"
+                                    android:text="0 失效"
                                     android:textColor="@color/white"
                                     android:textSize="10sp"
                                     android:visibility="gone" />
                             </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/subTrae"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="3dp"
-                                android:text="0 个账号 · 总积分 --"
-                                android:textColor="@color/gray"
-                                android:textSize="13sp" />
                         </LinearLayout>
 
                     </LinearLayout>
@@ -440,46 +439,45 @@
                             android:orientation="vertical"
                             android:layout_marginStart="14dp">
 
+                            <TextView
+                                android:id="@+id/nameWorkBuddy"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="WorkBuddy_国内版"
+                                android:textColor="@color/text_primary"
+                                android:textSize="17sp"
+                                android:textStyle="bold" />
+
                             <LinearLayout
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
                                 android:orientation="horizontal"
-                                android:gravity="center_vertical"
-                                android:layout_marginEnd="84dp">
+                                android:gravity="center_vertical">
 
                                 <TextView
-                                    android:id="@+id/nameWorkBuddy"
+                                    android:id="@+id/subWorkBuddy"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="WorkBuddy_国内版"
-                                    android:textColor="@color/text_primary"
-                                    android:textSize="17sp"
-                                    android:textStyle="bold" />
+                                    android:text="0 个账号 · 总积分 --"
+                                    android:textColor="@color/gray"
+                                    android:textSize="13sp" />
 
                                 <TextView
                                     android:id="@+id/badgeWorkBuddy"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:layout_marginStart="6dp"
+                                    android:layout_marginStart="8dp"
                                     android:background="@drawable/bg_btn_delete"
                                     android:paddingLeft="6dp"
                                     android:paddingRight="6dp"
-                                    android:paddingTop="2dp"
-                                    android:paddingBottom="2dp"
-                                    android:text="1 过期"
+                                    android:paddingTop="1dp"
+                                    android:paddingBottom="1dp"
+                                    android:text="0 失效"
                                     android:textColor="@color/white"
                                     android:textSize="10sp"
                                     android:visibility="gone" />
                             </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/subWorkBuddy"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="3dp"
-                                android:text="0 个账号 · 总积分 --"
-                                android:textColor="@color/gray"
-                                android:textSize="13sp" />
                         </LinearLayout>
 
                     </LinearLayout>
@@ -660,46 +658,45 @@
                             android:orientation="vertical"
                             android:layout_marginStart="14dp">
 
+                            <TextView
+                                android:id="@+id/nameQoderCn"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Qoder 中国版"
+                                android:textColor="@color/text_primary"
+                                android:textSize="17sp"
+                                android:textStyle="bold" />
+
                             <LinearLayout
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
                                 android:orientation="horizontal"
-                                android:gravity="center_vertical"
-                                android:layout_marginEnd="84dp">
+                                android:gravity="center_vertical">
 
                                 <TextView
-                                    android:id="@+id/nameQoderCn"
+                                    android:id="@+id/subQoderCn"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="Qoder 中国版"
-                                    android:textColor="@color/text_primary"
-                                    android:textSize="17sp"
-                                    android:textStyle="bold" />
+                                    android:text="0 个账号 · 总积分 --"
+                                    android:textColor="@color/gray"
+                                    android:textSize="13sp" />
 
                                 <TextView
                                     android:id="@+id/badgeQoderCn"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:layout_marginStart="6dp"
+                                    android:layout_marginStart="8dp"
                                     android:background="@drawable/bg_btn_delete"
                                     android:paddingLeft="6dp"
                                     android:paddingRight="6dp"
-                                    android:paddingTop="2dp"
-                                    android:paddingBottom="2dp"
-                                    android:text="1 过期"
+                                    android:paddingTop="1dp"
+                                    android:paddingBottom="1dp"
+                                    android:text="0 失效"
                                     android:textColor="@color/white"
                                     android:textSize="10sp"
                                     android:visibility="gone" />
                             </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/subQoderCn"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="3dp"
-                                android:text="0 个账号 · 总积分 --"
-                                android:textColor="@color/gray"
-                                android:textSize="13sp" />
                         </LinearLayout>
 
                     </LinearLayout>
@@ -880,46 +877,45 @@
                             android:orientation="vertical"
                             android:layout_marginStart="14dp">
 
+                            <TextView
+                                android:id="@+id/nameLoomy"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Loomy"
+                                android:textColor="@color/text_primary"
+                                android:textSize="17sp"
+                                android:textStyle="bold" />
+
                             <LinearLayout
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
                                 android:orientation="horizontal"
-                                android:gravity="center_vertical"
-                                android:layout_marginEnd="84dp">
+                                android:gravity="center_vertical">
 
                                 <TextView
-                                    android:id="@+id/nameLoomy"
+                                    android:id="@+id/subLoomy"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="Loomy"
-                                    android:textColor="@color/text_primary"
-                                    android:textSize="17sp"
-                                    android:textStyle="bold" />
+                                    android:text="0 个账号 · 总积分 --"
+                                    android:textColor="@color/gray"
+                                    android:textSize="13sp" />
 
                                 <TextView
                                     android:id="@+id/badgeLoomy"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:layout_marginStart="6dp"
+                                    android:layout_marginStart="8dp"
                                     android:background="@drawable/bg_btn_delete"
                                     android:paddingLeft="6dp"
                                     android:paddingRight="6dp"
-                                    android:paddingTop="2dp"
-                                    android:paddingBottom="2dp"
-                                    android:text="1 过期"
+                                    android:paddingTop="1dp"
+                                    android:paddingBottom="1dp"
+                                    android:text="0 失效"
                                     android:textColor="@color/white"
                                     android:textSize="10sp"
                                     android:visibility="gone" />
                             </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/subLoomy"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="3dp"
-                                android:text="0 个账号 · 总积分 --"
-                                android:textColor="@color/gray"
-                                android:textSize="13sp" />
                         </LinearLayout>
 
                     </LinearLayout>
@@ -1100,46 +1096,45 @@
                             android:orientation="vertical"
                             android:layout_marginStart="14dp">
 
+                            <TextView
+                                android:id="@+id/nameLobster"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="LobsterAI"
+                                android:textColor="@color/text_primary"
+                                android:textSize="17sp"
+                                android:textStyle="bold" />
+
                             <LinearLayout
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
                                 android:orientation="horizontal"
-                                android:gravity="center_vertical"
-                                android:layout_marginEnd="84dp">
+                                android:gravity="center_vertical">
 
                                 <TextView
-                                    android:id="@+id/nameLobster"
+                                    android:id="@+id/subLobster"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="LobsterAI"
-                                    android:textColor="@color/text_primary"
-                                    android:textSize="17sp"
-                                    android:textStyle="bold" />
+                                    android:text="0 个账号 · 总积分 --"
+                                    android:textColor="@color/gray"
+                                    android:textSize="13sp" />
 
                                 <TextView
                                     android:id="@+id/badgeLobster"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:layout_marginStart="6dp"
+                                    android:layout_marginStart="8dp"
                                     android:background="@drawable/bg_btn_delete"
                                     android:paddingLeft="6dp"
                                     android:paddingRight="6dp"
-                                    android:paddingTop="2dp"
-                                    android:paddingBottom="2dp"
-                                    android:text="1 过期"
+                                    android:paddingTop="1dp"
+                                    android:paddingBottom="1dp"
+                                    android:text="0 失效"
                                     android:textColor="@color/white"
                                     android:textSize="10sp"
                                     android:visibility="gone" />
                             </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/subLobster"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="3dp"
-                                android:text="0 个账号 · 总积分 --"
-                                android:textColor="@color/gray"
-                                android:textSize="13sp" />
                         </LinearLayout>
 
                     </LinearLayout>
@@ -2049,8 +2044,6 @@
                             android:textSize="13sp" />
                     </LinearLayout>
                 </LinearLayout>
-
-                
             </LinearLayout>
         </ScrollView>
 

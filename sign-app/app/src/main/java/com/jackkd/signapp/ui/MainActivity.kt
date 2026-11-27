@@ -380,6 +380,7 @@ class MainActivity : AppCompatActivity() {
         setupPullRefresh(findViewById(R.id.swipeWb))
         setupPullRefresh(findViewById(R.id.swipeQc))
         setupPullRefresh(findViewById(R.id.swipeLoomy))
+        setupPullRefresh(findViewById(R.id.swipeLobster))
 
         accountAdapter = AccountAdapter(
             onDetail = { acc -> openDetail(acc) },
@@ -1756,8 +1757,9 @@ class MainActivity : AppCompatActivity() {
         refreshHomeApiDots()
     }
 
-    /** 首页 4 张渠道卡片汇总刷新（账号数/总积分/过期徽章），云端逻辑零改动 */
+    /** 首页渠道卡片汇总刷新（账号数/总积分/过期徽章）+ 副标题渠道数，云端逻辑零改动 */
     private fun updateChannelCards() {
+        updateHomeSummary()
         setChannelIcon(iconTrae, R.color.channel_trae, "T")
         setChannelIcon(iconWb, R.color.channel_workbuddy, "W")
         setChannelIcon(iconQc, R.color.channel_qodercn, "Q")
@@ -1783,6 +1785,28 @@ class MainActivity : AppCompatActivity() {
             subLobster, badgeLobster,
             lobsteraiAccountAdapter.accountCount(), lobsteraiAccountAdapter.sumCredits(), 0
         )
+    }
+
+    /**
+     * 首页副标题「共 N 个渠道 · M 个账号」——按实际挂载的渠道/账号统计，不写死。
+     * 「渠道」只算有账号的渠道（没账号的渠道卡片本来也不展示数据）；
+     * 账号总数取五个本地 store 的并集，与卡片上显示的数字同源。
+     */
+    private fun updateHomeSummary() {
+        val counts = listOf(
+            accountAdapter.accountCount(),
+            wbAccountAdapter.accountCount(),
+            qcAccountAdapter.accountCount(),
+            loomyAccountAdapter.accountCount(),
+            lobsteraiAccountAdapter.accountCount()
+        )
+        val channels = counts.count { it > 0 }
+        val accounts = counts.sum()
+        val tv = findViewById<TextView>(R.id.homeSummary)
+        tv.text = when {
+            channels == 0 -> "尚未添加任何渠道"
+            else -> "共 $channels 个渠道 · $accounts 个账号"
+        }
     }
 
     /**
@@ -2802,7 +2826,10 @@ private fun showGithubDialog() {
             val arr = com.google.gson.JsonParser.parseString(raw).asJsonArray
             val out = ArrayList<UploadQoderCnAccount>()
             for (i in 0 until arr.size()) {
+                // 同 LobsterAI：云端 expires_at 可能存秒，软件内部统一用毫秒
                 val expRaw = field(arr, i, "expires_at", "expiresAt")
+                val expVal = expRaw.toLongOrNull() ?: 0L
+                val expAt = if (expVal > 0L && expVal < 10_000_000_000L) expVal * 1000L else expVal
                 out.add(
                     UploadQoderCnAccount(
                         label = field(arr, i, "label"),
@@ -2812,7 +2839,7 @@ private fun showGithubDialog() {
                         uid = field(arr, i, "uid", "UID", "user_id", "userId"),
                         machineId = field(arr, i, "machine_id", "machineId"),
                         nickname = field(arr, i, "nickname", "nickName"),
-                        expiresAt = expRaw.toLongOrNull() ?: 0L
+                        expiresAt = expAt
                     )
                 )
             }
@@ -2992,13 +3019,18 @@ private fun showGithubDialog() {
                 } else ""
             } catch (_: Exception) { "" }
         }
+        // expires_at 云端可能是秒也可能是毫秒（插件按凭据原值照抄），统一折成毫秒：
+        // 小于 10000000000 的一定是秒级（毫秒值都在 2001 年之后，远大于这个数）。
         fun num(arr: com.google.gson.JsonArray, i: Int, vararg keys: String): Long {
             return try {
                 val el = arr[i]
                 if (el is com.google.gson.JsonObject) {
                     for (key in keys) {
                         val v = el.get(key)
-                        if (v != null && !v.isJsonNull) return v.asLong
+                        if (v != null && !v.isJsonNull) {
+                            val raw = v.asLong
+                            return if (raw > 0L && raw < 10_000_000_000L) raw * 1000L else raw
+                        }
                     }
                     0L
                 } else 0L
@@ -3499,6 +3531,7 @@ private fun showGithubDialog() {
             findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeWb)?.isRefreshing = false
             findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeQc)?.isRefreshing = false
             findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeLoomy)?.isRefreshing = false
+            findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeLobster)?.isRefreshing = false
         }
     }
 
@@ -3630,19 +3663,17 @@ private fun showGithubDialog() {
             val loomyCredits = loomyJobs.map { it.await() }
             val lobsterCredits = lobsterJobs.map { it.await() }
 
-            // 成功判定：核心文件必须全部存在；积分查询不允许 Failed/null
+            // 成功判定：只看云端文件是否拿到。
+            // 积分查询结果不再参与判定 —— 只要有一个账号凭证在服务端被撤销（JWT 未到期但
+            // 接口返回 401），旧逻辑就会让所有渠道的下拉刷新一起失败、页面一条都不更新。
+            // 单个账号查不到积分，只在它自己的"当前积分"处显示失败，不影响整页刷新。
             // qodercn 相关文件可能尚未创建（首次使用），不算刷新失败
             val filesOk = traeAccounts != null && wbAccounts != null && schedule != null && wbSchedule != null && logsRaw2 != null
             // wxpusher_config.json 可能从未配置（文件不存在=正常），不算失败
-            val creditsOk = traeCredits.all { it.r !is CreditsQuery.Failed } &&
-                wbCredits.all { it.third != null } &&
-                qcCredits.all { it.third != null }
-            // 注：loomy 积分查询不加入 creditsOk 闸门。loomy 的 fetchCredits 依赖云端 access_token
-            // 是否对"积分接口"有效，查询失败只应在该账号的"当前积分"处显示失败，不应阻断整个刷新
-            // （否则 loomy 积分查不到会导致下拉刷新整页中止、账号列表也拉不下来）。
-            if (!filesOk || !creditsOk) {
+            // 注：loomy / lobster 积分查询历来不进闸门，原因同上。
+            if (!filesOk) {
                 runOnUiThread {
-                    Toast.makeText(this@MainActivity, "刷新失败：部分数据获取失败，页面未更新", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "刷新失败：云端数据读取失败，请检查网络或 GitHub 授权", Toast.LENGTH_LONG).show()
                     stopPullRefresh()
                 }
                 return@launch
@@ -3855,25 +3886,37 @@ private fun showGithubDialog() {
                     if (v != null) {
                         wbAccountAdapter.setCredits(id, "当前积分 $v")
                         removeLoginIssue("WorkBuddy", label)
-                    } else { }
+                    } else {
+                        wbAccountAdapter.setCredits(id, "当前积分 -- 凭证已失效", R.color.error_red, true)
+                        addLoginIssue("WorkBuddy", label)
+                    }
                 }
                 qcCredits.forEach { (id, label, v) ->
                     if (v != null) {
                         qcAccountAdapter.setCredits(id, "当前积分 ${formatQcNum(v)}")
                         removeLoginIssue("QoderCn", label)
-                    } else { }
+                    } else {
+                        qcAccountAdapter.setCredits(id, "当前积分 -- 查询失败", R.color.error_red, true)
+                        addLoginIssue("QoderCn", label)
+                    }
                 }
                 loomyCredits.forEach { (id, label, v) ->
                     if (v != null) {
                         loomyAccountAdapter.setCredits(id, "当前积分 ${formatQcNum(v)}")
                         removeLoginIssue("Loomy", label)
-                    } else { }
+                    } else {
+                        loomyAccountAdapter.setCredits(id, "当前积分 -- 查询失败", R.color.error_red, true)
+                        addLoginIssue("Loomy", label)
+                    }
                 }
                 lobsterCredits.forEach { (id, label, v) ->
                     if (v != null) {
                         lobsteraiAccountAdapter.setCredits(id, "当前积分 ${formatQcNum(v)}")
                         removeLoginIssue("LobsterAI", label)
-                    } else { }
+                    } else {
+                        lobsteraiAccountAdapter.setCredits(id, "当前积分 -- 查询失败", R.color.error_red, true)
+                        addLoginIssue("LobsterAI", label)
+                    }
                 }
 
                 updateChannelCards()

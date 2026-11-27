@@ -127,7 +127,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="3dp"
-                android:text="共 4 个渠道"
+                android:text="共 0 个渠道"
                 android:textColor="@color/gray"
                 android:textSize="13sp" />
         </LinearLayout>

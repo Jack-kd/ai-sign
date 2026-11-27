@@ -2186,7 +2186,7 @@ private fun showGithubDialog() {
         renderLoginIssues()
     }
 
-    /** 统一渲染横幅：集合空则隐藏；非空显示"⚠️ N 个账号登录态已失效，点击查看" */
+    /** 统一渲染横幅：集合空则隐藏；非空显示"N 个账号登录态已失效，点击查看" */
     private fun renderLoginIssues() {
         val banner = findViewById<View>(R.id.loginAlertBanner) ?: return
         val text = findViewById<TextView>(R.id.loginAlertText)
@@ -2194,7 +2194,7 @@ private fun showGithubDialog() {
             banner.visibility = View.GONE
         } else {
             pendingLoginPlatform = loginIssues.values.first().first
-            text.text = "⚠️ ${loginIssues.size} 个账号登录态已失效，点击查看"
+            text.text = "${loginIssues.size} 个账号登录态已失效，点击查看"
             banner.visibility = View.VISIBLE
         }
     }

@@ -117,7 +117,10 @@ data class SignLog(
     val time: Long,
     val account: String,
     val result: String,   // 成功 / 失败 / 已签到
-    val detail: String = ""
+    val detail: String = "",
+    val platform: String = "",  // 本地签到的渠道：TRAE / WorkBuddy / QoderCn / Loomy / LobsterAI
+    val earned: Long = 0,       // 本地签到获得的积分/额度
+    val isCheckin: Boolean = false  // true = 本地签到记录；false = 其它操作日志（上传/下载等）
 )
 
 /** 云端签到日志：对应 GitHub 上 sign_logs.json 的每一项 */

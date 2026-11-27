@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 本地签到按钮：与云端的主题渐变区分色系，用青绿表示「本机执行」 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="90"
+        android:startColor="#1FA97A"
+        android:endColor="#12876A" />
+    <corners android:radius="12dp" />
+</shape>

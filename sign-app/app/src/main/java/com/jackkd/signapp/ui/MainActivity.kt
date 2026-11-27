@@ -62,6 +62,7 @@ import com.jackkd.signapp.data.WorkBuddyCredentials
 import com.jackkd.signapp.net.CredentialCrypto
 import com.jackkd.signapp.net.CreditsQuery
 import com.jackkd.signapp.net.GithubApi
+import com.jackkd.signapp.net.LocalCheckinService
 import com.jackkd.signapp.net.LoomyApi
 import com.jackkd.signapp.net.LobsteraiApi
 import com.jackkd.signapp.net.QoderCnApi
@@ -445,6 +446,13 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.btnTriggerQc).setOnClickListener { showCheckinConfirmDialog("QoderCn") }
         findViewById<TextView>(R.id.btnTriggerLoomy).setOnClickListener { showCheckinConfirmDialog("Loomy") }
         findViewById<TextView>(R.id.btnTriggerLobster).setOnClickListener { showCheckinConfirmDialog("LobsterAI") }
+
+        // 本地签到按钮（完全不经过云端）
+        findViewById<TextView>(R.id.btnLocalTrae).setOnClickListener { showLocalCheckinConfirmDialog("trae") }
+        findViewById<TextView>(R.id.btnLocalWb).setOnClickListener { showLocalCheckinConfirmDialog("buddy") }
+        findViewById<TextView>(R.id.btnLocalQc).setOnClickListener { showLocalCheckinConfirmDialog("qodercn") }
+        findViewById<TextView>(R.id.btnLocalLoomy).setOnClickListener { showLocalCheckinConfirmDialog("loomy") }
+        findViewById<TextView>(R.id.btnLocalLobster).setOnClickListener { showLocalCheckinConfirmDialog("lobsterai") }
 
         // 各平台时间行旁的"设置"：单独设置该平台签到时间
         findViewById<TextView>(R.id.btnSetTraeSchedule).setOnClickListener { showSingleScheduleDialog("TRAE") }
@@ -1506,6 +1514,9 @@ class MainActivity : AppCompatActivity() {
         view.findViewById<View>(R.id.btnLogsEntry).setOnClickListener {
             dialog.dismiss(); showLogsDialog()
         }
+        view.findViewById<View>(R.id.btnLocalLogsEntry)?.setOnClickListener {
+            dialog.dismiss(); showLocalCheckinLogs()
+        }
         view.findViewById<View>(R.id.btnStatsEntry).setOnClickListener {
             dialog.dismiss(); showStatsDialog()
         }
@@ -1536,11 +1547,11 @@ class MainActivity : AppCompatActivity() {
                 "LobsterAI" -> "LobsterAI"
                 else -> platform
             }
-        view.findViewById<TextView>(R.id.tvConfirmTitle).text = if (both) "一键签到" else "立即签到$displayName"
+        view.findViewById<TextView>(R.id.tvConfirmTitle).text = if (both) "云端一键签到" else "云端签到 · $displayName"
         view.findViewById<TextView>(R.id.tvConfirmDesc).text = if (both)
-            "将立即触发所有渠道、全部账号的\n云端签到，并等待执行完成。\n\n确定现在签到吗？"
+            "将触发所有渠道、全部账号的云端签到\n（在 GitHub Actions 上运行，会占用云端额度）。\n\n确定现在签到吗？"
         else
-            "将立即触发 $displayName 全部账号的云端签到\n并等待执行完成。\n\n确定现在签到吗？"
+            "将触发 $displayName 全部账号的云端签到\n（在 GitHub Actions 上运行，会占用云端额度）。\n\n确定现在签到吗？"
         val dlg = MaterialAlertDialogBuilder(this)
             .setView(view)
             .create()
@@ -1552,6 +1563,79 @@ class MainActivity : AppCompatActivity() {
         }
         view.findViewById<View>(R.id.btnCancelCheckin).setOnClickListener { dlg.dismiss() }
         dlg.show()
+    }
+
+    /**
+     * 本地签到确认框 —— 与云端完全无关，直接在手机上请求各渠道签到接口。
+     * 不读写云端文件、不触发 workflow、不消耗 GitHub 额度。
+     */
+    private fun showLocalCheckinConfirmDialog(platform: String) {
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_confirm_checkin, null)
+        val displayName = LocalCheckinService.displayName(platform)
+        view.findViewById<TextView>(R.id.tvConfirmTitle).text = "本地签到 · $displayName"
+        view.findViewById<TextView>(R.id.tvConfirmDesc).text =
+            "将直接用本机网络请求 $displayName 的签到接口，\n" +
+            "对全部账号各签一次。\n\n" +
+            "✓ 不经过云端，不触发 GitHub Actions\n" +
+            "✓ 不消耗云端运行额度\n" +
+            "✓ 结果记入「本地签到日志」\n\n" +
+            "确定现在本地签到吗？"
+        val dlg = MaterialAlertDialogBuilder(this)
+            .setView(view)
+            .create()
+        dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        applyDialogBlur(dlg)
+        view.findViewById<View>(R.id.btnConfirmCheckin).setOnClickListener {
+            dlg.dismiss()
+            runLocalCheckin(platform)
+        }
+        view.findViewById<View>(R.id.btnCancelCheckin).setOnClickListener { dlg.dismiss() }
+        dlg.show()
+    }
+
+    /** 执行本地签到：后台跑，完成后弹出结果汇总 */
+    private fun runLocalCheckin(platform: String) {
+        val displayName = LocalCheckinService.displayName(platform)
+        Toast.makeText(this, "正在本地签到 $displayName ...", Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            val results = withContext(Dispatchers.IO) {
+                runCatching { LocalCheckinService.run(this@MainActivity, platform) }
+                    .getOrDefault(emptyList())
+            }
+            if (results.isEmpty()) {
+                Toast.makeText(this@MainActivity, "本地签到未执行：$displayName 暂无账号", Toast.LENGTH_LONG).show()
+                updateChannelCards()
+                return@launch
+            }
+            val okCount = results.count { it.status == "成功" }
+            val alreadyCount = results.count { it.status == "已签到" }
+            val failCount = results.count { it.status == "失败" }
+            val earned = results.sumOf { it.earned }
+            val summary = buildString {
+                append("$displayName 本地签到完成\n\n")
+                append("成功 $okCount · 已签到 $alreadyCount · 失败 $failCount")
+                if (earned > 0) append("\n共获得 $earned")
+                append("\n\n")
+                for (r in results) {
+                    val icon = when (r.status) {
+                        "成功" -> "✓"
+                        "已签到" -> "·"
+                        else -> "✗"
+                    }
+                    append("$icon ${r.account}：${r.detail}\n")
+                }
+            }.trimEnd()
+            MaterialAlertDialogBuilder(this@MainActivity)
+                .setTitle("本地签到结果")
+                .setMessage(summary)
+                .setPositiveButton("查看日志") { _, _ ->
+                    showLocalCheckinLogs()
+                }
+                .setNegativeButton("知道了", null)
+                .show()
+            updateChannelCards()
+            refreshAccountCredits(true)
+        }
     }
 
     /** 单独设置某个平台的签到时间（后操作优先：只覆盖该平台，不影响其他平台） */
@@ -4238,6 +4322,84 @@ private fun showGithubDialog() {
         btnClose.setOnClickListener { dlg.dismiss() }
         view.findViewById<View>(R.id.btnLogsCloseX)?.setOnClickListener { dlg.dismiss() }
         dlg.setOnShowListener { renderLocal() }
+        dlg.show()
+    }
+
+    /**
+     * 本地签到日志：只显示 isCheckin = true 的记录，按渠道分组。
+     * 与「签到日志」（云端 sign_logs.json）是两套数据，互不混杂。
+     */
+    private fun showLocalCheckinLogs() {
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_logs, null)
+        val tv = view.findViewById<TextView>(R.id.tvLogsContent)
+        // 本弹窗专看本地签到，隐藏云端切换页，避免与云端日志混淆
+        val tabLocal = view.findViewById<TextView>(R.id.btnLogsLocalTab)
+        val tabCloud = view.findViewById<TextView>(R.id.btnLogsCloudTab)
+        tabCloud.visibility = View.GONE
+        tabLocal.setBackgroundResource(R.drawable.bg_tab_on)
+        tabLocal.setTextColor(resources.getColor(R.color.terminal_green))
+        tabLocal.text = "本地签到日志"
+
+        val cGreen = ContextCompat.getColor(this, R.color.terminal_green)
+        val cYellow = ContextCompat.getColor(this, R.color.terminal_yellow)
+        val cRed = ContextCompat.getColor(this, R.color.error_red)
+        val cGray = ContextCompat.getColor(this, R.color.terminal_gray)
+        val cCyan = ContextCompat.getColor(this, R.color.terminal_cyan)
+        val cPurple = ContextCompat.getColor(this, R.color.terminal_purple)
+
+        fun render() {
+            val all = logStore.load().filter { it.isCheckin }
+            if (all.isEmpty()) {
+                val sp = SpannableString("$ 暂无本地签到记录\n\n# 点任一渠道卡片的「本地签到」即可在本机签到\n# 结果会自动记录到这里")
+                sp.setSpan(ForegroundColorSpan(cYellow), 0, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                tv.text = sp
+                return
+            }
+            val sb = SpannableStringBuilder()
+            // 按渠道分组，保持固定顺序
+            val order = listOf("trae", "buddy", "qodercn", "loomy", "lobsterai")
+            var total = 0
+            for (p in order) {
+                val list = all.filter { it.platform == p }
+                if (list.isEmpty()) continue
+                val title = "# ${LocalCheckinService.displayName(p)} (${list.size} 条)\n"
+                val ts = SpannableString(title)
+                ts.setSpan(ForegroundColorSpan(cCyan), 0, ts.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sb.append(ts)
+                for (log in list) {
+                    val dotColor = if (log.result == "成功") cGreen else if (log.result == "失败") cRed else cPurple
+                    val bodyColor = when {
+                        log.result == "失败" -> cRed
+                        log.earned > 0 -> cGreen
+                        else -> cPurple
+                    }
+                    val t = formatTime(log.time)
+                    val body = if (log.earned > 0) "${log.detail}" else log.detail.ifBlank { log.account }
+                    val sp = SpannableString("● [$t] $body\n")
+                    sp.setSpan(ForegroundColorSpan(dotColor), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    sp.setSpan(ForegroundColorSpan(cGray), 3, 3 + t.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    sp.setSpan(ForegroundColorSpan(bodyColor), 3 + t.length + 2, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    sb.append(sp)
+                }
+                sb.append("\n")
+                total += list.size
+            }
+            // 清空按钮由底部清空入口统一处理；这里只展示
+            val foot = SpannableString("# 共 $total 条本地签到记录")
+            foot.setSpan(ForegroundColorSpan(cGray), 0, foot.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sb.append(foot)
+            tv.text = sb
+        }
+
+        val dlg = MaterialAlertDialogBuilder(this)
+            .setView(view)
+            .create()
+        dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        applyDialogBlur(dlg)
+        tabLocal.setOnClickListener { render() }
+        view.findViewById<View>(R.id.btnLogsClose)?.setOnClickListener { dlg.dismiss() }
+        view.findViewById<View>(R.id.btnLogsCloseX)?.setOnClickListener { dlg.dismiss() }
+        dlg.setOnShowListener { render() }
         dlg.show()
     }
 

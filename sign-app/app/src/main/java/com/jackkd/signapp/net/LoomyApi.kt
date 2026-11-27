@@ -215,6 +215,68 @@ class LoomyApi {
         }
     }
 
+    // ---------------- 本地签到（对齐云端 loomy_checkin_multi.py） ----------------
+
+    /** 本地签到结果 */
+    sealed class CheckinResult {
+        data class Ok(val earned: Long, val note: String) : CheckinResult()
+        data class Already(val note: String) : CheckinResult()
+        object AuthFailed : CheckinResult()
+        data class Failed(val note: String) : CheckinResult()
+    }
+
+    /**
+     * 本地签到（完全不经过云端）。
+     * 对齐云端脚本：POST {CREDITS_BASE}/points/first-login，头带 token，body "{}"。
+     * 成功判定：code == "000000"；data.alreadyProcessed == true 表示今日已领。
+     * 新发放额度 = dailyQuota - dailyConsumed。
+     */
+    fun checkinLocal(cred: LoomyCredentials): CheckinResult {
+        val token = cred.token()
+        if (token.isBlank()) return CheckinResult.AuthFailed
+        val req = Request.Builder()
+            .url(CREDITS_BASE + "/points/first-login")
+            .post("{}".toRequestBody(jsonMedia))
+            .addHeader("accept", "application/json")
+            .addHeader("content-type", "application/json")
+            .addHeader("token", token)
+            .build()
+        return try {
+            client.newCall(req).execute().use { resp ->
+                val body = resp.body?.string().orEmpty()
+                if (resp.code in 401..403) return CheckinResult.AuthFailed
+                if (resp.code != 200 && resp.code != 201) {
+                    return CheckinResult.Failed("签到请求失败(HTTP ${resp.code})" + if (body.isNotBlank()) "：${body.take(120)}" else "")
+                }
+                val obj = try { JsonParser.parseString(body).asJsonObject } catch (e: Exception) { null }
+                    ?: return CheckinResult.Failed("签到响应不是 JSON")
+                val code = str(obj, "code")
+                if (code.isNotBlank() && code != OK_CODE) {
+                    return CheckinResult.Failed("上游 $code ${str(obj, "desc").take(60)}".trim())
+                }
+                val data = obj.getAsJsonObject("data") ?: return CheckinResult.Failed("响应里没有 data")
+                val already = data.has("alreadyProcessed") && data.get("alreadyProcessed").isJsonPrimitive &&
+                        runCatching { data.get("alreadyProcessed").asBoolean }.getOrDefault(false)
+                val quota = num(data, "dailyQuota")
+                val consumed = num(data, "dailyConsumed")
+                val balance = num(data, "dailyBalance")
+                if (already) {
+                    val q = if (quota != null) "每日 ${(balance ?: 0.0).toLong()}/${quota.toLong()}" else "今日额度已初始化"
+                    return CheckinResult.Already("今日已领（$q）")
+                }
+                val granted: Long = when {
+                    quota != null && consumed != null -> Math.max(0.0, quota - consumed).toLong()
+                    quota != null -> quota.toLong()
+                    else -> 0L
+                }
+                return if (granted > 0) CheckinResult.Ok(granted, "领取成功 +$granted")
+                else CheckinResult.Already("今日额度已领")
+            }
+        } catch (e: Exception) {
+            CheckinResult.Failed("网络异常：" + (e.message ?: "未知").take(100))
+        }
+    }
+
     private fun str(o: JsonObject, key: String): String {
         val e = o.get(key) ?: return ""
         if (e.isJsonNull || !e.isJsonPrimitive) return ""

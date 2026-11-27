@@ -1437,10 +1437,23 @@
                     android:layout_weight="1"
                     android:background="@drawable/bg_btn_gradient"
                     android:gravity="center"
-                    android:padding="10dp"
-                    android:text="立即签到TRAE"
+                    android:padding="9dp"
+                    android:text="云端签到 TRAE"
                     android:textColor="@color/white"
-                    android:textSize="14sp" />
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/btnLocalTrae"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_btn_local"
+                    android:gravity="center"
+                    android:padding="9dp"
+                    android:text="本地签到 TRAE"
+                    android:textColor="@color/white"
+                    android:textSize="12sp" />
             </LinearLayout>
 
             <TextView
@@ -2129,10 +2142,23 @@
                     android:layout_weight="1"
                     android:background="@drawable/bg_btn_gradient"
                     android:gravity="center"
-                    android:padding="10dp"
-                    android:text="立即签到WB"
+                    android:padding="9dp"
+                    android:text="云端签到 WB"
                     android:textColor="@color/white"
-                    android:textSize="14sp" />
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/btnLocalWb"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_btn_local"
+                    android:gravity="center"
+                    android:padding="9dp"
+                    android:text="本地签到 WorkBuddy"
+                    android:textColor="@color/white"
+                    android:textSize="12sp" />
             </LinearLayout>
 
             <TextView
@@ -2225,10 +2251,23 @@
                     android:layout_weight="1"
                     android:background="@drawable/bg_btn_gradient"
                     android:gravity="center"
-                    android:padding="10dp"
-                    android:text="立即签到Qoder"
+                    android:padding="9dp"
+                    android:text="云端签到 Qoder"
                     android:textColor="@color/white"
-                    android:textSize="14sp" />
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/btnLocalQc"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_btn_local"
+                    android:gravity="center"
+                    android:padding="9dp"
+                    android:text="本地签到 Qoder"
+                    android:textColor="@color/white"
+                    android:textSize="12sp" />
             </LinearLayout>
 
             <TextView
@@ -2321,10 +2360,23 @@
                     android:layout_weight="1"
                     android:background="@drawable/bg_btn_gradient"
                     android:gravity="center"
-                    android:padding="10dp"
-                    android:text="立即签到Loomy"
+                    android:padding="9dp"
+                    android:text="云端签到 Loomy"
                     android:textColor="@color/white"
-                    android:textSize="14sp" />
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/btnLocalLoomy"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_btn_local"
+                    android:gravity="center"
+                    android:padding="9dp"
+                    android:text="本地签到 Loomy"
+                    android:textColor="@color/white"
+                    android:textSize="12sp" />
             </LinearLayout>
 
             <TextView
@@ -2416,10 +2468,23 @@
                     android:layout_weight="1"
                     android:background="@drawable/bg_btn_gradient"
                     android:gravity="center"
-                    android:padding="10dp"
-                    android:text="立即签到 LobsterAI"
+                    android:padding="9dp"
+                    android:text="云端签到 Lobster"
                     android:textColor="@color/white"
-                    android:textSize="14sp" />
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/btnLocalLobster"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_btn_local"
+                    android:gravity="center"
+                    android:padding="9dp"
+                    android:text="本地签到 LobsterAI"
+                    android:textColor="@color/white"
+                    android:textSize="12sp" />
             </LinearLayout>
 
             <TextView

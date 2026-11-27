@@ -163,8 +163,16 @@ fun jwtExpiryMs(token: String): Long? {
 }
 
 /** 渲染凭证到期行；返回是否显示 */
-fun renderTokenExpiry(tv: android.widget.TextView, token: String) {
-    val exp = jwtExpiryMs(token) ?: run { tv.visibility = android.view.View.GONE; return }
+fun renderTokenExpiry(tv: android.widget.TextView, token: String, knownExpiresAt: Long = 0L) {
+    // 到期时间来源优先级：
+    //   ① 凭证自带的 expires_at（毫秒）—— Qoder 中国版 / Loomy / LobsterAI 都有，最可靠
+    //   ② access_token 是 JWT 时解出来的 exp —— TRAE / WorkBuddy 走这条
+    //   ③ 都没有 → 不显示该行（不编造到期时间）
+    // knownExpiresAt 传的是秒级老值时折成毫秒，避免手动导入的老数据落到 1970 被判过期。
+    val known = if (knownExpiresAt > 0L && knownExpiresAt < 10_000_000_000L) knownExpiresAt * 1000L else knownExpiresAt
+    val exp = (if (known > 0L) known else null)
+        ?: jwtExpiryMs(token)
+        ?: run { tv.visibility = android.view.View.GONE; return }
     tv.visibility = android.view.View.VISIBLE
     val remain = exp - System.currentTimeMillis()
     val remainDays = remain / 86400000.0
@@ -2572,11 +2580,14 @@ private fun showGithubDialog() {
                     val acc = LoomyAccount(
                         id = "cloud_loomy_" + (ua.userId.ifBlank { ua.uid.ifBlank { ua.label } }),
                         label = ua.label.ifBlank { (ua.nickname.ifBlank { ua.phone.ifBlank { "Loomy" } }) },
+                        // 同下拉刷新：云端不带 expires_at，沿用本机已知值，读不到就留 0（不显示）
                         credentials = LoomyCredentials(
                             accessToken = ua.accessToken,
                             userId = ua.userId.ifBlank { ua.uid },
                             phone = ua.phone,
-                            nickname = ua.nickname
+                            nickname = ua.nickname,
+                            expiresAt = loomyAccountStore.findByUid(ua.userId.ifBlank { ua.uid })
+                                ?.credentials?.expiresAt ?: 0L
                         )
                     )
                     loomyAccountStore.addOrUpdate(acc)
@@ -3750,11 +3761,15 @@ private fun showGithubDialog() {
                         val acc = LoomyAccount(
                             id = "cloud_loomy_" + (ua.userId.ifBlank { ua.uid.ifBlank { ua.label } }),
                             label = ua.label.ifBlank { (ua.nickname.ifBlank { ua.phone.ifBlank { "Loomy" } }) },
+                            // Loomy 云端文件不带 expires_at：能读到就沿用本机已记下的到期时间，
+                            // 读不到就留 0（=未知，不显示），绝不凭空推算一个到期日。
                             credentials = LoomyCredentials(
                                 accessToken = ua.accessToken,
                                 userId = ua.userId.ifBlank { ua.uid },
                                 phone = ua.phone,
-                                nickname = ua.nickname
+                                nickname = ua.nickname,
+                                expiresAt = loomyAccountStore.findByUid(ua.userId.ifBlank { ua.uid })
+                                    ?.credentials?.expiresAt ?: 0L
                             )
                         )
                         loomyAccountStore.addOrUpdate(acc)
@@ -4377,8 +4392,8 @@ private fun showGithubDialog() {
         var creditsTrae: Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>>? = null
         var creditsWb: Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>>? = null
         var creditsQc: Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>>? = null
-        var creditsLoomy: Pair<HashMap<String, String>, HashMap<String, Int>>? = null
-        var creditsLobster: Pair<HashMap<String, String>, HashMap<String, Int>>? = null
+        var creditsLoomy: Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>>? = null
+        var creditsLobster: Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>>? = null
         var titleTrae: String? = null
         var titleWb: String? = null
         var titleQc: String? = null
@@ -4707,12 +4722,13 @@ class QoderCnAccountAdapter(
         tvCredits.text = credits[acc.id] ?: "当前积分 --"
         val clr = colors[acc.id]
         tvCredits.setTextColor(if (clr != null && clr != 0) ContextCompat.getColor(holder.root.context, clr) else themePrimary(holder.root.context))
+        // Qoder 中国版的 access_token 是不透明串（非 JWT），到期时间只能来自凭证里的 expiresAt
         if (expired[acc.id] == true) {
             tvExpiry.visibility = View.VISIBLE
             tvExpiry.setTextColor(ContextCompat.getColor(holder.root.context, R.color.error_red))
             tvExpiry.text = "凭证已过期"
         } else {
-            renderTokenExpiry(tvExpiry, acc.credentials.accessToken)
+            renderTokenExpiry(tvExpiry, acc.credentials.accessToken, acc.credentials.expiresAt)
         }
         holder.root.setOnClickListener { onDetail(acc) }
         btnDel.setOnClickListener { onDelete(acc) }
@@ -4731,17 +4747,22 @@ class LoomyAccountAdapter(
     fun accountCount(): Int = items.size
     private val credits = HashMap<String, String>()
     private val colors = HashMap<String, Int>()
+    private val expired = HashMap<String, Boolean>()   // accountId -> 凭证已失效标记
 
-    /** 主题切换重建前快照：积分/颜色（Loomy 无过期标记；restoreCredits 对应恢复） */
-    fun snapshotCredits(): Pair<HashMap<String, String>, HashMap<String, Int>> =
-        Pair(HashMap(credits), HashMap(colors))
+    /** 主题切换重建前快照：积分/颜色/失效标记（restoreCredits 对应恢复） */
+    fun snapshotCredits(): Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>> =
+        Triple(HashMap(credits), HashMap(colors), HashMap(expired))
 
     /** 重建后恢复积分显示（只回填 map，不触发生效判定等云端逻辑） */
-    fun restoreCredits(snap: Pair<HashMap<String, String>, HashMap<String, Int>>) {
+    fun restoreCredits(snap: Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>>) {
         credits.putAll(snap.first)
         colors.putAll(snap.second)
+        expired.putAll(snap.third)
         notifyDataSetChanged()
     }
+
+    /** 首页卡片汇总：过期（凭证失效）账号数 */
+    fun expiredCount(): Int = expired.values.count { it }
 
     /** 首页卡片汇总：总积分 = 解析积分文本数字求和；null = 尚无有效数据（显示 --） */
     fun sumCredits(): Double? {
@@ -4768,6 +4789,7 @@ class LoomyAccountAdapter(
     fun setCredits(accountId: String, text: String, colorRes: Int = 0, tokenExpired: Boolean = false) {
         credits[accountId] = text
         colors[accountId] = colorRes
+        expired[accountId] = tokenExpired
         val idx = items.indexOfFirst { it.id == accountId }
         if (idx >= 0) notifyItemChanged(idx)
     }
@@ -4793,8 +4815,15 @@ class LoomyAccountAdapter(
         tvCredits.text = credits[acc.id] ?: "当前积分 --"
         val clr = colors[acc.id]
         tvCredits.setTextColor(if (clr != null && clr != 0) ContextCompat.getColor(holder.root.context, clr) else themePrimary(holder.root.context))
-        // Loomy 凭证永不过期（非 JWT），不显示到期行
-        tvExpiry.visibility = View.GONE
+        // Loomy 的 session 是服务端按 expire=1209600（14 天）签发的，会过期。
+        // 到期时间优先用凭证里的 expiresAt（登录/导入时写入），缺失时回落解 JWT。
+        if (expired[acc.id] == true) {
+            tvExpiry.visibility = View.VISIBLE
+            tvExpiry.setTextColor(ContextCompat.getColor(holder.root.context, R.color.error_red))
+            tvExpiry.text = "凭证已过期"
+        } else {
+            renderTokenExpiry(tvExpiry, acc.credentials.accessToken, acc.credentials.expiresAt)
+        }
         holder.root.setOnClickListener { onDetail(acc) }
         btnDel.setOnClickListener { onDelete(acc) }
     }
@@ -4812,17 +4841,22 @@ class LobsteraiAccountAdapter(
     private var items: List<LobsteraiAccount> = emptyList()
     private val credits = HashMap<String, String>()
     private val colors = HashMap<String, Int>()
+    private val expired = HashMap<String, Boolean>()   // accountId -> 凭证已失效标记
 
     fun accountCount(): Int = items.size
 
-    fun snapshotCredits(): Pair<HashMap<String, String>, HashMap<String, Int>> =
-        Pair(HashMap(credits), HashMap(colors))
+    fun snapshotCredits(): Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>> =
+        Triple(HashMap(credits), HashMap(colors), HashMap(expired))
 
-    fun restoreCredits(snap: Pair<HashMap<String, String>, HashMap<String, Int>>) {
+    fun restoreCredits(snap: Triple<HashMap<String, String>, HashMap<String, Int>, HashMap<String, Boolean>>) {
         credits.putAll(snap.first)
         colors.putAll(snap.second)
+        expired.putAll(snap.third)
         notifyDataSetChanged()
     }
+
+    /** 首页卡片汇总：过期（凭证失效）账号数 */
+    fun expiredCount(): Int = expired.values.count { it }
 
     fun sumCredits(): Double? {
         if (items.isEmpty()) return 0.0
@@ -4847,6 +4881,7 @@ class LobsteraiAccountAdapter(
     fun setCredits(accountId: String, text: String, colorRes: Int = 0, tokenExpired: Boolean = false) {
         credits[accountId] = text
         colors[accountId] = colorRes
+        expired[accountId] = tokenExpired
         val idx = items.indexOfFirst { it.id == accountId }
         if (idx >= 0) notifyItemChanged(idx)
     }
@@ -4873,14 +4908,14 @@ class LobsteraiAccountAdapter(
         tvCredits.text = credits[acc.id] ?: "当前积分 --"
         val clr = colors[acc.id]
         tvCredits.setTextColor(if (clr != null && clr != 0) ContextCompat.getColor(holder.root.context, clr) else themePrimary(holder.root.context))
-        // access_token 是 JWT，有明确到期时间：过期了就标红提示重新登录
-        val exp = acc.credentials.expiresAt
-        if (exp > 0 && exp < System.currentTimeMillis()) {
+        // access_token 是 JWT（exp 有值），同时云端也带 expires_at：优先用凭证自带的，
+        // 缺失时回落到解 JWT。与 TRAE / WorkBuddy 同一套文案（已过期/今天到期/N 天后/到期日）。
+        if (expired[acc.id] == true) {
             tvExpiry.visibility = View.VISIBLE
-            tvExpiry.text = "凭证已过期"
             tvExpiry.setTextColor(ContextCompat.getColor(holder.root.context, R.color.error_red))
+            tvExpiry.text = "凭证已过期"
         } else {
-            tvExpiry.visibility = View.GONE
+            renderTokenExpiry(tvExpiry, acc.credentials.accessToken, acc.credentials.expiresAt)
         }
         holder.root.setOnClickListener { onDetail(acc) }
         btnDel.setOnClickListener { onDelete(acc) }

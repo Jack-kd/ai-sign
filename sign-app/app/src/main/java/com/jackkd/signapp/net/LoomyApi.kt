@@ -80,10 +80,13 @@ class LoomyApi {
         val userId = str(data, "userid")
         if (session.isBlank()) throw RuntimeException("登录响应缺少 session")
         if (userId.isBlank()) throw RuntimeException("登录响应缺少 userid")
+        // session 由服务端按上面请求里的 expire=SESSION_TTL_SECONDS（14 天）签发，
+        // 这里按同一 TTL 记下到期时刻（毫秒），列表页据此显示「凭证到期」。
         return LoomyCredentials(
             accessToken = session,
             userId = userId,
-            phone = phone
+            phone = phone,
+            expiresAt = System.currentTimeMillis() + SESSION_TTL_SECONDS * 1000L
         )
     }
 

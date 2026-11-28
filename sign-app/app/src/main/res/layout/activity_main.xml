@@ -1453,7 +1453,8 @@
                     android:padding="9dp"
                     android:text="本地签到 TRAE"
                     android:textColor="@color/white"
-                    android:textSize="12sp" />
+                    android:textSize="12sp"
+                    android:singleLine="true" />
             </LinearLayout>
 
             <TextView
@@ -2156,9 +2157,10 @@
                     android:background="@drawable/bg_btn_local"
                     android:gravity="center"
                     android:padding="9dp"
-                    android:text="本地签到 WorkBuddy"
+                    android:text="本地签到 WB"
                     android:textColor="@color/white"
-                    android:textSize="12sp" />
+                    android:textSize="12sp"
+                    android:singleLine="true" />
             </LinearLayout>
 
             <TextView
@@ -2267,7 +2269,8 @@
                     android:padding="9dp"
                     android:text="本地签到 Qoder"
                     android:textColor="@color/white"
-                    android:textSize="12sp" />
+                    android:textSize="12sp"
+                    android:singleLine="true" />
             </LinearLayout>
 
             <TextView
@@ -2376,7 +2379,8 @@
                     android:padding="9dp"
                     android:text="本地签到 Loomy"
                     android:textColor="@color/white"
-                    android:textSize="12sp" />
+                    android:textSize="12sp"
+                    android:singleLine="true" />
             </LinearLayout>
 
             <TextView
@@ -2482,9 +2486,10 @@
                     android:background="@drawable/bg_btn_local"
                     android:gravity="center"
                     android:padding="9dp"
-                    android:text="本地签到 LobsterAI"
+                    android:text="本地签到 Lobster"
                     android:textColor="@color/white"
-                    android:textSize="12sp" />
+                    android:textSize="12sp"
+                    android:singleLine="true" />
             </LinearLayout>
 
             <TextView

@@ -517,6 +517,66 @@ public final class QoderCnGateway {
         return "{\"error\":{\"message\":\"" + esc + "\",\"type\":\"" + type + "\"}}";
     }
 
+    /**
+     * 拉取 Qoder 中国版模型目录（动态，替代写死清单）。
+     *
+     * GET https://gateway.qoder.com.cn/algo/api/v2/model/list?Encode=1
+     * 用 WASM 签名（COSY 头），返回明文 JSON 的 chat 场景数组，每项含 key/display_name/
+     * price_factor/is_vl/max_input_tokens。解析成 /v1/models 风格的 JSONArray：
+     *   id = key，name = display_name · x{price_factor}，并带上视觉/上下文/倍率字段
+     * 供 mergeWithStaticModels / OpenAiChannelGateway 使用。
+     *
+     * @return 模型 JSONArray；失败返回空数组（调用方回退静态表）
+     */
+    public JsonArray fetchModels(String uid, String token, String machineId) {
+        if (uid == null || uid.isEmpty() || token == null || token.isEmpty()) return new JsonArray();
+        QoderCnSigner.Signed signed = signer.signGet(uid, token, machineId);
+        Request.Builder rb = new Request.Builder().url(signed.url).get();
+        for (Map.Entry<String, String> e : signed.headers.entrySet()) rb.header(e.getKey(), e.getValue());
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(20, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build();
+        try (okhttp3.Response resp = client.newCall(rb.build()).execute()) {
+            if (!resp.isSuccessful()) return new JsonArray();
+            String text = resp.body() != null ? resp.body().string() : "";
+            JsonObject root = JsonParser.parseString(text).getAsJsonObject();
+            if (!root.has("chat") || !root.getAsJsonArray("chat").isJsonArray()) return new JsonArray();
+            JsonArray chat = root.getAsJsonArray("chat");
+            JsonArray out = new JsonArray();
+            for (JsonElement el : chat) {
+                if (!el.isJsonObject()) continue;
+                JsonObject m = el.getAsJsonObject();
+                String key = optString(m, "key");
+                if (key.isEmpty()) key = optString(m, "model_key");
+                if (key.isEmpty()) continue;
+                String name = optString(m, "display_name");
+                if (name.isEmpty()) name = key;
+                double factor = 1.0;
+                if (m.has("price_factor") && m.get("price_factor").isJsonPrimitive()) {
+                    try { factor = m.get("price_factor").getAsDouble(); } catch (Exception ignored) { }
+                }
+                JsonObject item = new JsonObject();
+                item.addProperty("id", key);
+                // 显示名带倍率后缀，与静态表格式一致（软件侧展示用）
+                item.addProperty("name", name + " \u00b7 x" + formatFactor(factor));
+                item.addProperty("cost", factor);
+                item.addProperty("vision", m.has("is_vl") && m.get("is_vl").isJsonPrimitive() && m.get("is_vl").getAsBoolean());
+                if (m.has("max_input_tokens") && m.get("max_input_tokens").isJsonPrimitive()) {
+                    try { item.addProperty("contextWindow", m.get("max_input_tokens").getAsLong()); } catch (Exception ignored) { }
+                }
+                out.add(item);
+            }
+            return out;
+        } catch (Exception e) {
+            return new JsonArray();
+        }
+    }
+
+    /** 倍率格式化：整数不带小数点（x1 而非 x1.0），小数最多 2 位 */
+    private static String formatFactor(double f) {
+        if (Math.abs(f - Math.rint(f)) < 1e-9) return String.valueOf((long) Math.rint(f));
+        return String.format(java.util.Locale.US, "%.2f", f).replaceAll("0+$", "").replaceAll("\\.$", "");
+    }
+
     private static String safeText(ResponseBody b) {
         try {
             return b.string();

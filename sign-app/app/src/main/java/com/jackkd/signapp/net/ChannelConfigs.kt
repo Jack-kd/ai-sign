@@ -97,30 +97,36 @@ object ChannelConfigs {
         baseUrl = "https://gateway.qoder.com.cn",
         chatPath = "/algo/api/v2/service/pro/sse/agent_chat_generation",
         extraHeaders = emptyMap(),
-        // 显示名后的 xN 是**实测**相对成本倍率（基准 q37fmodel = x1.0，
-        // 按各模型真实返回的 credits / total_tokens 折算成每千 token 单价后相比）
+        // 2026-11-28：Qoder 中国版已接入动态拉取（WASM 签名 GET /algo/api/v2/model/list?Encode=1），
+        // 下面只是**兜底清单**（上游挂了才用）。倍率/显示名按远端 chat 目录实测校正，
+        // 与动态拉取后的展示保持一致（远端 price_factor，q37fmodel 旧基准 x1.0 已废弃）。
         models = listOf(
-            "mmodel" to "MiniMax-M2.7 · x0.3",
-            "q37fmodel" to "Qwen3.7-Flash · x1.0",
-            "auto" to "Auto 自动选择 · x1.8",
-            "gfmodel" to "GLM-5.3-Flash · x3.6",
-            "dfmodel" to "DeepSeek-Flash · x4.0",
-            "qmodel_38max" to "Qwen3.8-Max · x11",
-            "dmodel" to "DeepSeek-V4-Pro · x11",
-            "gmodel" to "GLM-5.3 · x16",
-            "gm51model" to "GLM-5.2 · x41",
-            "kmodel" to "Kimi-K2.8-Preview · x41",
-            "kmodel_latest" to "Kimi-K3 · x81",
+            "auto" to "Auto · x0.3",
+            "qmodel_latest" to "Qwen4-Max · x0.4",
+            "qmodel_38max" to "Qwen3.8-Max · x0.5",
+            "qfmodel" to "Qwen3.8-Flash · x0.1",
+            "dmodel" to "DeepSeek-V4-Pro · x0.5",
+            "dfmodel" to "DeepSeek-Flash · x0.1",
+            "gmodel_latest" to "GLM-5.4 · x0.8",
+            "gmodel" to "GLM-5.3 · x0.8",
+            "gfmodel" to "GLM-5.3-Flash · x0.1",
+            "kmodel_latest" to "Kimi-K3.1-Pro · x1.0",
+            "kmodel" to "Kimi-K2.8-Preview · x0.8",
+            "jmodel" to "Step-5-Preview · x0.3",
+            "mmodel" to "MiniMax-M3.1-Flash · x0.1",
+            // 远端已下架但实测仍可对话，保留（沿用旧倍率兜底）
+            "qmodel" to "Qwen · x0.04",
+            "q37fmodel" to "Qwen3.7-Flash · x0.1",
+            "gm51model" to "GLM-5.2 · x0.6",
         ),
-        // Qoder 中国版全部模型 is_vl:false（实测），不支持识图；
-        // 上下文：qfmodel/dfmodel/dmodel 1M，mmodel/auto 200K
+        // 上下文：auto/mmodel 200K，其余 1M（按远端 max_input_tokens）
         contextWindows = mapOf(
-            "mmodel" to 200_000, "auto" to 200_000,
-            "q37fmodel" to 1_000_000, "gfmodel" to 1_000_000,
-            "dfmodel" to 1_000_000, "qmodel_38max" to 1_000_000,
-            "dmodel" to 1_000_000, "gmodel" to 1_000_000,
-            "gm51model" to 1_000_000, "kmodel" to 1_000_000,
-            "kmodel_latest" to 1_000_000,
+            "auto" to 200_000, "mmodel" to 1_000_000,
+            "qmodel_latest" to 1_000_000, "qmodel_38max" to 1_000_000,
+            "qfmodel" to 1_000_000, "dmodel" to 1_000_000, "dfmodel" to 1_000_000,
+            "gmodel_latest" to 200_000, "gmodel" to 1_000_000, "gfmodel" to 1_000_000,
+            "kmodel_latest" to 1_000_000, "kmodel" to 1_000_000, "jmodel" to 1_000_000,
+            "qmodel" to 1_000_000, "q37fmodel" to 1_000_000, "gm51model" to 1_000_000,
         ),
         // 8790 端口只服务本渠道：模型 id 用裸 key（q37fmodel / dmodel…），不加 qodercn/ 前缀
         prefixModelIds = false,

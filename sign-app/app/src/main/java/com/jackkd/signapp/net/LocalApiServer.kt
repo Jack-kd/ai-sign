@@ -592,7 +592,7 @@ class LocalApiServer(
             GatewayStore.CH_BUDDY -> ChannelConfigs.BUDDY.toModelsArray()
             // Qoder 中国版没有公开的模型清单接口（模型 key 是私有命名，固定 11 个），
             // 直接用静态表 —— 也是唯一能保证「8790 上只出现本渠道模型」的做法
-            GatewayStore.CH_QODERCN -> ChannelConfigs.QODERCN.toModelsArray()
+            GatewayStore.CH_QODERCN -> fetchQoderCnModelsFromAccount()
             GatewayStore.CH_LOBSTERAI -> ChannelConfigs.LOBSTERAI.toModelsArray()
             else -> defaultTraeModels()
         }
@@ -644,7 +644,7 @@ class LocalApiServer(
             val arr = when (defaultChannelKey) {
                 GatewayStore.CH_LOOMY -> fetchLoomyModelsFromAccount()
                 GatewayStore.CH_BUDDY -> fetchBuddyModelsFromAccount()
-                GatewayStore.CH_QODERCN -> ChannelConfigs.QODERCN.toModelsArray()
+                GatewayStore.CH_QODERCN -> fetchQoderCnModelsFromAccount()
                 GatewayStore.CH_LOBSTERAI -> fetchLobsteraiModelsFromAccount()
                 else -> fetchTraeModelsFromAccount()
             }
@@ -673,8 +673,8 @@ class LocalApiServer(
                 val arr = when (defaultChannelKey) {
                     GatewayStore.CH_LOOMY -> fetchLoomyModelsFromAccount()
                     GatewayStore.CH_BUDDY -> fetchBuddyModelsFromAccount()
-                    // Qoder 中国版模型 key 固定（无清单接口），不走上游拉取
-                    GatewayStore.CH_QODERCN -> ChannelConfigs.QODERCN.toModelsArray()
+                    // Qoder 中国版已找到 WASM 签名模型目录端点，动态拉取（跨天刷新）
+                    GatewayStore.CH_QODERCN -> fetchQoderCnModelsFromAccount()
                     GatewayStore.CH_LOBSTERAI -> fetchLobsteraiModelsFromAccount()
                     else -> fetchTraeModelsFromAccount()
                 }
@@ -750,6 +750,39 @@ class LocalApiServer(
             Log.w(tag, "[lobsterai] 账号 ${acc.label} 未拉到模型（${LobsteraiApi.lastError}），换下一个")
         }
         return JSONArray()
+    }
+
+    /**
+     * Qoder 中国版模型目录：用 WASM 签名的 GET /algo/api/v2/model/list?Encode=1 动态拉取。
+     * 依次试所有可用账号，第一个拉到非空表就用它；上游少返回的模型用静态表补回。
+     * 失败返回空数组，由调用方回退静态表。
+     */
+    private fun fetchQoderCnModelsFromAccount(): org.json.JSONArray {
+        val store2 = qoderCnStore ?: return org.json.JSONArray()
+        val wasm = qoderCnWasm
+        if (wasm == null || wasm.isEmpty()) return org.json.JSONArray()
+        val accs = store2.load().filter { it.credentials.isComplete() }
+        if (accs.isEmpty()) return org.json.JSONArray()
+        val gateway = QoderCnGateway(wasm)
+        for (acc in accs) {
+            try {
+                val arr = gateway.fetchModels(
+                    acc.credentials.uid,
+                    acc.credentials.accessToken,
+                    acc.credentials.machineId,
+                )
+                if (arr.size() > 0) {
+                    // Gson JsonArray → org.json JSONArray：逐条搬运，避免 toString 二次解析丢失字段类型
+                    val ja = org.json.JSONArray()
+                    for (i in 0 until arr.size()) ja.put(org.json.JSONObject(arr[i].toString()))
+                    return mergeWithStaticModels(ja, ChannelConfigs.QODERCN.toModelsArray())
+                }
+                Log.w(tag, "[qodercn] 账号 ${acc.label} 未拉到模型，换下一个")
+            } catch (e: Exception) {
+                Log.w(tag, "[qodercn] 账号 ${acc.label} 拉模型失败: ${e.message}")
+            }
+        }
+        return org.json.JSONArray()
     }
 
     /**

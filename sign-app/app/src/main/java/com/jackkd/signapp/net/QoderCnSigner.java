@@ -208,6 +208,111 @@ final class QoderCnSigner {
         return new Signed(url, headers, body);
     }
 
+    /**
+     * 签名一次「拉模型目录」的 GET 请求。
+     *
+     * Qoder 中国版模型清单没有公开 /v1/models，但有 WASM 签名的私有端点：
+     *   GET https://gateway.qoder.com.cn/algo/api/v2/model/list?Encode=1
+     * 鉴权是 prepareRequest 生成的 18 个 COSY 头（普通 Bearer 会被拒）。
+     *
+     * 与 sign() 共用前两步（auth fields + context），第三步换成
+     * qodercontext_prepareRequest(host, path, GET, auth, 0, 0)。
+     * 实测该 WASM 胶水下 prepareRequest 的 url/body 读出来是空（null pointer），
+     * 只取 headers，URL 由调用方自己拼（host + /algo + path）。
+     *
+     * @param uid        账号 uid
+     * @param token      security_oauth_token / access_token
+     * @param machineId  设备标识
+     * @return Signed（url 已拼好，headers 是 COSY 头；body 为空）
+     */
+    Signed signGet(String uid, String token, String machineId) {
+        if (uid == null || uid.isEmpty()) {
+            throw new IllegalArgumentException("Qoder 中国版缺少 uid");
+        }
+        if (token == null || token.isEmpty()) {
+            throw new IllegalArgumentException("Qoder 中国版缺少 access_token");
+        }
+        final String mid = (machineId == null || machineId.isEmpty())
+                ? UUID.randomUUID().toString().replace("-", "") : machineId;
+
+        QoderWasmGlue g = new QoderWasmGlue(wasmBytes);
+        Instance inst = g.instance();
+
+        // ---- 1. auth fields ----
+        JsonObject user = new JsonObject();
+        user.addProperty("uid", uid);
+        user.addProperty("security_oauth_token", token);
+        user.addProperty("organization_id", "");
+        user.add("organization_tags", new JsonArray());
+        user.addProperty("data_policy_agreed", false);
+        String raw = g.callString(sp -> {
+            int p = g.writeString(user.toString());
+            inst.export("generate_runtime_auth_fields").apply(sp, p, g.lastLength());
+        });
+        JsonObject af = JsonParser.parseString(raw).getAsJsonObject();
+        String encryptUserInfo = af.has("encrypt_user_info") ? af.get("encrypt_user_info").getAsString() : "";
+        String key = af.has("key") ? af.get("key").getAsString() : "";
+
+        // ---- 2. context ----
+        JsonObject info = new JsonObject();
+        info.addProperty("uid", uid);
+        info.addProperty("encrypt_user_info", encryptUserInfo);
+        info.addProperty("key", key);
+        info.addProperty("organization_id", "");
+        info.add("organization_tags", new JsonArray());
+        info.addProperty("data_policy_agreed", false);
+        JsonObject meta = new JsonObject();
+        meta.addProperty("client_type", "5");
+        meta.addProperty("business_product", "cli");
+        meta.addProperty("business_type", "agent");
+        meta.addProperty("scene", "assistant");
+        final String host = GATEWAY_HOST;
+        final String path = "/api/v2/model/list?Encode=1";
+
+        int context = g.callPointer(sp -> {
+            int mp = g.writeString(mid);
+            int ml = g.lastLength();
+            int vp = g.writeString(COSY_VERSION);
+            int vl = g.lastLength();
+            int ip = g.writeString(info.toString());
+            int il = g.lastLength();
+            int tp = g.writeString(meta.toString());
+            int tl = g.lastLength();
+            inst.export("qodercontext_new").apply(sp, mp, ml, vp, vl, ip, il, tp, tl);
+        });
+
+        // ---- 3. prepareRequest(GET, auth) ----
+        try {
+            int result = g.callPointer(sp -> {
+                int ep = g.writeString(host);
+                int el = g.lastLength();
+                int pp = g.writeString(path);
+                int pl = g.lastLength();
+                int mp2 = g.writeString("GET");
+                int ml2 = g.lastLength();
+                int mo = g.writeString("auth");
+                int mol = g.lastLength();
+                inst.export("qodercontext_prepareRequest")
+                        .apply(sp, context, ep, el, pp, pl, mp2, ml2, mo, mol, 0, 0, 0, 0);
+            });
+            long[] hmRaw = inst.export("requestresult_headers").apply(result);
+            Object hm = g.takeObject((int) hmRaw[0]);
+            Map<String, String> headers = new LinkedHashMap<>();
+            if (hm instanceof QoderWasmGlue.MapObj) {
+                for (Map.Entry<Object, Object> e : ((QoderWasmGlue.MapObj) hm).m.entrySet()) {
+                    headers.put(String.valueOf(e.getKey()), String.valueOf(e.getValue()));
+                }
+            }
+            boolean hasAuth = headers.containsKey("Authorization") || headers.containsKey("authorization");
+            if (!hasAuth) throw new IllegalStateException("Qoder 中国版签名失败：WASM 没生成 Authorization 头");
+            // WASM 的 url 读出来是空，自己拼（host + /algo + path）
+            String url = host + "/algo" + path;
+            return new Signed(url, headers, "");
+        } finally {
+            try { inst.export("qodercontext_free").apply(context); } catch (Throwable ignored) { }
+        }
+    }
+
     // ---------------- payload ----------------
 
     /**

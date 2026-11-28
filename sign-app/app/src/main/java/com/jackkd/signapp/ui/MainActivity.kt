@@ -991,6 +991,7 @@ class MainActivity : AppCompatActivity() {
     /** 网关未运行时的静态回退表 */
     private fun staticModelsOf(channel: String): List<ModelRow> {
         val cfg = when (channel) {
+            GatewayStore.CH_TRAE -> ChannelConfigs.TRAE
             GatewayStore.CH_QODERCN -> ChannelConfigs.QODERCN
             GatewayStore.CH_LOOMY -> ChannelConfigs.LOOMY
             GatewayStore.CH_BUDDY -> ChannelConfigs.BUDDY

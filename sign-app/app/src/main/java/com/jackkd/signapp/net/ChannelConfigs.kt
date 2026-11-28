@@ -16,6 +16,46 @@ package com.jackkd.signapp.net
  */
 object ChannelConfigs {
 
+    /**
+     * TRAE 静态兜底清单（网关没启动时用，保证 API 页也能看到模型）。
+     *
+     * TRAE 的模型本来是运行时从上游 /api/ide/v1/get_detail_param 动态拉的
+     * （存在网关进程内存里），网关一停就没了。其他渠道在 ChannelConfigs 里有
+     * 静态表兜底，TRAE 没有 —— 于是首次登录云端账号、网关还没启动时，
+     * 别的渠道能显示模型，TRAE 却显示「暂无」，刷新还提示网关未启动。
+     *
+     * 这 15 个是 traework2api 实测过滤后的官方内置可直呼模型
+     * （config_source==1、非 custom、非 invisible），与「模型中转」插件的
+     * TRAE 预设同源，逐个验证过能回话。倍率/上下文上游才给，这里不编造。
+     */
+    val TRAE: OpenAiChannelConfig = OpenAiChannelConfig(
+        prefix = "trae",
+        ownedBy = "trae",
+        baseUrl = "https://trae-api-cn.mchost.guru",
+        chatPath = "/api/agent/v3/llm_utils_chat",
+        extraHeaders = emptyMap(),
+        models = listOf(
+            "Doubao-Seed-2.1-Turbo" to "Doubao-Seed-2.1-Turbo",
+            "Doubao-Seed-2.1-Pro" to "Doubao-Seed-2.1-Pro",
+            "Doubao-Seed-Evolving" to "Doubao-Seed-Evolving",
+            "glm-5.3-flash" to "glm-5.3-flash",
+            "glm-5.3-flashx" to "glm-5.3-flashx",
+            "glm-5.3" to "glm-5.3",
+            "deepseek-v4.1-flash" to "deepseek-v4.1-flash",
+            "DeepSeek-V4-Pro-Official" to "DeepSeek-V4-Pro-Official",
+            "kimi-k3" to "kimi-k3",
+            "mimo-v2.6-flash" to "mimo-v2.6-flash",
+            "mimo-v2.6-pro" to "mimo-v2.6-pro",
+            "minimax-m3.1-flash" to "minimax-m3.1-flash",
+            "minimax-m3" to "minimax-m3",
+            "step-5-preview" to "step-5-preview",
+            "qwen3.8-max" to "qwen3.8-max",
+        ),
+        // TRAE 模型 id 用裸名（网关 8787 只服务本渠道，不加 trae/ 前缀）
+        prefixModelIds = false,
+    )
+
+
     // ---------- Loomy（讯飞） ----------
 
     val LOOMY: OpenAiChannelConfig = OpenAiChannelConfig(

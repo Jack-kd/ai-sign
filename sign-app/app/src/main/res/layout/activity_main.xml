@@ -1806,6 +1806,17 @@
                             android:textStyle="bold" />
                     </LinearLayout>
 
+                    <!-- 长按复制提示（卡片上部，标题行下方） -->
+                    <TextView
+                        android:id="@+id/tvModelTip"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="长按任意模型可复制模型名"
+                        android:textColor="@color/gray"
+                        android:textSize="11sp"
+                        android:visibility="gone" />
+
                     <!-- 一级展开按钮（默认收起，点开显示前几个） -->
                     <LinearLayout
                         android:id="@+id/rowModelToggle"
@@ -1840,17 +1851,6 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:orientation="vertical"
-                        android:visibility="gone" />
-
-                    <!-- 长按复制提示（全局一条，避免每行重复） -->
-                    <TextView
-                        android:id="@+id/tvModelTip"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:text="长按任意模型可复制模型名"
-                        android:textColor="@color/gray"
-                        android:textSize="11sp"
                         android:visibility="gone" />
 
                     <!-- 二级展开：显示全部 -->
